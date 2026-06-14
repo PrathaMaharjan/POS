@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import {  refreshTokens } from "@/db/schema";
+import { refreshTokens } from "@/db/schema";
 import { verifyPassword } from "@/lib/auth/password";
-import { signAccessToken, signRefreshToken, getRefreshExpiryDate } from "@/lib/auth/jwt";
+import {
+  signAccessToken,
+  signRefreshToken,
+  getRefreshExpiryDate,
+} from "@/lib/auth/jwt";
 import { hashToken } from "@/lib/auth/hashtoken";
-
 
 const schema = z.object({
   email: z.string().email(),
@@ -17,18 +20,29 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
   const { email, password } = parsed.data;
+  console.log(email,password)
 
   const user = await db.query.users.findFirst({
     where: (u, { eq }) => eq(u.email, email),
-    with :{ organization : true }
+    with: { organization: true },
   });
 
   if (!user || !user.isActive) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+  }
+
+  if (!user.emailVerified) {
+    return NextResponse.json(
+      { error: "Please verify your email before logging in" },
+      { status: 403 },
+    );
   }
 
   const valid = await verifyPassword(password, user.passwordHash);
@@ -58,10 +72,17 @@ export async function POST(req: NextRequest) {
 
   const [tokenRecord] = await db
     .insert(refreshTokens)
-    .values({ userId: user.id, tokenHash: "pending", expiresAt: getRefreshExpiryDate() })
+    .values({
+      userId: user.id,
+      tokenHash: "pending",
+      expiresAt: getRefreshExpiryDate(),
+    })
     .returning();
 
-  const refreshToken = signRefreshToken({ userId: user.id, tokenId: tokenRecord.id });
+  const refreshToken = signRefreshToken({
+    userId: user.id,
+    tokenId: tokenRecord.id,
+  });
 
   await db
     .update(refreshTokens)
@@ -76,9 +97,12 @@ export async function POST(req: NextRequest) {
       email: user.email,
       isOwner: user.isOwner,
       organizationId: user.organizationId,
-      slug : user.organization.slug
+      slug: user.organization.slug,
     },
-    outlets: userOutletRows.map((uo) => ({ id: uo.outlet.id, name: uo.outlet.name })),
+    outlets: userOutletRows.map((uo) => ({
+      id: uo.outlet.id,
+      name: uo.outlet.name,
+    })),
     activeOutletId,
     requiresOutletSelection: userOutletRows.length > 1,
   });

@@ -35,10 +35,21 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   isOwner: boolean("is_owner").default(false).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
+  emailVerified: boolean("email_verified").default(false).notNull(), // <-- new
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const emailVerificationTokens = pgTable("email_verification_tokens", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userid: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tokenhash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 export const outlets = pgTable("outlets", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
