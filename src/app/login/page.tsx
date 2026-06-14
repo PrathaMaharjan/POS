@@ -1,12 +1,11 @@
 "use client";
-
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import Link from "next/link";
 import Navbar from "../components/Navbar";
-import { signIn } from "@/lib/auth-client";
+// import { signIn } from "@/lib/auth-client";
 
 export default function LoginPage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -28,33 +27,36 @@ export default function LoginPage() {
     });
   }, { scope: containerRef });
 
-  async function handleSubmit(e: React.FormEvent) {
+   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
-      const { error: signInError, data } = await signIn.email({
-        email: form.email,
-        password: form.password,
+
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+        }),
       });
 
-      if (signInError) {
-        setError(signInError.message ?? "Login failed");
+      const data = await res.json();
+      if (!res.ok) {
+        // Our route returns { error: "..." } for 409s, or { error: <zod flatten> } for 400s
+        const message =
+          typeof data.error === "string"
+            ? data.error
+            : "Failed to create your account";
+        setError(message);
         setLoading(false);
         return;
       }
 
-      // Get the tenant slug from the session to redirect correctly
-      const sessionRes = await fetch("/api/auth/get-session");
-      const session = await sessionRes.json();
-
-      const slug = session?.user?.name
-        ?.toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(/[^a-z0-9-]/g, "");
-
-      router.push(`/t/${slug}/dashboard`);
+   
+   router.push(`/t/${data.user.slug}/dashboard`);
 
     } catch (err) {
       setError("Something went wrong. Please try again.");

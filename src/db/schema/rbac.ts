@@ -1,101 +1,87 @@
-import { pgTable, text, boolean, timestamp, unique } from "drizzle-orm/pg-core";
-// import {  tenant, tenantUser } from "./tenancy";
-import { location, tenant, tenantUser } from "./tenancy";
+import { pgTable, uuid, varchar, timestamp, unique } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { organizations, users, outlets } from "./core";
 
-export const module = pgTable("module", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull().unique(),
-  label: text("label").notNull(), // "Point of Sale"
-  description: text("description"),
-  isActive: boolean("is_active").notNull().default(true),
-});
-
-export const permission = pgTable("permission", {
-  id: text("id").primaryKey(),
-  moduleId: text("module_id")
-    .notNull()
-    .references(() => module.id, { onDelete: "cascade" }),
-  action: text("action").notNull(), // create | read | update | delete | manage
-  resource: text("resource").notNull(), // sale | product | inventory | etc.
-  label: text("label"), // human-readable: "Create Sale"
-});
-
-export const role = pgTable(
-  "role",
+export const permissions = pgTable(
+  "permissions",
   {
-    id: text("id").primaryKey(),
-    tenantId: text("tenant_id")
-      .notNull()
-      .references(() => tenant.id, { onDelete: "cascade" }),
-    name: text("name").notNull(), // "Owner" | "Manager" | "Cashier"
-    isSystem: boolean("is_system").notNull().default(false), // system roles cannot be deleted
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    id: uuid("id").defaultRandom().primaryKey(),
+    module: varchar("module", { length: 50 }).notNull(),
+    resource: varchar("resource", { length: 50 }).notNull(),
+    action: varchar("action", { length: 20 }).notNull(),
+    code: varchar("code", { length: 150 }).notNull().unique(),
   },
-  (t) => [unique("unique_role_per_tenant").on(t.tenantId, t.name)],
+  (t) => ({
+    uq: unique().on(t.module, t.resource, t.action),
+  })
 );
 
-export const rolePermission = pgTable(
-  "role_permission",
-  {
-    id: text("id").primaryKey(),
-    roleId: text("role_id")
-      .notNull()
-      .references(() => role.id, { onDelete: "cascade" }),
-    permissionId: text("permission_id")
-      .notNull()
-      .references(() => permission.id, { onDelete: "cascade" }),
-  },
-  (t) => [unique("unique_role_permission").on(t.roleId, t.permissionId)],
-);
-
-export const userRole = pgTable("user_role", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => tenantUser.id, { onDelete: "cascade" }),
-  roleId: text("role_id")
-    .notNull()
-    .references(() => role.id, { onDelete: "cascade" }),
-  locationId: text("location_id").references(() => location.id, {
+export const roles = pgTable("roles", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").references(() => organizations.id, {
     onDelete: "cascade",
-  }), // null = all locations
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
+  }),
+  name: varchar("name", { length: 100 }).notNull(),
+  isSystem: varchar("is_system", { length: 10 }).default("false").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// relation
-export const roleRelationx = relations(role, ({ one, many }) => ({
-  tenant: one(tenant, { fields: [role.tenantId], references: [tenant.id] }),
-  rolePermission: many(rolePermission),
-  userRole: many(userRole),
+export const rolePermissions = pgTable(
+  "role_permissions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    roleId: uuid("role_id")
+      .notNull()
+      .references(() => roles.id, { onDelete: "cascade" }),
+    permissionId: uuid("permission_id")
+      .notNull()
+      .references(() => permissions.id, { onDelete: "cascade" }),
+  },
+  (t) => ({
+    uq: unique().on(t.roleId, t.permissionId),
+  })
+);
+
+export const userOutletRoles = pgTable(
+  "user_outlet_roles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    outletId: uuid("outlet_id")
+      .notNull()
+      .references(() => outlets.id, { onDelete: "cascade" }),
+    roleId: uuid("role_id")
+      .notNull()
+      .references(() => roles.id, { onDelete: "cascade" }),
+  },
+  (t) => ({
+    uq: unique().on(t.userId, t.outletId),
+  })
+);
+
+export const rolesRelations = relations(roles, ({ many, one }) => ({
+  organization: one(organizations, {
+    fields: [roles.organizationId],
+    references: [organizations.id],
+  }),
+  rolePermissions: many(rolePermissions),
 }));
-export const rolePermissionRelations = relations(rolePermission, ({ one }) => ({
-  role: one(role, { fields: [rolePermission.roleId], references: [role.id] }),
-  permission: one(permission, {
-    fields: [rolePermission.permissionId],
-    references: [permission.id],
+
+export const rolePermissionsRelations = relations(rolePermissions, ({ one }) => ({
+  role: one(roles, { fields: [rolePermissions.roleId], references: [roles.id] }),
+  permission: one(permissions, {
+    fields: [rolePermissions.permissionId],
+    references: [permissions.id],
   }),
 }));
 
-export const userRoleRelations = relations(userRole, ({ one }) => ({
-  user: one(tenantUser, {
-    fields: [userRole.userId],
-    references: [tenantUser.id],
+export const userOutletRolesRelations = relations(userOutletRoles, ({ one }) => ({
+  user: one(users, { fields: [userOutletRoles.userId], references: [users.id] }),
+  outlet: one(outlets, {
+    fields: [userOutletRoles.outletId],
+    references: [outlets.id],
   }),
-  role: one(role, { fields: [userRole.roleId], references: [role.id] }),
-  location: one(location, {
-    fields: [userRole.locationId],
-    references: [location.id],
-  }),
+  role: one(roles, { fields: [userOutletRoles.roleId], references: [roles.id] }),
 }));
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-export type Module = typeof module.$inferSelect;
-export type Permission = typeof permission.$inferSelect;
-export type Role = typeof role.$inferSelect;
-export type NewRole = typeof role.$inferInsert;
-export type UserRole = typeof userRole.$inferSelect;

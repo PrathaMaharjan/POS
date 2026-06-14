@@ -6,7 +6,6 @@ import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import Link from "next/link";
 import Navbar from "../components/Navbar";
-import { signUp, organization } from "@/lib/auth-client";
 
 export default function SignupPage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -17,20 +16,24 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
+    organizationName: "",
     name: "",
     email: "",
     password: "",
   });
 
-  useGSAP(() => {
-    gsap.from(".fade-in", {
-      opacity: 0,
-      y: 20,
-      duration: 1.2,
-      stagger: 0.08,
-      ease: "power3.out",
-    });
-  }, { scope: containerRef });
+  useGSAP(
+    () => {
+      gsap.from(".fade-in", {
+        opacity: 0,
+        y: 20,
+        duration: 1.2,
+        stagger: 0.08,
+        ease: "power3.out",
+      });
+    },
+    { scope: containerRef },
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,47 +41,41 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-  
-      const { error: signUpError } = await signUp.email({
-        name: form.name,
-        email: form.email,
-        password: form.password,
-      });
-
-      if (signUpError) {
-        setError(signUpError.message ?? "Signup failed");
-        setLoading(false);
-        return;
-      }
-
-      const slug = form.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-      const { error: orgError } = await organization.create({
-        name: form.name,
-        slug,
-      });
-
-      if (orgError) {
-        setError(orgError.message ?? "Failed to create organization");
-        setLoading(false);
-        return;
-      }
-
-      const res = await fetch("/api/onboarding/bootstrap", {
+      // Single call to our custom register route.
+      // Slug is auto-generated server-side from organizationName,
+      // so no client-side slugify is needed.
+      const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name, slug }),
+        body: JSON.stringify({
+          organizationName: form.organizationName,
+          ownerName: form.name,
+          email: form.email,
+          password: form.password,
+        }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error ?? "Failed to set up your workspace");
+        // Our route returns { error: "..." } for 409s, or { error: <zod flatten> } for 400s
+        const message =
+          typeof data.error === "string"
+            ? data.error
+            : "Failed to create your account";
+        setError(message);
         setLoading(false);
         return;
       }
 
-   
-router.push(`/t/${slug}/dashboard`);
+      // Registration does NOT create a session (JWT login is a separate step),
+      // so send the user to the login page to sign in.
+      router.push("/login");
 
+      // --- Alternative: auto-login right after registering ---
+      // Instead of redirecting to /login, you could immediately call
+      // /api/auth/login with the same email/password, store the returned
+      // accessToken, and then router.push(`/t/${data.organization.slug}/dashboard`).
     } catch (err) {
       setError("Something went wrong. Please try again.");
       setLoading(false);
@@ -92,7 +89,6 @@ router.push(`/t/${slug}/dashboard`);
     >
       <Navbar />
       <div className="w-full max-w-md space-y-10">
-
         <div className="space-y-2">
           <h1 className="text-center fade-in text-5xl font-light tracking-tight text-white uppercase leading-tight">
             Sign Up
@@ -100,12 +96,27 @@ router.push(`/t/${slug}/dashboard`);
         </div>
 
         <form className="space-y-6" onSubmit={handleSubmit}>
-
           {error && (
             <div className="text-red-400 text-sm text-center border border-red-800 py-2 px-4 rounded">
               {error}
             </div>
           )}
+
+          <div className="fade-in space-y-2">
+            <label className="text-xs uppercase tracking-[0.2em] text-zinc-500 font-normal block">
+              Organization Name
+            </label>
+            <input
+              type="text"
+              placeholder="Enter your organization name"
+              value={form.organizationName}
+              onChange={(e) =>
+                setForm({ ...form, organizationName: e.target.value })
+              }
+              required
+              className="w-full bg-transparent border-b border-zinc-800 focus:border-white outline-none py-3 text-sm text-white placeholder-zinc-700 transition-colors duration-200"
+            />
+          </div>
 
           <div className="fade-in space-y-2">
             <label className="text-xs uppercase tracking-[0.2em] text-zinc-500 font-normal block">
@@ -154,15 +165,31 @@ router.push(`/t/${slug}/dashboard`);
                 className="absolute right-0 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-300 transition-colors"
               >
                 {showPassword ? (
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
                   </svg>
                 ) : (
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
                   </svg>
                 )}
               </button>
@@ -178,16 +205,17 @@ router.push(`/t/${slug}/dashboard`);
               {loading ? "Setting up..." : "Sign up"}
             </button>
           </div>
-
         </form>
 
         <p className="text-center fade-in text-sm text-zinc-600">
           Already have an account?{" "}
-          <Link href="/login" className="text-white hover:underline transition-all">
+          <Link
+            href="/login"
+            className="text-white hover:underline transition-all"
+          >
             Login
           </Link>
         </p>
-
       </div>
     </div>
   );
