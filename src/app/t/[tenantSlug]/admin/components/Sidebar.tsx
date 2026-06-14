@@ -13,6 +13,7 @@ export default function Sidebar({ tenantSlug }: SidebarProps) {
     { name: "Customers", href: `/t/${tenantSlug}/customers` },
     { name: "Reports", href: `/t/${tenantSlug}/reports` },
     { name: "Staffs", href: `/t/${tenantSlug}/staffs` },
+    { name: "Outlets", href: `/t/${tenantSlug}/outlets` },
     { name: "Settings", href: `/t/${tenantSlug}/settings` },
   ];
 

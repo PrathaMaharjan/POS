@@ -38,7 +38,7 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      // Step 1: Create Better Auth user
+  
       const { error: signUpError } = await signUp.email({
         name: form.name,
         email: form.email,
@@ -51,7 +51,6 @@ export default function SignupPage() {
         return;
       }
 
-      // Step 2: Create Better Auth organization (slug = lowercased name)
       const slug = form.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
       const { error: orgError } = await organization.create({
         name: form.name,
@@ -64,7 +63,6 @@ export default function SignupPage() {
         return;
       }
 
-      // Step 3: Bootstrap tenant in your custom tables
       const res = await fetch("/api/onboarding/bootstrap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

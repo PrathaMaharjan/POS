@@ -1,0 +1,443 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
+type TicketState = 'PENDING' | 'PREPARING' | 'DONE';
+type OrderType = 'TAKEAWAY' | 'DINE_IN';
+
+interface KitchenItem {
+  name: string;
+  quantity: number;
+  notes?: string;
+}
+
+interface KitchenOrder {
+  id: number;
+  orderNumber: number;
+  type: OrderType;
+  tableName?: string | null;
+  items: KitchenItem[];
+  minutesElapsed: number;
+  ticketState: TicketState;
+}
+
+const MOCK_KITCHEN_ORDERS: KitchenOrder[] = [
+  {
+    id: 1, orderNumber: 1014, type: 'DINE_IN', tableName: 'T-04', minutesElapsed: 3, ticketState: 'PENDING',
+    items: [{ name: 'Cappuccino', quantity: 2 }, { name: 'Club Sandwich', quantity: 2, notes: 'No mayo' }, { name: 'Cappuccino', quantity: 2 }],
+  },
+  {
+    id: 2, orderNumber: 1015, type: 'TAKEAWAY', minutesElapsed: 14, ticketState: 'PREPARING',
+    items: [{ name: 'Americano', quantity: 3 }, { name: 'Croissant', quantity: 1 }],
+  },
+  {
+    id: 3, orderNumber: 1016, type: 'DINE_IN', tableName: 'T-01', minutesElapsed: 1, ticketState: 'PENDING',
+    items: [{ name: 'Latte', quantity: 1 }, { name: 'Brownie', quantity: 2, notes: 'Warm up' }],
+  },
+  {
+    id: 4, orderNumber: 1011, type: 'DINE_IN', tableName: 'T-10', minutesElapsed: 22, ticketState: 'DONE',
+    items: [{ name: 'Masala Chai', quantity: 3 }, { name: 'Brownie', quantity: 1 }],
+  },
+  {
+    id: 5, orderNumber: 1017, type: 'TAKEAWAY', minutesElapsed: 6, ticketState: 'PENDING',
+    items: [{ name: 'Flat White', quantity: 1 }, { name: 'Avocado Toast', quantity: 2, notes: 'Extra chili' }],
+  },
+  {
+    id: 6, orderNumber: 1018, type: 'DINE_IN', tableName: 'T-07', minutesElapsed: 9, ticketState: 'PREPARING',
+    items: [{ name: 'Espresso', quantity: 2 }, { name: 'Cheesecake', quantity: 1 }],
+  },
+  {
+    id: 9, orderNumber: 1019, type: 'DINE_IN', tableName: 'T-01', minutesElapsed: 1, ticketState: 'PENDING',
+    items: [{ name: 'Latte', quantity: 1 }, { name: 'Brownie', quantity: 2, notes: 'Warm up' }],
+  },
+];
+
+const ROTATIONS: Record<number, string> = {
+  1: '-rotate-[0.8deg]',
+  2: 'rotate-[0.5deg]',
+  3: '-rotate-[1.2deg]',
+  4: 'rotate-[0.9deg]',
+  5: '-rotate-[0.4deg]',
+  6: 'rotate-[1.1deg]',
+  9: '-rotate-[0.6deg]',
+};
+
+const COLUMNS: { state: TicketState; label: string; headerBg: string; countBg: string }[] = [
+  {
+    state: 'PENDING',
+    label: 'New Orders',
+    headerBg: 'bg-[#e5b83b]/8 border-[#e5b83b]/15',
+    countBg: 'bg-[#e5b83b]/15 text-[#e5b83b] border-[#e5b83b]/25',
+  },
+  {
+    state: 'PREPARING',
+    label: 'Preparing',
+    headerBg: 'bg-blue-500/8 border-blue-500/15',
+    countBg: 'bg-blue-500/15 text-blue-400 border-blue-500/25',
+  },
+  {
+    state: 'DONE',
+    label: 'Ready to Serve',
+    headerBg: 'bg-[#22c55e]/8 border-[#22c55e]/15',
+    countBg: 'bg-[#22c55e]/15 text-[#4ade80] border-[#22c55e]/25',
+  },
+];
+
+function LiveClock() {
+  const [time, setTime] = useState('');
+  useEffect(() => {
+    const update = () =>
+      setTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return <span>{time}</span>;
+}
+
+function OrderModal({ order, onClose, onPreparing, onDone }: {
+  order: KitchenOrder;
+  onClose: () => void;
+  onPreparing: (id: number) => void;
+  onDone: (id: number) => void;
+}) {
+  const isUrgent = order.minutesElapsed >= 10;
+  const label = order.type === 'TAKEAWAY' ? 'Take away' : order.tableName;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[#1c1c1f] rounded-2xl border border-[#3f3f46] w-full max-w-sm mx-4 overflow-hidden shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className={`px-5 pt-4 pb-3.5 border-b border-[#27272a] ${
+          order.ticketState === 'DONE'
+            ? 'bg-[#22c55e]/15'
+            : order.ticketState === 'PREPARING'
+            ? 'bg-blue-500/15'
+            : isUrgent
+            ? 'bg-red-500/15'
+            : 'bg-[#27272a]/60'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-[16px] font-black text-white">#{order.orderNumber}</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                order.type === 'TAKEAWAY'
+                  ? 'bg-[#e5b83b]/10 text-[#e5b83b] border-[#e5b83b]/25'
+                  : 'bg-blue-500/10 text-blue-400 border-blue-500/25'
+              }`}>
+                {label}
+              </span>
+              <span className={`text-[11px] font-bold ${isUrgent ? 'text-red-400' : 'text-[#52525b]'}`}>
+                {isUrgent ? `⚠ ${order.minutesElapsed}m` : `${order.minutesElapsed}m`}
+              </span>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#27272a] text-[#71717a] hover:text-white transition-all"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div className="px-5 py-3 flex flex-col">
+          {order.items.map((item, idx, arr) => (
+            <React.Fragment key={idx}>
+              <div className="flex items-center justify-between gap-2 py-2">
+                <span className="text-[13px] font-semibold text-[#d4d4d8] flex-1">{item.name}</span>
+                {item.notes && (
+                  <span className="text-[11px] text-red-400 italic">{item.notes}</span>
+                )}
+                <span className="text-[12px] font-bold text-[#a1a1aa] bg-[#27272a] border border-[#3f3f46] rounded px-2 py-0.5 ml-2 flex-shrink-0">
+                  x{item.quantity}
+                </span>
+              </div>
+              {idx < arr.length - 1 && (
+                <div className="border-t border-dashed border-[#2e2e32]" />
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+
+        <div className="px-5 pb-5 pt-2 flex gap-2">
+          {order.ticketState === 'DONE' ? (
+            <div className="flex-1 py-2.5 rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 text-[#4ade80] text-[12px] font-bold text-center">
+              ✓ Done — awaiting collection
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => { onPreparing(order.id); onClose(); }}
+                className={`flex-1 py-2.5 rounded-xl text-[12px] font-bold transition-all active:scale-[0.97] ${
+                  order.ticketState === 'PREPARING'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-[#27272a] border border-[#3f3f46] text-[#a1a1aa] hover:bg-[#3f3f46]'
+                }`}
+              >
+                {order.ticketState === 'PREPARING' ? '● Preparing' : 'Start Preparing'}
+              </button>
+              <button
+                onClick={() => { onDone(order.id); onClose(); }}
+                className="flex-1 py-2.5 rounded-xl bg-[#22c55e] hover:bg-[#16a34a] text-[#0a1a0f] text-[12px] font-bold transition-all active:scale-[0.97]"
+              >
+                Done
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TicketCard({
+  order,
+  onPreparing,
+  onDone,
+  onOpen,
+}: {
+  order: KitchenOrder;
+  onPreparing: (id: number) => void;
+  onDone: (id: number) => void;
+  onOpen: () => void;
+}) {
+  const isUrgent = order.minutesElapsed >= 10;
+  const label = order.type === 'TAKEAWAY' ? 'Take away' : order.tableName;
+  const rotation = ROTATIONS[order.id] ?? '';
+
+  const stickyBg =
+    order.ticketState === 'DONE'
+      ? 'bg-[#1a2e1f]'
+      : order.ticketState === 'PREPARING'
+      ? 'bg-[#17213a]'
+      : isUrgent
+      ? 'bg-[#2a1a1a]'
+      : 'bg-[#21201a]';
+
+  const tapeBg =
+    order.ticketState === 'DONE'
+      ? 'bg-[#22c55e]/30'
+      : order.ticketState === 'PREPARING'
+      ? 'bg-blue-500/30'
+      : isUrgent
+      ? 'bg-red-500/30'
+      : 'bg-[#e5b83b]/20';
+
+  return (
+    <div
+      className={`${stickyBg} ${rotation} rounded-sm shadow-[2px_4px_16px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden transition-transform hover:scale-[1.02] hover:rotate-0 cursor-pointer`}
+      onClick={onOpen}
+    >
+      {/* Tape strip */}
+      <div className={`h-2 w-full ${tapeBg}`} />
+
+      {/* Shimmer for preparing */}
+      {order.ticketState === 'PREPARING' && (
+        <div className="h-0.5 w-full bg-[#1e2a3a] overflow-hidden">
+          <div
+            className="h-full bg-blue-400/70"
+            style={{ width: '45%', animation: 'shimmer 1.8s ease-in-out infinite' }}
+          />
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="px-3.5 pt-3 pb-2.5 border-b border-white/5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[13px] font-black text-white">#{order.orderNumber}</span>
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+              order.type === 'TAKEAWAY'
+                ? 'bg-[#e5b83b]/10 text-[#e5b83b] border-[#e5b83b]/25'
+                : 'bg-blue-500/10 text-blue-400 border-blue-500/25'
+            }`}>
+              {label}
+            </span>
+          </div>
+          <span className={`text-[10px] font-bold ${isUrgent ? 'text-red-400' : 'text-[#52525b]'}`}>
+            {isUrgent ? `⚠ ${order.minutesElapsed}m` : `${order.minutesElapsed}m`}
+          </span>
+        </div>
+      </div>
+
+      {/* Items */}
+      <div className="px-3.5 py-2 flex flex-col">
+        {order.items.slice(0, 3).map((item, idx, arr) => (
+          <React.Fragment key={idx}>
+            <div className="flex items-center justify-between gap-2 py-1.5">
+              <span className="text-[11px] font-semibold text-[#c4c4c8] flex-1 leading-tight">{item.name}</span>
+              {item.notes && (
+                <span className="text-[9px] text-red-400 italic truncate max-w-[70px]">{item.notes}</span>
+              )}
+              <span className="text-[10px] font-bold text-[#71717a] bg-black/20 border border-white/10 rounded px-1.5 py-0.5 ml-1 flex-shrink-0">
+                x{item.quantity}
+              </span>
+            </div>
+            {idx < arr.length - 1 && (
+              <div className="border-t border-dashed border-white/8 mx-1" />
+            )}
+          </React.Fragment>
+        ))}
+        {order.items.length > 3 && (
+          <p className="text-[10px] text-[#52525b] mt-1 pl-1">+{order.items.length - 3} more — tap to view</p>
+        )}
+      </div>
+
+      {/* Buttons */}
+      <div
+        className="px-3 pb-3 pt-1 mt-auto flex gap-2"
+        onClick={e => e.stopPropagation()}
+      >
+        {order.ticketState === 'DONE' ? (
+          <div className="flex-1 py-1.5 rounded-lg bg-[#22c55e]/10 border border-[#22c55e]/30 text-[#4ade80] text-[10px] font-bold text-center">
+            ✓ Done
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={() => onPreparing(order.id)}
+              className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all active:scale-[0.97] ${
+                order.ticketState === 'PREPARING'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-black/20 border border-white/10 text-[#a1a1aa] hover:bg-black/40'
+              }`}
+            >
+              {order.ticketState === 'PREPARING' ? (
+                <span className="flex items-center justify-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-white animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1 h-1 rounded-full bg-white animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1 h-1 rounded-full bg-white animate-bounce [animation-delay:300ms]" />
+                  <span className="ml-1">Preparing</span>
+                </span>
+              ) : 'Start'}
+            </button>
+            <button
+              onClick={() => onDone(order.id)}
+              className="flex-1 py-1.5 rounded-lg bg-[#22c55e] hover:bg-[#16a34a] text-[#0a1a0f] text-[10px] font-bold transition-all active:scale-[0.97]"
+            >
+              Done
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
+  const router = useRouter();
+  const [orders, setOrders] = useState<KitchenOrder[]>(MOCK_KITCHEN_ORDERS);
+  const [selectedOrder, setSelectedOrder] = useState<KitchenOrder | null>(null);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setOrders(prev =>
+        prev.map(o => o.ticketState !== 'DONE' ? { ...o, minutesElapsed: o.minutesElapsed + 1 } : o)
+      );
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handlePreparing = (id: number) =>
+    setOrders(prev =>
+      prev.map(o =>
+        o.id === id
+          ? { ...o, ticketState: o.ticketState === 'PREPARING' ? 'PENDING' : 'PREPARING' }
+          : o
+      )
+    );
+
+  const handleDone = (id: number) =>
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, ticketState: 'DONE' } : o));
+
+  return (
+    <>
+      <style>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-120%); }
+          100% { transform: translateX(320%); }
+        }
+      `}</style>
+
+      <div className="h-screen bg-[#111113] text-[#e4e4e7] font-sans select-none antialiased flex flex-col">
+
+        {/* Header */}
+        <header className="bg-[#18181b] border-b border-[#27272a] px-6 py-3.5 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <p className="text-[16px] font-bold text-white">Kitchen Display</p>
+            <span className="text-[12px] text-[#52525b] tabular-nums"><LiveClock /></span>
+          </div>
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-1.5 bg-[#27272a] hover:bg-[#3f3f46] border border-[#3f3f46] text-[#a1a1aa] hover:text-white px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Logout
+          </button>
+        </header>
+
+        {/* Kanban columns */}
+        <main className="flex-1 flex gap-4 p-5 overflow-hidden h-full">
+          {COLUMNS.map(col => {
+            const colOrders = orders.filter(o => o.ticketState === col.state);
+            return (
+              <div key={col.state} className="flex flex-col flex-1 min-w-0 min-h-0">
+
+                {/* Column header */}
+                <div className={`flex items-center justify-between px-4 py-3 rounded-xl border mb-4 flex-shrink-0 ${col.headerBg}`}>
+                  <span className="text-[13px] font-bold text-white">{col.label}</span>
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${col.countBg}`}>
+                    {colOrders.length}
+                  </span>
+                </div>
+
+                {/* Scrollable cards */}
+                <div className="flex flex-col gap-4 overflow-y-auto flex-1 pb-2 pr-1" style={{ minHeight: 0 }}>
+                  {colOrders.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-[#3f3f46]">
+                      <svg className="w-7 h-7 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
+                        <path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
+                      </svg>
+                      <p className="text-[11px] font-medium">Nothing here</p>
+                    </div>
+                  ) : (
+                  colOrders.map(order => (
+  <div key={order.id} className="px-2 py-1">
+    <TicketCard
+      order={order}
+      onPreparing={handlePreparing}
+      onDone={handleDone}
+      onOpen={() => setSelectedOrder(order)}
+    />
+  </div>
+))
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </main>
+      </div>
+
+      {/* Modal */}
+      {selectedOrder && (
+        <OrderModal
+          order={orders.find(o => o.id === selectedOrder.id)!}
+          onClose={() => setSelectedOrder(null)}
+          onPreparing={handlePreparing}
+          onDone={handleDone}
+        />
+      )}
+    </>
+  );
+}
