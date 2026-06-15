@@ -8,6 +8,27 @@
       "when": 1781328648359,
       "tag": "0000_third_network",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781412685861,
+      "tag": "0001_sticky_alex_power",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781438607604,
+      "tag": "0002_bouncy_prodigy",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781449547816,
+      "tag": "0003_wild_madame_masque",
+      "breakpoints": true
     }
   ]
 }

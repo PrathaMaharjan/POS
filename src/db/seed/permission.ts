@@ -1,6 +1,6 @@
-import { db } from "..";
-import { permissions, rolePermissions, roles } from "../schema";
-
+import { db } from "../index";
+import { permissions, roles, rolePermissions } from "../schema";
+import { eq } from "drizzle-orm";
 
 const MODULES: Record<string, string[]> = {
   pos: ["billing", "payments", "shift_reports"],
@@ -27,51 +27,118 @@ async function seedPermissions() {
     .onConflictDoNothing()
     .returning();
 
-  console.log(`Seeded ${inserted.length} permissions`);
+  console.log(`Seeded ${inserted.length} new permissions (56 total in catalog)`);
+}
+
+// Find an existing system role by name (org-level template, organizationId = null)
+async function findRoleByName(name: string) {
+  return db.query.roles.findFirst({
+    where: (r, { eq, and, isNull }) => and(eq(r.name, name), isNull(r.organizationId)),
+  });
+}
+
+// Find a role by name, or create it if it doesn't exist
+async function findOrCreateRole(name: string) {
+  const existing = await findRoleByName(name);
+  if (existing) return existing;
+
+  const [created] = await db
+    .insert(roles)
+    .values({ name, organizationId: null, isSystem: "true" })
+    .returning();
+  return created;
+}
+
+// If a role with `oldName` exists, rename it to `newName` and return it.
+// Otherwise, find-or-create a role with `newName`.
+async function renameOrCreateRole(oldName: string, newName: string) {
+  const existingOld = await findRoleByName(oldName);
+  if (existingOld) {
+    const [updated] = await db
+      .update(roles)
+      .set({ name: newName })
+      .where(eq(roles.id, existingOld.id))
+      .returning();
+    return updated;
+  }
+  return findOrCreateRole(newName);
+}
+
+// Replace a role's permission set entirely (idempotent)
+async function setRolePermissions(roleId: string, permissionIds: string[]) {
+  await db.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId));
+  if (permissionIds.length === 0) return;
+  await db.insert(rolePermissions).values(
+    permissionIds.map((permissionId) => ({ roleId, permissionId }))
+  );
+}
+
+function code(p: { module: string; resource: string; action: string }) {
+  return `${p.module}.${p.resource}.${p.action}`;
 }
 
 async function seedSystemRoles() {
   const allPerms = await db.query.permissions.findMany();
+  const byCode = new Map(allPerms.map((p) => [code(p), p.id]));
 
-  // Superadmin - everything
-  const [superadminRole] = await db
-    .insert(roles)
-    .values({ name: "Superadmin", organizationId: null, isSystem: "true" })
-    .returning();
+  const pick = (codes: string[]) =>
+    codes.map((c) => byCode.get(c)).filter((id): id is string => Boolean(id));
 
-  await db.insert(rolePermissions).values(
-    allPerms.map((p) => ({ roleId: superadminRole.id, permissionId: p.id }))
-  ).onConflictDoNothing();
+  // --- 1. Owner (renamed from "Superadmin"): everything ---
+  const owner = await renameOrCreateRole("Superadmin", "Owner");
+  await setRolePermissions(owner.id, allPerms.map((p) => p.id));
 
-  // Admin - everything except core.*.delete
-  const [adminRole] = await db
-    .insert(roles)
-    .values({ name: "Admin", organizationId: null, isSystem: "true" })
-    .returning();
+  // --- 2. Manager (renamed from "Admin"): everything except core.*.delete ---
+  const manager = await renameOrCreateRole("Admin", "Manager");
+  await setRolePermissions(
+    manager.id,
+    allPerms.filter((p) => !(p.module === "core" && p.action === "delete")).map((p) => p.id)
+  );
 
-  await db.insert(rolePermissions).values(
-    allPerms
-      .filter((p) => !(p.module === "core" && p.action === "delete"))
-      .map((p) => ({ roleId: adminRole.id, permissionId: p.id }))
-  ).onConflictDoNothing();
+  // --- 3. Cashier: POS checkout, payments, shift drawer, order history, menu read ---
+  const cashier = await findOrCreateRole("Cashier");
+  await setRolePermissions(
+    cashier.id,
+    pick([
+      "inventory.products.read",
+      "pos.billing.create",
+      "pos.billing.read",
+      "pos.billing.update",
+      "pos.payments.create",
+      "pos.payments.read",
+      "pos.shift_reports.create",
+      "pos.shift_reports.read",
+      "pos.shift_reports.update",
+      "restaurant.tables.read",
+      "restaurant.kot.read",
+      "restaurant.bill_splits.create",
+      "restaurant.bill_splits.read",
+    ])
+  );
 
-  // Cashier - pos create/read, restaurant read
-  const [cashierRole] = await db
-    .insert(roles)
-    .values({ name: "Cashier", organizationId: null, isSystem: "true" })
-    .returning();
+  // --- 4. Waiter: table selection, tableside ordering, KOT creation ---
+  const waiter = await findOrCreateRole("Waiter");
+  await setRolePermissions(
+    waiter.id,
+    pick([
+      "inventory.products.read",
+      "restaurant.tables.read",
+      "restaurant.tables.update",
+      "restaurant.kot.create",
+      "restaurant.kot.read",
+      "pos.billing.create",
+      "pos.billing.read",
+    ])
+  );
 
-  await db.insert(rolePermissions).values(
-    allPerms
-      .filter(
-        (p) =>
-          (p.module === "pos" && ["create", "read"].includes(p.action)) ||
-          (p.module === "restaurant" && p.action === "read")
-      )
-      .map((p) => ({ roleId: cashierRole.id, permissionId: p.id }))
-  ).onConflictDoNothing();
+  // --- 5. Kitchen Crew: KDS board, KOT state transitions only ---
+  const kitchenCrew = await findOrCreateRole("Kitchen Crew");
+  await setRolePermissions(
+    kitchenCrew.id,
+    pick(["restaurant.kot.read", "restaurant.kot.update"])
+  );
 
-  console.log("Seeded system roles: Superadmin, Admin, Cashier");
+  console.log("Seeded system roles: Owner, Manager, Cashier, Waiter, Kitchen Crew");
 }
 
 async function main() {

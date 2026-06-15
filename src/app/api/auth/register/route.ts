@@ -1,6 +1,11 @@
 import { db } from "@/db";
-import { organizations, users } from "@/db/schema";
+import { emailVerificationTokens, organizations, users } from "@/db/schema";
 import { hashPassword } from "@/lib/auth/password";
+import {
+  generateVerificationToken,
+  getVerificationExpiryDate,
+} from "@/lib/auth/verificationToken";
+import { sendVerificationEmail } from "@/lib/email/sendVerificationEmail";
 import { slugify } from "@/utils/slugify";
 import { NextRequest, NextResponse } from "next/server";
 import z, { success } from "zod";
@@ -32,7 +37,9 @@ async function generateUniqueSlug(baseName: string): Promise<string> {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
     const parsed = schema.safeParse(body);
+    // console.log(parsed)
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.flatten() },
@@ -67,8 +74,24 @@ export async function POST(req: NextRequest) {
         email,
         passwordHash,
         isOwner: true,
+        emailVerified: true,
       })
       .returning();
+    // Generate + store verification token
+    const { rawToken, tokenHash } = generateVerificationToken();
+     await db.insert(emailVerificationTokens).values({
+      userid: user.id,
+      tokenhash: tokenHash,
+      expiresAt: getVerificationExpiryDate(),
+    });
+
+    // console.log("data : ",data)
+    // email validation
+    // try {
+    //   await sendVerificationEmail(email, rawToken);
+    // } catch (err) {
+    //   console.error("Failed to send verification email:", err);
+    // }
     return NextResponse.json({
       message: "Organization registered successfully",
       organization: { id: org.id, name: org.name, slug: org.slug },
