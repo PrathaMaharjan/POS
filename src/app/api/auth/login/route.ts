@@ -9,7 +9,10 @@ import {
   signRefreshToken,
   getRefreshExpiryDate,
 } from "@/lib/auth/jwt";
+import { getUserRoleForOutlet } from "@/lib/permissions/getUserPermissions";
 import { hashToken } from "@/lib/auth/hashtoken";
+// import { hashToken } from "@/lib/auth/hashToken";
+// import { getUserPermissionsForOutlet, getUserRoleForOutlet } from "@/lib/permissions/getUserPermissions";
 
 const schema = z.object({
   email: z.string().email(),
@@ -27,7 +30,6 @@ export async function POST(req: NextRequest) {
   }
 
   const { email, password } = parsed.data;
-  // console.log(email,password)
 
   const user = await db.query.users.findFirst({
     where: (u, { eq }) => eq(u.email, email),
@@ -57,10 +59,13 @@ export async function POST(req: NextRequest) {
 
   let activeOutletId: string | null = null;
   let permissions: string[] = [];
+  let role: string | null = null;
 
   if (userOutletRows.length === 1) {
     activeOutletId = userOutletRows[0].outletId;
     // permissions = await getUserPermissionsForOutle(user.id, activeOutletId);
+    const roleRow = await getUserRoleForOutlet(user.id, activeOutletId);
+    role = roleRow?.name ?? null;
   }
 
   const accessToken = signAccessToken({
@@ -68,6 +73,7 @@ export async function POST(req: NextRequest) {
     organizationId: user.organizationId,
     activeOutletId,
     permissions,
+    role,
   });
 
   const [tokenRecord] = await db
@@ -99,6 +105,7 @@ export async function POST(req: NextRequest) {
       organizationId: user.organizationId,
       slug: user.organization.slug,
     },
+    role : role,
     outlets: userOutletRows.map((uo) => ({
       id: uo.outlet.id,
       name: uo.outlet.name,

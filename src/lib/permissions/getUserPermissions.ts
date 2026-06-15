@@ -2,6 +2,8 @@
 // import { userOutletRoles, rolePermissions, permissions } from "@/db/schema";
 // import { eq, and } from "drizzle-orm";
 
+import { db } from "@/db";
+
 // export async function getUserPermissionsForOutlet(
 //   userId: string,
 //   outletId: string
@@ -20,3 +22,12 @@
 
 //   return result.map((r) => r.code);
 // }
+
+export async function getUserRoleForOutlet(userId: string, outletId: string) {
+  const result = await db.query.userOutletRoles.findFirst({
+    where: (uor, { eq, and }) => and(eq(uor.userId, userId), eq(uor.outletId, outletId)),
+    with: { role: true },
+  });
+
+  return result?.role ?? null; // { id, name, organizationId, isSystem } or null
+}
