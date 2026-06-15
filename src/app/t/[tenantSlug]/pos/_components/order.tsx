@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-
+// Import next-door PaymentModal component
 import PaymentModal from './PaymentModal';
 
 const MOCK_CATEGORIES = ['Coffee', 'Tea', 'Snacks', 'Desserts', 'Cold Drinks'];

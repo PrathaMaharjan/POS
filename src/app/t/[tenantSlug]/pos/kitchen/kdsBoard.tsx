@@ -169,9 +169,18 @@ function OrderModal({ order, onClose, onPreparing, onDone }: {
 
         <div className="px-5 pb-5 pt-2 flex gap-2">
           {order.ticketState === 'DONE' ? (
-            <div className="flex-1 py-2.5 rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 text-[#4ade80] text-[12px] font-bold text-center">
-              ✓ Done — awaiting collection
-            </div>
+            <button
+              onClick={() => { onDone(order.id); onClose(); }}
+              className="flex-1 py-2.5 rounded-xl bg-[#22c55e]/10 hover:bg-red-500/10 border border-[#22c55e]/30 hover:border-red-500/30 text-[#4ade80] hover:text-red-400 text-[12px] font-bold text-center transition-all group flex items-center justify-center gap-1"
+            >
+              <span className="group-hover:hidden">✓ Done</span>
+              <span className="hidden group-hover:inline flex items-center gap-1">
+                <svg className="w-3.5 h-3.5 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                </svg>
+                Undo Move
+              </span>
+            </button>
           ) : (
             <>
               <button
@@ -297,9 +306,18 @@ function TicketCard({
         onClick={e => e.stopPropagation()}
       >
         {order.ticketState === 'DONE' ? (
-          <div className="flex-1 py-1.5 rounded-lg bg-[#22c55e]/10 border border-[#22c55e]/30 text-[#4ade80] text-[10px] font-bold text-center">
-            ✓ Done
-          </div>
+          <button
+            onClick={() => onDone(order.id)}
+            className="flex-1 py-1.5 rounded-lg bg-[#22c55e]/10 hover:bg-red-500/10 border border-[#22c55e]/30 hover:border-red-500/30 text-[#4ade80] hover:text-red-400 text-[10px] font-bold text-center transition-all group flex items-center justify-center gap-1"
+          >
+            <span className="group-hover:hidden">✓ Done</span>
+            <span className="hidden group-hover:inline flex items-center gap-1">
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+              </svg>
+              Undo
+            </span>
+          </button>
         ) : (
           <>
             <button
@@ -336,6 +354,8 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
   const router = useRouter();
   const [orders, setOrders] = useState<KitchenOrder[]>(MOCK_KITCHEN_ORDERS);
   const [selectedOrder, setSelectedOrder] = useState<KitchenOrder | null>(null);
+  
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -346,6 +366,26 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (err) {
+      console.error("Failed to transition display layout frames:", err);
+    }
+  };
+
   const handlePreparing = (id: number) =>
     setOrders(prev =>
       prev.map(o =>
@@ -355,8 +395,15 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
       )
     );
 
+
   const handleDone = (id: number) =>
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, ticketState: 'DONE' } : o));
+    setOrders(prev =>
+      prev.map(o =>
+        o.id === id
+          ? { ...o, ticketState: o.ticketState === 'DONE' ? 'PENDING' : 'DONE' }
+          : o
+      )
+    );
 
   return (
     <>
@@ -375,15 +422,40 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
             <p className="text-[16px] font-bold text-white">Kitchen Display</p>
             <span className="text-[12px] text-[#52525b] tabular-nums"><LiveClock /></span>
           </div>
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-1.5 bg-[#27272a] hover:bg-[#3f3f46] border border-[#3f3f46] text-[#a1a1aa] hover:text-white px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all"
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7"/>
-            </svg>
-            Logout
-          </button>
+          
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={toggleFullscreen}
+              className="flex items-center gap-1.5 bg-[#27272a] hover:bg-[#3f3f46] border border-[#3f3f46] text-[#a1a1aa] hover:text-white px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all"
+              title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+            >
+              {isFullscreen ? (
+                <>
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/>
+                  </svg>
+                  Exit Full
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>
+                  </svg>
+                  Fullscreen
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={() => router.back()}
+              className="flex items-center gap-1.5 bg-[#27272a] hover:bg-red-950/40 border border-[#3f3f46] hover:border-red-900/50 text-[#a1a1aa] hover:text-red-400 px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+              </svg>
+              Logout
+            </button>
+          </div>
         </header>
 
         {/* Kanban columns */}
@@ -411,16 +483,16 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
                       <p className="text-[11px] font-medium">Nothing here</p>
                     </div>
                   ) : (
-                  colOrders.map(order => (
-  <div key={order.id} className="px-2 py-1">
-    <TicketCard
-      order={order}
-      onPreparing={handlePreparing}
-      onDone={handleDone}
-      onOpen={() => setSelectedOrder(order)}
-    />
-  </div>
-))
+                    colOrders.map(order => (
+                      <div key={order.id} className="px-2 py-1">
+                        <TicketCard
+                          order={order}
+                          onPreparing={handlePreparing}
+                          onDone={handleDone}
+                          onOpen={() => setSelectedOrder(order)}
+                        />
+                      </div>
+                    ))
                   )}
                 </div>
               </div>
