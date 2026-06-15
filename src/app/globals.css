@@ -17,10 +17,10 @@ body {
 }
 
 * {
-  -ms-overflow-style: none; /* IE & old Edge */
-  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; 
+  scrollbar-width: none;
 }
 
 *::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Edge */
+  display: none; 
 }
