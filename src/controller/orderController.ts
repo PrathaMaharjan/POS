@@ -1,6 +1,12 @@
-import { eq, sql, inArray } from "drizzle-orm";
+import { eq, sql, inArray, Column } from "drizzle-orm";
 import { db } from "@/db";
-import { orders, orderItems, diningTables } from "@/db/schema";
+import {
+  orders,
+  orderItems,
+  diningTables,
+  kotTickets,
+  kotItems,
+} from "@/db/schema";
 
 export type ControllerResult<T> =
   | { success: true; data: T }
@@ -141,6 +147,22 @@ export const createDineInOrder = async (
       .set({ status: "occupied" })
       .where(eq(diningTables.id, tableId));
 
+    const [kotTicket] = await db
+      .insert(kotTickets)
+      .values({
+        orderId: order.id,
+        outletId : outletId,
+        status: "pending",
+      })
+      .returning();
+
+    await db.insert(kotItems).values(
+      insertedItems.map((item) => ({
+        kotTicketId: kotTicket.id,
+        orderItemId: item.id,
+      })),
+    );
+
     return { success: true, data: { order, items: insertedItems } };
   } catch (error) {
     console.error("createDineInOrder error:", error);
@@ -162,7 +184,7 @@ export interface CreateTakeawayOrderInput {
 export async function createTakeawayOrder(
   outletId: string,
   userId: string,
-  input: CreateTakeawayOrderInput
+  input: CreateTakeawayOrderInput,
 ): Promise<ControllerResult<OrderWithItems>> {
   const { customerName, customerPhone, items } = input;
 
@@ -199,20 +221,39 @@ export async function createTakeawayOrder(
       .values(itemRows.map((row) => ({ ...row, orderId: order.id })))
       .returning();
 
+    // const [kotTicket] = await db
+    //   .insert(kotTickets)
+    //   .values({ orderId: order.id, outletId, status: "pending" })
+    //   .returning();
+
+    // await db
+    //   .insert(kotItems)
+    //   .values(
+    //     insertedItems.map((item) => ({
+    //       kotTicketId: kotTicket.id,
+    //       orderItemId: item.id,
+    //     })),
+    //   );
+   
+
     return { success: true, data: { order, items: insertedItems } };
   } catch (error) {
     console.error("createTakeawayOrder error:", error);
-    return { success: false, error: "Failed to create takeaway order", status: 500 };
+    return {
+      success: false,
+      error: "Failed to create takeaway order",
+      status: 500,
+    };
   }
 }
 // read ..........
-export const listOrder =async(outletId : string)=>{
+export const listOrder = async (outletId: string) => {
   return db.query.orders.findMany({
     where: (o, { eq }) => eq(o.outletId, outletId),
     orderBy: (o, { desc }) => desc(o.createdAt),
     limit: 50,
-  })
-}
+  });
+};
 // single order detail
 export async function getOrderById(outletId: string, orderId: string) {
   return db.query.orders.findFirst({
@@ -222,7 +263,6 @@ export async function getOrderById(outletId: string, orderId: string) {
     },
   });
 }
-
 
 // Get the current ACTIVE order for a dine-in table (if any)
 // "Active" = not completed and not cancelled - i.e. the table's ongoing session
@@ -240,7 +280,7 @@ export async function getOrderByTable(outletId: string, tableId: string) {
       and(
         eq(o.outletId, outletId),
         eq(o.tableId, tableId),
-        notInArray(o.status, ["completed", "cancelled"])
+        notInArray(o.status, ["completed", "cancelled"]),
       ),
     orderBy: (o, { desc }) => desc(o.createdAt),
     with: {
@@ -250,3 +290,56 @@ export async function getOrderByTable(outletId: string, tableId: string) {
 
   return { success: true, data: { table, order: order ?? null } } as const;
 }
+
+// ─────────────────────────────────────────────
+// ADD ITEMS TO AN EXISTING ORDER
+// ─────────────────────────────────────────────
+
+// export async function addItemsToOrder(
+//   outletId: string,
+//   orderId: string,
+//   items: OrderItemInput[]
+// ): Promise<ControllerResult<OrderWithItems>> {
+//   const order = await db.query.orders.findFirst({
+//     where: (o, { eq, and }) => and(eq(o.id, orderId), eq(o.outletId, outletId)),
+//   });
+
+//   if (!order) {
+//     return { success: false, error: "Order not found", status: 404 };
+//   }
+
+//   if (order.status === "completed" || order.status === "cancelled") {
+//     return { success: false, error: `Cannot add items to a ${order.status} order`, status: 400 };
+//   }
+
+//   const priced = await priceItem(outletId, items);
+//   if (!priced.success) return priced;
+
+//   const { itemRows, subtotal: newItemsSubtotal } = priced.data;
+
+//   const newSubtotal = Number(order.subtotal) + newItemsSubtotal;
+//   const tax = Number(order.tax);
+//   const newTotal = newSubtotal + tax;
+
+//   try {
+//     const insertedItems = await db
+//       .insert(orderItems)
+//       .values(itemRows.map((row) => ({ ...row, orderId: order.id })))
+//       .returning();
+
+//     const [updatedOrder] = await db
+//       .update(orders)
+//       .set({
+//         subtotal: newSubtotal.toFixed(2),
+//         total: newTotal.toFixed(2),
+//         updatedAt: new Date(),
+//       })
+//       .where(eq(orders.id, order.id))
+//       .returning();
+
+//     return { success: true, data: { order: updatedOrder, items: insertedItems } };
+//   } catch (error) {
+//     console.error("addItemsToOrder error:", error);
+//     return { success: false, error: "Failed to add items to order", status: 500 };
+//   }
+// }
