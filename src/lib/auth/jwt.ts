@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 export interface AccessTokenPayload {
   userId: string;
   organizationId: string;
+   role: string | null;  
   activeOutletId: string | null;
   permissions: string[];
 }
