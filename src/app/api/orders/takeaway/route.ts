@@ -3,8 +3,7 @@ import { z } from "zod";
 import { requiredToken } from "@/lib/auth/requireAuth";
 import { requiredPermission } from "@/lib/permissions/requirePermission";
 import { createTakeawayOrder } from "@/controller/orderController";
-// import { requirePermission } from "@/lib/permissions/requirePermission";
-// import { createTakeawayOrder } from "@/modules/pos/controllers/orderController";
+
 
 const schema = z.object({
   customerName: z.string().min(1).optional(),

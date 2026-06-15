@@ -1,0 +1,252 @@
+import { eq, sql, inArray } from "drizzle-orm";
+import { db } from "@/db";
+import { orders, orderItems, diningTables } from "@/db/schema";
+
+export type ControllerResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: string; status: number };
+
+interface OrderItemInput {
+  productId: string;
+  quantity: number;
+  notes?: string;
+}
+
+interface PricedItems {
+  itemRows: {
+    productId: string;
+    quantity: number;
+    unitPrice: string;
+    subtotal: string;
+    notes?: string;
+  }[];
+  subtotal: number;
+}
+
+// shared validate products belong to outlet.are active.available and snapsort price
+
+const priceItem = async (
+  outletId: string,
+  items: OrderItemInput[],
+): Promise<
+  | { success: true; data: PricedItems }
+  | { success: false; error: string; status: number }
+> => {
+  const productIds = [...new Set(items.map((i) => i.productId))];
+
+  const dbProducts = await db.query.products.findMany({
+    where: (p, { eq, and }) =>
+      and(
+        eq(p.outletId, outletId),
+        eq(p.isActive, true),
+        eq(p.isAvailable, true),
+        inArray(p.id, productIds),
+      ),
+  });
+  if (dbProducts.length !== productIds.length) {
+    return {
+      success: false,
+      error:
+        "One or more products are invalid, unavailable, or do not belong to this outlet",
+      status: 400,
+    };
+  }
+  const productMap = new Map(dbProducts.map((p) => [p.id, p]));
+  let subTotal = 0;
+  const itemRows = items.map((item) => {
+    const product = productMap.get(item.productId)!;
+    const unitPrice = Number(product.price);
+    const lineSubtotal = unitPrice * item.quantity;
+    subTotal += lineSubtotal;
+    return {
+      productId: item.productId,
+      quantity: item.quantity,
+      unitPrice: unitPrice.toFixed(2),
+      subtotal: lineSubtotal.toFixed(2),
+      notes: item.notes,
+    };
+  });
+  return { success: true, data: { itemRows, subtotal: subTotal } };
+};
+
+async function getNextOrderNumber(outletId: string): Promise<number> {
+  const result = await db
+    .select({
+      maxOrderNumber: sql<number>`coalesce(max(${orders.orderNumber}), 0)`,
+    })
+    .from(orders)
+    .where(eq(orders.outletId, outletId));
+
+  return (result[0]?.maxOrderNumber ?? 0) + 1;
+}
+
+type OrderWithItems = {
+  order: typeof orders.$inferSelect;
+  items: (typeof orderItems.$inferSelect)[];
+};
+
+// Dine-in ----------------------------------------------
+export interface CreateDineInOrderInput {
+  tableId: string;
+  items: OrderItemInput[];
+}
+
+export const createDineInOrder = async (
+  outletId: string,
+  userId: string,
+  input: CreateDineInOrderInput,
+) => {
+  const { items, tableId } = input;
+  const table = await db.query.diningTables.findFirst({
+    where: (t, { eq, and }) =>
+      and(eq(t.id, tableId), eq(t.outletId, outletId), eq(t.isActive, true)),
+  });
+  if (!table) {
+    return {
+      success: false,
+      error: "Invalid table for this outlet",
+      status: 400,
+    };
+  }
+  const priced = await priceItem(outletId, items);
+  if (!priced.success) return priced;
+  const { itemRows, subtotal } = priced.data;
+  // TODO: tax calculation - placeholder until outlet/org tax configuration is designed
+  const tax = 0.13;
+  const total = subtotal + tax;
+  const orderNumber = await getNextOrderNumber(outletId);
+
+  try {
+    const [order] = await db
+      .insert(orders)
+      .values({
+        outletId,
+        orderType: "dine_in",
+        tableId,
+        orderNumber,
+        status: "pending",
+        tax: tax.toFixed(2),
+        total: total.toFixed(2),
+        createdBy: userId,
+      })
+      .returning();
+
+    const insertedItems = await db
+      .insert(orderItems)
+      .values(itemRows.map((row) => ({ ...row, orderId: order.id })))
+      .returning();
+    // Mark the table as occupied now that it has an active order
+    await db
+      .update(diningTables)
+      .set({ status: "occupied" })
+      .where(eq(diningTables.id, tableId));
+
+    return { success: true, data: { order, items: insertedItems } };
+  } catch (error) {
+    console.error("createDineInOrder error:", error);
+    return {
+      success: false,
+      error: "Failed to create dine-in order",
+      status: 500,
+    };
+  }
+};
+
+// takeaway ============
+export interface CreateTakeawayOrderInput {
+  customerName?: string;
+  customerPhone?: string;
+  items: OrderItemInput[];
+}
+
+export async function createTakeawayOrder(
+  outletId: string,
+  userId: string,
+  input: CreateTakeawayOrderInput
+): Promise<ControllerResult<OrderWithItems>> {
+  const { customerName, customerPhone, items } = input;
+
+  const priced = await priceItem(outletId, items);
+  if (!priced.success) return priced;
+
+  const { itemRows, subtotal } = priced.data;
+
+  // TODO: tax calculation - placeholder until outlet/org tax configuration is designed
+  const tax = 0;
+  const total = subtotal + tax;
+  const orderNumber = await getNextOrderNumber(outletId);
+
+  try {
+    const [order] = await db
+      .insert(orders)
+      .values({
+        outletId,
+        orderType: "takeaway",
+        tableId: null,
+        customerName,
+        customerPhone,
+        orderNumber,
+        status: "pending",
+        subtotal: subtotal.toFixed(2),
+        tax: tax.toFixed(2),
+        total: total.toFixed(2),
+        createdBy: userId,
+      })
+      .returning();
+
+    const insertedItems = await db
+      .insert(orderItems)
+      .values(itemRows.map((row) => ({ ...row, orderId: order.id })))
+      .returning();
+
+    return { success: true, data: { order, items: insertedItems } };
+  } catch (error) {
+    console.error("createTakeawayOrder error:", error);
+    return { success: false, error: "Failed to create takeaway order", status: 500 };
+  }
+}
+// read ..........
+export const listOrder =async(outletId : string)=>{
+  return db.query.orders.findMany({
+    where: (o, { eq }) => eq(o.outletId, outletId),
+    orderBy: (o, { desc }) => desc(o.createdAt),
+    limit: 50,
+  })
+}
+// single order detail
+export async function getOrderById(outletId: string, orderId: string) {
+  return db.query.orders.findFirst({
+    where: (o, { eq, and }) => and(eq(o.id, orderId), eq(o.outletId, outletId)),
+    with: {
+      items: { with: { product: true } },
+    },
+  });
+}
+
+
+// Get the current ACTIVE order for a dine-in table (if any)
+// "Active" = not completed and not cancelled - i.e. the table's ongoing session
+export async function getOrderByTable(outletId: string, tableId: string) {
+  const table = await db.query.diningTables.findFirst({
+    where: (t, { eq, and }) => and(eq(t.id, tableId), eq(t.outletId, outletId)),
+  });
+
+  if (!table) {
+    return { success: false, error: "Table not found", status: 404 } as const;
+  }
+
+  const order = await db.query.orders.findFirst({
+    where: (o, { eq, and, notInArray }) =>
+      and(
+        eq(o.outletId, outletId),
+        eq(o.tableId, tableId),
+        notInArray(o.status, ["completed", "cancelled"])
+      ),
+    orderBy: (o, { desc }) => desc(o.createdAt),
+    with: {
+      items: { with: { product: true } },
+    },
+  });
+
+  return { success: true, data: { table, order: order ?? null } } as const;
+}
