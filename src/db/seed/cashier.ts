@@ -1,6 +1,6 @@
 import { slugify } from "@/utils/slugify";
 import { db } from "../index";
-import { organizations, users, outlets, userOutlets, userOutletRoles, roles } from "../schema";
+import { organizations, users, outlets, userOutlets, userOutletRoles, roles, categories, products } from "../schema";
 import { hashPassword } from "@/lib/auth/password";
 // import { slugify } from "@/lib/utils/slugify";
 
@@ -87,6 +87,81 @@ async function main() {
       roleId: cashierRole.id,
     });
   }
+
+  // 7. Seed categories
+  const [burgersCat, drinksCat, dessertsCat] = await db
+    .insert(categories)
+    .values([
+      { outletId: outlet.id, name: "Burgers", sortOrder: 1, isActive: true },
+      { outletId: outlet.id, name: "Drinks", sortOrder: 2, isActive: true },
+      { outletId: outlet.id, name: "Desserts", sortOrder: 3, isActive: true },
+    ])
+    .returning();
+
+  console.log("Created categories:", burgersCat.name, drinksCat.name, dessertsCat.name);
+
+  // 8. Seed products
+  const insertedProducts = await db
+    .insert(products)
+    .values([
+      {
+        outletId: outlet.id,
+        categoryId: burgersCat.id,
+        name: "Classic Cheese Burger",
+        description: "Juicy beef patty with melted cheddar cheese, lettuce, tomato, and secret sauce.",
+        price: "250.00",
+        isAvailable: true,
+        isActive: true,
+      },
+      {
+        outletId: outlet.id,
+        categoryId: burgersCat.id,
+        name: "Crispy Chicken Burger",
+        description: "Crispy fried chicken breast, spicy mayo, and pickles.",
+        price: "300.00",
+        isAvailable: true,
+        isActive: true,
+      },
+      {
+        outletId: outlet.id,
+        categoryId: drinksCat.id,
+        name: "Coca-Cola (500ml)",
+        description: "Chilled carbonated soft drink.",
+        price: "80.00",
+        isAvailable: true,
+        isActive: true,
+      },
+      {
+        outletId: outlet.id,
+        categoryId: drinksCat.id,
+        name: "Cold Coffee",
+        description: "Creamy iced coffee topped with chocolate syrup.",
+        price: "150.00",
+        isAvailable: true,
+        isActive: true,
+      },
+      {
+        outletId: outlet.id,
+        categoryId: dessertsCat.id,
+        name: "Chocolate Lava Cake",
+        description: "Warm chocolate cake with a molten chocolate center.",
+        price: "220.00",
+        isAvailable: true,
+        isActive: true,
+      },
+      {
+        outletId: outlet.id,
+        categoryId: dessertsCat.id,
+        name: "Warm Apple Pie",
+        description: "Traditional apple pie served warm.",
+        price: "180.00",
+        isAvailable: true,
+        isActive: true,
+      },
+    ])
+    .returning();
+
+  console.log(`Created ${insertedProducts.length} products`);
 
   console.log("\nDone. Test login:");
   console.log("Cashier -> email: cashier@demo.com, password: Cashier@123");

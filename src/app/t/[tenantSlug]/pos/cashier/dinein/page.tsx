@@ -1,17 +1,19 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import TableModal from '../../_components/TableModal';
+import api from '@/lib/api';
 
-import { 
-  Armchair, 
-  Users, 
-  Bookmark, 
-  Eraser, 
-  ArrowLeft, 
-  CheckCircle2, 
-  TrendingUp 
+import {
+  Armchair,
+  Users,
+  Bookmark,
+  Eraser,
+  ArrowLeft,
+  CheckCircle2,
+  TrendingUp,
+  Loader2,
 } from 'lucide-react';
 
 type TableStatus = 'available' | 'occupied' | 'reserved' | 'cleaning';
@@ -35,30 +37,8 @@ interface Table {
 
 interface TablesProps {
   tenantSlug: string;
-  role?: 'cashier' | 'waiter'; 
+  role?: 'cashier' | 'waiter';
 }
-
-const MOCK_TABLES: Table[] = [
-  { id: 1,  label: 'T-01', status: 'available', shape: 'square', seats: 2 },
-  { id: 2,  label: 'T-02', status: 'occupied',  shape: 'round',  seats: 4 },
-  { id: 3,  label: 'T-03', status: 'reserved',  shape: 'square', seats: 4 }, 
-  { id: 4,  label: 'T-04', status: 'occupied',  shape: 'square', seats: 6 },
-  { id: 5,  label: 'T-05', status: 'cleaning',  shape: 'round',  seats: 2 }, 
-  { id: 6,  label: 'T-06', status: 'available', shape: 'square', seats: 4 },
-  { id: 7,  label: 'T-07', status: 'occupied',  shape: 'round',  seats: 4 },
-  { id: 8,  label: 'T-08', status: 'available', shape: 'square', seats: 8 },
-  { id: 9,  label: 'T-09', status: 'available', shape: 'round',  seats: 2 },
-  { id: 10, label: 'T-10', status: 'occupied',  shape: 'square', seats: 4 },
-  { id: 11, label: 'T-11', status: 'available', shape: 'square', seats: 6 },
-  { id: 12, label: 'T-12', status: 'available', shape: 'round',  seats: 2 },
-];
-
-const INITIAL_KITCHEN_ORDERS: ActiveFoodStatus[] = [
-  { id: 1, orderNumber: 1014, type: 'DINE_IN', tableName: 'T-04', ticketState: 'DONE' },
-  { id: 2, orderNumber: 1015, type: 'TAKEAWAY', tableName: '', ticketState: 'DONE' },
-  { id: 4, orderNumber: 1011, type: 'DINE_IN', tableName: 'T-10', ticketState: 'DONE' },
-  { id: 5, orderNumber: 1017, type: 'TAKEAWAY', tableName: '', ticketState: 'DONE' },
-];
 
 const STATUS_CONFIG: Record<TableStatus, {
   borderColor: string;
@@ -97,13 +77,13 @@ const STATUS_CONFIG: Record<TableStatus, {
   },
 };
 
-function TableCard({ 
-  table, 
-  isReadyToServe, 
-  onClick 
-}: { 
-  table: Table; 
-  isReadyToServe: boolean; 
+function TableCard({
+  table,
+  isReadyToServe,
+  onClick,
+}: {
+  table: Table;
+  isReadyToServe: boolean;
   onClick: () => void;
 }) {
   const cfg = STATUS_CONFIG[table.status];
@@ -126,23 +106,20 @@ function TableCard({
         group relative flex flex-col items-center justify-center text-center cursor-pointer
         bg-[#141416] border transition-all duration-300 p-5 gap-3 w-full aspect-square select-none
         ${isRound ? 'rounded-full' : 'rounded-2xl'}
-        ${isReadyToServe 
-          ? 'border-[#22c55e] shadow-[0_0_20px_rgba(34,197,94,0.35)] animate-[pulse_1.8s_infinite] scale-[1.02]' 
+        ${isReadyToServe
+          ? 'border-[#22c55e] shadow-[0_0_20px_rgba(34,197,94,0.35)] animate-[pulse_1.8s_infinite] scale-[1.02]'
           : `${cfg.borderColor} ${cfg.shadowColor} hover:-translate-y-1`}
       `}
     >
       {isReadyToServe && (
         <span className="absolute -top-2 bg-[#22c55e] text-[#0a1a0f] text-[9px] font-black tracking-wider px-2 py-0.5 rounded-md uppercase shadow-lg">
-           READY
+          READY
         </span>
       )}
-
       <span className="text-[12px] font-medium text-neutral-400 tracking-wider uppercase group-hover:text-white transition-colors">
         {table.label}
       </span>
-
       {renderStatusIcon()}
-
       <div className="min-h-[24px] flex items-center justify-center w-full mt-1">
         <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-neutral-900/60 border border-neutral-800 rounded-full">
           <span className="text-[11px] font-medium text-neutral-400 tracking-wide">
@@ -156,11 +133,37 @@ function TableCard({
 
 export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
   const router = useRouter();
-  const [tables, setTables] = useState<Table[]>(MOCK_TABLES);
-  const [activeOrders, setActiveOrders] = useState<ActiveFoodStatus[]>(INITIAL_KITCHEN_ORDERS);
+  const [tables, setTables] = useState<Table[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeOrders, setActiveOrders] = useState<ActiveFoodStatus[]>([]);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
-  
   const [confirmingTakeawayId, setConfirmingTakeawayId] = useState<number | null>(null);
+
+  useEffect(() => {
+    async function fetchTables() {
+      try {
+        setIsLoading(true);
+        const res = await api.get('/tables');
+        const raw = res.data.tables ?? [];
+
+        // Map backend fields to our Table interface
+        const mapped: Table[] = raw.map((t: any) => ({
+          id: t.id,
+          label: t.name ?? t.tableNumber ?? `T-${t.id}`,
+          status: (t.status as TableStatus) ?? 'available',
+          shape: t.shape ?? 'square',
+          seats: t.capacity ?? t.seats ?? 2,
+        }));
+
+        setTables(mapped);
+      } catch (err) {
+        console.error('Failed to fetch tables:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchTables();
+  }, []);
 
   const occupied = tables.filter(t => t.status === 'occupied').length;
   const total = tables.length;
@@ -179,25 +182,24 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
   };
 
   const handleTableClick = (table: Table) => {
-    // Alert prompt removed completely. Clicking directly launches the operational modal view layout now.
     setSelectedTable(table);
   };
 
   const handleTableStatusChange = (tableId: number, nextStatus: TableStatus) => {
-    setTables(prevTables => 
+    setTables(prevTables =>
       prevTables.map(t => t.id === tableId ? { ...t, status: nextStatus } : t)
     );
     setSelectedTable(prev => prev && prev.id === tableId ? { ...prev, status: nextStatus } : prev);
   };
 
   const readyTakeaways = activeOrders.filter(o => o.type === 'TAKEAWAY' && o.ticketState === 'DONE');
-  const safeSlug = tenantSlug && tenantSlug !== "undefined" ? tenantSlug : "default";
+  const safeSlug = tenantSlug && tenantSlug !== 'undefined' ? tenantSlug : 'default';
 
   return (
     <div className="min-h-screen bg-[#0c0c0d] text-[#e4e4e7] flex flex-col font-sans select-none antialiased">
       <main className="flex-1 flex flex-col px-8 py-6 gap-6 max-w-[1400px] mx-auto w-full">
-        
 
+        {/* Legend + Back */}
         <div className="flex items-center justify-between flex-wrap gap-4 bg-[#141416]/40 border border-neutral-900/60 rounded-2xl px-5 py-3.5">
           <div className="flex items-center flex-wrap gap-3">
             {(Object.keys(STATUS_CONFIG) as TableStatus[]).map((s) => (
@@ -207,15 +209,14 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
               </div>
             ))}
           </div>
-
           <button
             onClick={() => {
               if (role === 'cashier') {
-                router.push(`/${safeSlug}/pos/cashier`);
+                router.push(`/t/${safeSlug}/pos/cashier`);
               } else {
-                router.push(`/${safeSlug}/pos`);
+                router.push(`/t/${safeSlug}/pos`);
               }
-            }} 
+            }}
             className="flex items-center gap-2 bg-[#141416] border border-neutral-800 hover:border-[#e5b83b]/60 text-neutral-400 hover:text-white px-4 py-2 rounded-xl text-xs font-semibold tracking-wide uppercase transition-all duration-150 shrink-0"
           >
             <ArrowLeft className="w-4 h-4" strokeWidth={2} />
@@ -223,7 +224,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
           </button>
         </div>
 
-
+        {/* Takeaway Queue */}
         {role === 'cashier' && readyTakeaways.length > 0 && (
           <div className="bg-[#141416] border border-neutral-900 rounded-2xl p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2 text-xs font-black tracking-wider text-neutral-400 uppercase">
@@ -232,27 +233,25 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
             <div className="flex flex-wrap gap-3">
               {readyTakeaways.map((order) => {
                 const isConfirming = confirmingTakeawayId === order.id;
-                
                 return (
-                  <div 
-                    key={order.id} 
+                  <div
+                    key={order.id}
                     className={`flex items-center gap-3 border px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 ${
-                      isConfirming 
-                        ? 'bg-[#3b1c1c] border-red-500/40 text-red-400' 
+                      isConfirming
+                        ? 'bg-[#3b1c1c] border-red-500/40 text-red-400'
                         : 'bg-[#162e1a] border-[#22c55e]/30 text-green-400'
                     }`}
                   >
                     <span>Order #{order.orderNumber}</span>
-                    
                     {isConfirming ? (
                       <div className="flex items-center gap-1.5">
-                        <button 
+                        <button
                           onClick={() => handleDismissTakeaway(order.id)}
                           className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded-md font-black text-[10px] uppercase transition-colors"
                         >
                           Confirm Handout
                         </button>
-                        <button 
+                        <button
                           onClick={() => setConfirmingTakeawayId(null)}
                           className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-2 py-1 rounded-md font-bold text-[10px] uppercase transition-colors"
                         >
@@ -260,7 +259,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
                         </button>
                       </div>
                     ) : (
-                      <button 
+                      <button
                         onClick={() => setConfirmingTakeawayId(order.id)}
                         className="bg-[#22c55e] hover:bg-[#16a34a] text-[#0a1a0f] px-2 py-1 rounded-md font-black text-[10px] uppercase transition-colors"
                       >
@@ -274,19 +273,31 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
           </div>
         )}
 
+        {/* Table Grid */}
+        {isLoading ? (
+          <div className="flex-1 flex items-center justify-center text-neutral-600 gap-3">
+            <Loader2 className="w-6 h-6 animate-spin" />
+            <span className="text-sm font-medium">Loading tables...</span>
+          </div>
+        ) : tables.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-neutral-600 gap-2">
+            <Armchair className="w-10 h-10" strokeWidth={1.5} />
+            <span className="text-sm font-medium">No tables found</span>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 flex-1 content-start py-2">
+            {tables.map((table) => (
+              <TableCard
+                key={table.id}
+                table={table}
+                isReadyToServe={checkTableReadyState(table.label)}
+                onClick={() => handleTableClick(table)}
+              />
+            ))}
+          </div>
+        )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 flex-1 content-start py-2">
-          {tables.map((table) => (
-            <TableCard 
-              key={table.id} 
-              table={table} 
-              isReadyToServe={checkTableReadyState(table.label)} 
-              onClick={() => handleTableClick(table)} 
-            />
-          ))}
-        </div>
-
-    
+        {/* Capacity Meter */}
         <div className="w-full mt-auto pt-4 border-t border-neutral-900">
           <div className="bg-[#141416] border border-neutral-900/80 rounded-2xl p-5 flex flex-col justify-between">
             <div>

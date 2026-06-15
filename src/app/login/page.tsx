@@ -5,7 +5,7 @@ import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import Link from "next/link";
 import Navbar from "../components/Navbar";
-// import { signIn } from "@/lib/auth-client";
+import api from "@/lib/api";
 
 export default function LoginPage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -27,39 +27,39 @@ export default function LoginPage() {
     });
   }, { scope: containerRef });
 
-   async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
-
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: form.email,
-          password: form.password,
-        }),
+      const res = await api.post("/auth/login", {
+        email: form.email,
+        password: form.password,
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        // Our route returns { error: "..." } for 409s, or { error: <zod flatten> } for 400s
-        const message =
-          typeof data.error === "string"
-            ? data.error
-            : "Failed to create your account";
-        setError(message);
-        setLoading(false);
+      const data = res.data;
+
+      // ── Store auth state ──────────────────────────────────
+      localStorage.setItem("accessToken", data.accessToken);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("activeOutletId", data.activeOutletId ?? "");
+
+  
+      if (data.requiresOutletSelection) {
+        router.push(`/t/${data.user.slug}/select-outlet`);
         return;
       }
 
-   
-   router.push(`/t/${data.user.slug}/dashboard`);
+      router.push(`/t/${data.user.slug}/pos/cashier`);
 
-    } catch (err) {
-      setError("Something went wrong. Please try again.");
+    } catch (err: any) {
+      const apiError = err.response?.data?.error;
+      const message =
+        typeof apiError === "string"
+          ? apiError
+          : "Invalid email or password";
+      setError(message);
       setLoading(false);
     }
   }

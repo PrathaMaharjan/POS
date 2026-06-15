@@ -14,19 +14,16 @@ export async function getCategories(outletId: string) {
     }
   });
 }
-export async function getProductByCategory(outletid : string,categoryId:string){
-    return db.query.products.findFirst({
-        where :(p,{eq,and})=>{
-            and(
-                eq(p.outletId,outletid),
-                eq(p.categoryId,categoryId),
-                eq(p.isActive,true)
-            )
-        },
-        with :{
-            category : true
-        }
-    })
-    
-    
+export async function getProductByCategory(outletId: string, categoryId: string) {
+  return db.query.products.findMany({
+    where: (p, { eq, and }) =>
+      and(
+        eq(p.outletId, outletId),
+        eq(p.categoryId, categoryId),
+        eq(p.isActive, true)
+      ),
+    with: {
+      category: true,
+    },
+  });
 }

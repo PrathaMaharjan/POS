@@ -4,15 +4,14 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
-//   const permError = requirePermission(auth.payload, "inventory.products.read");
-//   if (permError) return permError;
+  const { id } = await params;  
 
-  const products = await getProductByCategory(auth.payload.activeOutletId!, params.id);
+  const products = await getProductByCategory(auth.payload.activeOutletId!, id);
 
   return NextResponse.json({ products });
 }
