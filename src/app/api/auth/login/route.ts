@@ -9,10 +9,12 @@ import {
   signRefreshToken,
   getRefreshExpiryDate,
 } from "@/lib/auth/jwt";
-import { getUserRoleForOutlet } from "@/lib/permissions/getUserPermissions";
+import {
+  getUserPermissionsForOutlet,
+  getUserRoleForOutlet,
+} from "@/lib/permissions/getUserPermissions";
 import { hashToken } from "@/lib/auth/hashtoken";
 // import { hashToken } from "@/lib/auth/hashToken";
-// import { getUserPermissionsForOutlet, getUserRoleForOutlet } from "@/lib/permissions/getUserPermissions";
 
 const schema = z.object({
   email: z.string().email(),
@@ -63,7 +65,7 @@ export async function POST(req: NextRequest) {
 
   if (userOutletRows.length === 1) {
     activeOutletId = userOutletRows[0].outletId;
-    // permissions = await getUserPermissionsForOutle(user.id, activeOutletId);
+    permissions = await getUserPermissionsForOutlet(user.id, activeOutletId);
     const roleRow = await getUserRoleForOutlet(user.id, activeOutletId);
     role = roleRow?.name ?? null;
   }
@@ -105,7 +107,8 @@ export async function POST(req: NextRequest) {
       organizationId: user.organizationId,
       slug: user.organization.slug,
     },
-    role : role,
+    role,
+    permissions,
     outlets: userOutletRows.map((uo) => ({
       id: uo.outlet.id,
       name: uo.outlet.name,

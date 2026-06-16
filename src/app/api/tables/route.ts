@@ -7,8 +7,8 @@ export async function GET(req: NextRequest) {
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
-//   const permError = requiredPermission(auth.payload, "restaurant.tables.read");
-//   if (permError) return permError;
+  const permError = requiredPermission(auth.payload, "restaurant.tables.read");
+  if (permError) return permError;
 
   const tables = await getTables(auth.payload.activeOutletId!);
 

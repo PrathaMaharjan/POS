@@ -23,8 +23,8 @@ export async function POST(req: NextRequest) {
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
-//   const permError = requiredPermission(auth.payload, "pos.billing.create");
-//   if (permError) return permError;
+  const permError = requiredPermission(auth.payload, "pos.billing.create");
+  if (permError) return permError;
 
   const body = await req.json();
   const parsed = schema.safeParse(body);

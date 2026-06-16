@@ -11,7 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed/permission.ts",
-    "db:seed:dev": "tsx src/db/seed/cashier.ts"
+    "db:seed:dev": "tsx src/db/seed/cashier.ts",
+    "db:seed:waiter-kitchen": "tsx src/db/seed/dev-waiter-kitchen.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
