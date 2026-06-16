@@ -351,8 +351,18 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
               name: oi.product?.name ?? 'Unknown Product',
               quantity: oi.quantity ?? 1,
               notes: oi.notes ?? undefined,
-            };
-          });
+              };
+            });
+
+      
+          let mappedState: TicketState = 'PENDING';
+          const normalizedStatus = ticket.status?.toLowerCase();
+          
+          if (normalizedStatus === 'ready') {
+            mappedState = 'DONE';
+          } else if (normalizedStatus === 'processing' || normalizedStatus === 'preparing') {
+            mappedState = 'PREPARING';
+          }
 
           return {
             id: ticket.id,
@@ -361,7 +371,7 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
             tableName: dbOrder.table?.tableNumber ?? dbOrder.customerName ?? 'Table',
             items: mappedItems,
             minutesElapsed: elapsed,
-            ticketState: (ticket.status === 'ready' ? 'DONE' : (ticket.status?.toUpperCase() ?? 'PENDING')) as TicketState,
+            ticketState: mappedState,
           };
         });
 
@@ -400,41 +410,48 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
     }
   };
 
-  const handlePreparing = async (id: string) => {
-    try {
-      const ticket = orders.find(o => o.id === id);
-      if (!ticket) return;
-      const nextStatus = ticket.ticketState === 'PREPARING' ? 'pending' : 'preparing';
-      await api.patch(`/kot/${id}`, { status: nextStatus });
-      setOrders(prev =>
-        prev.map(o =>
-          o.id === id
-            ? { ...o, ticketState: nextStatus.toUpperCase() as TicketState }
-            : o
-        )
-      );
-    } catch (err) {
-      console.error("Failed to update status to preparing:", err);
-    }
-  };
 
-  const handleDone = async (id: string) => {
-    try {
-      const ticket = orders.find(o => o.id === id);
-      if (!ticket) return;
-      const nextStatus = ticket.ticketState === 'DONE' ? 'preparing' : 'ready';
-      await api.patch(`/kot/${id}`, { status: nextStatus });
-      setOrders(prev =>
-        prev.map(o =>
-          o.id === id
-            ? { ...o, ticketState: (nextStatus === 'ready' ? 'DONE' : 'PREPARING') as TicketState }
-            : o
-        )
-      );
-    } catch (err) {
-      console.error("Failed to update status to done:", err);
-    }
-  };
+  const handlePreparing = async (id: string) => {
+  try {
+    const ticket = orders.find(o => o.id === id);
+    if (!ticket) return;
+    
+    // Change 'processing' to 'preparing' to match your Zod schema
+    const nextStatus = ticket.ticketState === 'PREPARING' ? 'pending' : 'preparing'; 
+    await api.patch(`/kot/${id}`, { status: nextStatus });
+    
+    setOrders(prev =>
+      prev.map(o =>
+        o.id === id
+          ? { ...o, ticketState: (nextStatus === 'preparing' ? 'PREPARING' : 'PENDING') }
+          : o
+      )
+    );
+  } catch (err) {
+    console.error("Failed to update status:", err);
+  }
+};
+
+const handleDone = async (id: string) => {
+  try {
+    const ticket = orders.find(o => o.id === id);
+    if (!ticket) return;
+    
+    // Change 'processing' to 'preparing' here as well for the rollback path
+    const nextStatus = ticket.ticketState === 'DONE' ? 'preparing' : 'ready';
+    await api.patch(`/kot/${id}`, { status: nextStatus });
+    
+    setOrders(prev =>
+      prev.map(o =>
+        o.id === id
+          ? { ...o, ticketState: (nextStatus === 'ready' ? 'DONE' : 'PREPARING') }
+          : o
+      )
+    );
+  } catch (err) {
+    console.error("Failed to update status to done:", err);
+  }
+};
 
   return (
     <>
@@ -524,7 +541,7 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
                     </span>
                   </div>
 
-                  {/* Scrollable grid area to safeguard against weird rotation bounding boxes */}
+                  {/* Scrollable grid area */}
                   <div className="flex-1 overflow-y-auto overflow-x-hidden pb-6 pr-1 custom-scrollbar">
                     {colOrders.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-20 text-[#3f3f46]">
