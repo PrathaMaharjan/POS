@@ -140,9 +140,9 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
   const [confirmingTakeawayId, setConfirmingTakeawayId] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchTables() {
+    async function fetchTables(silent = false) {
       try {
-        setIsLoading(true);
+        if (!silent) setIsLoading(true);
         const res = await api.get('/tables');
         const raw = res.data.tables ?? [];
 
@@ -159,10 +159,12 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
       } catch (err) {
         console.error('Failed to fetch tables:', err);
       } finally {
-        setIsLoading(false);
+        if (!silent) setIsLoading(false);
       }
     }
     fetchTables();
+    const interval = setInterval(() => fetchTables(true), 5000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {

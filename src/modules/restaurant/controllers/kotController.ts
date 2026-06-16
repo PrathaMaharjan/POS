@@ -5,9 +5,9 @@ import { eq } from "drizzle-orm";
 type KotStatus = "pending" | "preparing" | "ready";
 
 const KOT_STATUS_TRANSITIONS: Record<KotStatus, KotStatus[]> = {
-  pending: ["preparing"],
-  preparing: ["ready"],
-  ready: [],
+  pending: ["preparing", "ready"],
+  preparing: ["ready", "pending"],
+  ready: ["preparing", "pending"],
 };
 
 export async function listKotTickets(outletId: string) {

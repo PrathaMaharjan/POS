@@ -56,21 +56,24 @@ export async function createPayment(
   });
 
   // 7. Calculate total money already received by converting and summing up all previous payments
-  const paidSoFar = existingPayments.reduce(
-    (sum, p) => sum + Number(p.amount),
-    0,
+  const paidSoFar = Number(
+    existingPayments.reduce((sum, p) => sum + Number(p.amount), 0).toFixed(2)
   );
 
   // 8. Determine what the customer still owes right *before* this new transaction is applied (minimum 0)
-  const owedBeforeThisPayment = Math.max(orderTotal - paidSoFar, 0);
+  const owedBeforeThisPayment = Number(
+    Math.max(orderTotal - paidSoFar, 0).toFixed(2)
+  );
 
   // 9. NEW (Cash Capping): If cash, don't record overpayments in the DB (e.g., if $20 is handed for a $15 bill, only record $15)
-  const amountToRecord =
-    method === "cash" ? Math.min(amount, owedBeforeThisPayment) : amount;
+  const amountToRecord = Number(
+    (method === "cash" ? Math.min(amount, owedBeforeThisPayment) : amount).toFixed(2)
+  );
 
   // 10. NEW (Change Calculation): If cash, compute the change due to the customer (e.g., $20 cash - $15 bill = $5 change)
-  const changeDue =
-    method === "cash" ? Math.max(amount - owedBeforeThisPayment, 0) : 0;
+  const changeDue = Number(
+    (method === "cash" ? Math.max(amount - owedBeforeThisPayment, 0) : 0).toFixed(2)
+  );
 
   // 11. Wrap database operations in a try/catch block to securely isolate database or connection faults
   try {
@@ -87,13 +90,13 @@ export async function createPayment(
       .returning(); // Instructs the database engine to return the fully generated row
 
     // 13. Derive the new absolute total paid by combining past history with the capped value we just wrote
-    const totalPaid = paidSoFar + amountToRecord;
+    const totalPaid = Number((paidSoFar + amountToRecord).toFixed(2));
 
     // 14. Redundant assignment (already declared on line 5): Re-casting order total to a number
     const orderTotal = Number(order.total);
 
     // 15. Compute the final remaining balance due on this order (forces 0 if fully or over-paid)
-    const balanceDue = Math.max(orderTotal - totalPaid, 0);
+    const balanceDue = Number(Math.max(orderTotal - totalPaid, 0).toFixed(2));
 
     // 16. Initialize a tracking variable holding the original order data to dynamically alter if closed
     let updatedOrder = order;
