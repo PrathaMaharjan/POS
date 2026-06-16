@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useRef } from 'react';
+import api from '@/lib/api';
 
 
 
@@ -24,6 +25,7 @@ interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   totalAmount: number;
+  orderId?: string | null;
   cart?: CartItem[];
   orderType?: OrderType;
   tableId?: string | number | null;
@@ -35,6 +37,7 @@ export default function PaymentModal({
   isOpen, 
   onClose, 
   totalAmount, 
+  orderId = null,
   cart = [], 
   orderType = 'TAKEAWAY', 
   tableId = null 
@@ -42,6 +45,8 @@ export default function PaymentModal({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
   const [cashReceived, setCashReceived] = useState<string>('');
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const receiptRef = useRef<HTMLDivElement>(null);
 
@@ -51,15 +56,32 @@ export default function PaymentModal({
   const tax = totalAmount * 0.08;
   const grandTotal = totalAmount + tax;
 
-  const handleConfirm = () => {
-
-    setIsSuccess(true);
+  const handleConfirm = async () => {
+    if (!orderId) {
+      setErrorMessage("No active order found to process payment.");
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      setErrorMessage(null);
+      await api.post(`/orders/${orderId}/payment`, {
+        amount: grandTotal,
+        method: paymentMethod.toLowerCase() as 'cash' | 'card' | 'qr',
+      });
+      setIsSuccess(true);
+    } catch (err: any) {
+      console.error("Payment failed:", err);
+      setErrorMessage(err.response?.data?.error ?? "Failed to process payment. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCloseModal = () => {
     setCashReceived('');
     setPaymentMethod('Cash');
     setIsSuccess(false);
+    setErrorMessage(null);
     onClose();
   };
 
@@ -179,12 +201,18 @@ export default function PaymentModal({
                 </div>
               )}
 
+              {errorMessage && (
+                <div className="text-red-500 text-xs font-semibold text-center mt-1 bg-red-500/10 border border-red-500/20 py-2 rounded-xl">
+                  {errorMessage}
+                </div>
+              )}
+
               <button
                 onClick={handleConfirm}
-                disabled={paymentMethod === 'Cash' && (!cashReceived || parseFloat(cashReceived) < grandTotal)}
-                className="w-full bg-[#e5b83b] hover:bg-[#f5c847] disabled:opacity-40 disabled:cursor-not-allowed text-[#0c0c0d] font-bold py-3 rounded-xl transition-all duration-150 text-sm"
+                disabled={isSubmitting || (paymentMethod === 'Cash' && (!cashReceived || parseFloat(cashReceived) < grandTotal))}
+                className="w-full bg-[#e5b83b] hover:bg-[#f5c847] disabled:opacity-40 disabled:cursor-not-allowed text-[#0c0c0d] font-bold py-3 rounded-xl transition-all duration-150 text-sm flex items-center justify-center gap-2"
               >
-                Confirm Payment
+                {isSubmitting ? 'Processing...' : 'Confirm Payment'}
               </button>
             </>
           )}

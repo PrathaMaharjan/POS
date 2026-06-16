@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import api from '@/lib/api';
 
 type TicketState = 'PENDING' | 'PREPARING' | 'DONE';
 type OrderType = 'TAKEAWAY' | 'DINE_IN';
@@ -13,7 +14,7 @@ interface KitchenItem {
 }
 
 interface KitchenOrder {
-  id: number;
+  id: string;
   orderNumber: number;
   type: OrderType;
   tableName?: string | null;
@@ -22,45 +23,23 @@ interface KitchenOrder {
   ticketState: TicketState;
 }
 
-const MOCK_KITCHEN_ORDERS: KitchenOrder[] = [
-  {
-    id: 1, orderNumber: 1014, type: 'DINE_IN', tableName: 'T-04', minutesElapsed: 3, ticketState: 'PENDING',
-    items: [{ name: 'Cappuccino', quantity: 2 }, { name: 'Club Sandwich', quantity: 2, notes: 'No mayo' }, { name: 'Cappuccino', quantity: 2 }],
-  },
-  {
-    id: 2, orderNumber: 1015, type: 'TAKEAWAY', minutesElapsed: 14, ticketState: 'PREPARING',
-    items: [{ name: 'Americano', quantity: 3 }, { name: 'Croissant', quantity: 1 }],
-  },
-  {
-    id: 3, orderNumber: 1016, type: 'DINE_IN', tableName: 'T-01', minutesElapsed: 1, ticketState: 'PENDING',
-    items: [{ name: 'Latte', quantity: 1 }, { name: 'Brownie', quantity: 2, notes: 'Warm up' }],
-  },
-  {
-    id: 4, orderNumber: 1011, type: 'DINE_IN', tableName: 'T-10', minutesElapsed: 22, ticketState: 'DONE',
-    items: [{ name: 'Masala Chai', quantity: 3 }, { name: 'Brownie', quantity: 1 }],
-  },
-  {
-    id: 5, orderNumber: 1017, type: 'TAKEAWAY', minutesElapsed: 6, ticketState: 'PENDING',
-    items: [{ name: 'Flat White', quantity: 1 }, { name: 'Avocado Toast', quantity: 2, notes: 'Extra chili' }],
-  },
-  {
-    id: 6, orderNumber: 1018, type: 'DINE_IN', tableName: 'T-07', minutesElapsed: 9, ticketState: 'PREPARING',
-    items: [{ name: 'Espresso', quantity: 2 }, { name: 'Cheesecake', quantity: 1 }],
-  },
-  {
-    id: 9, orderNumber: 1019, type: 'DINE_IN', tableName: 'T-01', minutesElapsed: 1, ticketState: 'PENDING',
-    items: [{ name: 'Latte', quantity: 1 }, { name: 'Brownie', quantity: 2, notes: 'Warm up' }],
-  },
+const ROTATIONS = [
+  '-rotate-[0.8deg]',
+  'rotate-[0.5deg]',
+  '-rotate-[1.2deg]',
+  'rotate-[0.9deg]',
+  '-rotate-[0.4deg]',
+  'rotate-[1.1deg]',
+  '-rotate-[0.6deg]',
 ];
 
-const ROTATIONS: Record<number, string> = {
-  1: '-rotate-[0.8deg]',
-  2: 'rotate-[0.5deg]',
-  3: '-rotate-[1.2deg]',
-  4: 'rotate-[0.9deg]',
-  5: '-rotate-[0.4deg]',
-  6: 'rotate-[1.1deg]',
-  9: '-rotate-[0.6deg]',
+const getRotationClass = (id: string) => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % ROTATIONS.length;
+  return ROTATIONS[index];
 };
 
 const COLUMNS: { state: TicketState; label: string; headerBg: string; countBg: string }[] = [
@@ -99,15 +78,15 @@ function LiveClock() {
 function OrderModal({ order, onClose, onPreparing, onDone }: {
   order: KitchenOrder;
   onClose: () => void;
-  onPreparing: (id: number) => void;
-  onDone: (id: number) => void;
+  onPreparing: (id: string) => void;
+  onDone: (id: string) => void;
 }) {
   const isUrgent = order.minutesElapsed >= 10;
   const label = order.type === 'TAKEAWAY' ? 'Take away' : order.tableName;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
       <div
@@ -214,13 +193,13 @@ function TicketCard({
   onOpen,
 }: {
   order: KitchenOrder;
-  onPreparing: (id: number) => void;
-  onDone: (id: number) => void;
+  onPreparing: (id: string) => void;
+  onDone: (id: string) => void;
   onOpen: () => void;
 }) {
   const isUrgent = order.minutesElapsed >= 10;
   const label = order.type === 'TAKEAWAY' ? 'Take away' : order.tableName;
-  const rotation = ROTATIONS[order.id] ?? '';
+  const rotation = getRotationClass(order.id);
 
   const stickyBg =
     order.ticketState === 'DONE'
@@ -242,7 +221,7 @@ function TicketCard({
 
   return (
     <div
-      className={`${stickyBg} ${rotation} rounded-sm shadow-[2px_4px_16px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden transition-transform hover:scale-[1.02] hover:rotate-0 cursor-pointer`}
+      className={`${stickyBg} ${rotation} rounded-sm shadow-[2px_4px_16px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden transition-transform hover:scale-[1.02] hover:rotate-0 cursor-pointer h-full`}
       onClick={onOpen}
     >
       {/* Tape strip */}
@@ -250,9 +229,9 @@ function TicketCard({
 
       {/* Shimmer for preparing */}
       {order.ticketState === 'PREPARING' && (
-        <div className="h-0.5 w-full bg-[#1e2a3a] overflow-hidden">
+        <div className="h-0.5 w-full bg-[#1e2a3a] overflow-hidden relative">
           <div
-            className="h-full bg-blue-400/70"
+            className="h-full bg-blue-400/70 absolute top-0 left-0"
             style={{ width: '45%', animation: 'shimmer 1.8s ease-in-out infinite' }}
           />
         </div>
@@ -278,7 +257,7 @@ function TicketCard({
       </div>
 
       {/* Items */}
-      <div className="px-3.5 py-2 flex flex-col">
+      <div className="px-3.5 py-2 flex flex-col flex-1 overflow-hidden">
         {order.items.slice(0, 3).map((item, idx, arr) => (
           <React.Fragment key={idx}>
             <div className="flex items-center justify-between gap-2 py-1.5">
@@ -296,7 +275,7 @@ function TicketCard({
           </React.Fragment>
         ))}
         {order.items.length > 3 && (
-          <p className="text-[10px] text-[#52525b] mt-1 pl-1">+{order.items.length - 3} more — tap to view</p>
+          <p className="text-[10px] text-[#52525b] mt-auto pt-1">+{order.items.length - 3} more — tap to view</p>
         )}
       </div>
 
@@ -329,11 +308,10 @@ function TicketCard({
               }`}
             >
               {order.ticketState === 'PREPARING' ? (
-                <span className="flex items-center justify-center gap-1">
-                  <span className="w-1 h-1 rounded-full bg-white animate-bounce [animation-delay:0ms]" />
-                  <span className="w-1 h-1 rounded-full bg-white animate-bounce [animation-delay:150ms]" />
-                  <span className="w-1 h-1 rounded-full bg-white animate-bounce [animation-delay:300ms]" />
-                  <span className="ml-1">Preparing</span>
+                <span className="flex items-center justify-center gap-0.5">
+                  <span className="w-1 h-1 rounded-full bg-white animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1 h-1 rounded-full bg-white animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1 h-1 rounded-full bg-white animate-bounce" style={{ animationDelay: '300ms' }} />
                 </span>
               ) : 'Start'}
             </button>
@@ -352,17 +330,53 @@ function TicketCard({
 
 export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
   const router = useRouter();
-  const [orders, setOrders] = useState<KitchenOrder[]>(MOCK_KITCHEN_ORDERS);
+  const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<KitchenOrder | null>(null);
-  
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setOrders(prev =>
-        prev.map(o => o.ticketState !== 'DONE' ? { ...o, minutesElapsed: o.minutesElapsed + 1 } : o)
-      );
-    }, 60000);
+    async function fetchTickets() {
+      try {
+        const res = await api.get('/kot');
+        const data = res.data;
+        const mapped: KitchenOrder[] = (data.tickets ?? []).map((ticket: any) => {
+          const dbOrder = ticket.order ?? {};
+          const elapsed = Math.floor((Date.now() - new Date(ticket.createdAt).getTime()) / 60000);
+          
+          const mappedItems: KitchenItem[] = (ticket.items ?? []).map((ki: any) => {
+            const oi = ki.orderItem ?? {};
+            return {
+              name: oi.product?.name ?? 'Unknown Product',
+              quantity: oi.quantity ?? 1,
+              notes: oi.notes ?? undefined,
+            };
+          });
+
+          return {
+            id: ticket.id,
+            orderNumber: dbOrder.orderNumber ?? 0,
+            type: dbOrder.orderType === 'takeaway' ? 'TAKEAWAY' : 'DINE_IN',
+            tableName: dbOrder.table?.tableNumber ?? dbOrder.customerName ?? 'Table',
+            items: mappedItems,
+            minutesElapsed: elapsed,
+            ticketState: (ticket.status === 'ready' ? 'DONE' : (ticket.status?.toUpperCase() ?? 'PENDING')) as TicketState,
+          };
+        });
+
+        setOrders(mapped);
+        setError(null);
+      } catch (err) {
+        console.error("Failed to fetch KOT tickets:", err);
+        setError("Failed to load kitchen tickets.");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchTickets();
+    const interval = setInterval(fetchTickets, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -386,40 +400,64 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
     }
   };
 
-  const handlePreparing = (id: number) =>
-    setOrders(prev =>
-      prev.map(o =>
-        o.id === id
-          ? { ...o, ticketState: o.ticketState === 'PREPARING' ? 'PENDING' : 'PREPARING' }
-          : o
-      )
-    );
+  const handlePreparing = async (id: string) => {
+    try {
+      const ticket = orders.find(o => o.id === id);
+      if (!ticket) return;
+      const nextStatus = ticket.ticketState === 'PREPARING' ? 'pending' : 'preparing';
+      await api.patch(`/kot/${id}`, { status: nextStatus });
+      setOrders(prev =>
+        prev.map(o =>
+          o.id === id
+            ? { ...o, ticketState: nextStatus.toUpperCase() as TicketState }
+            : o
+        )
+      );
+    } catch (err) {
+      console.error("Failed to update status to preparing:", err);
+    }
+  };
 
-
-  const handleDone = (id: number) =>
-    setOrders(prev =>
-      prev.map(o =>
-        o.id === id
-          ? { ...o, ticketState: o.ticketState === 'DONE' ? 'PENDING' : 'DONE' }
-          : o
-      )
-    );
+  const handleDone = async (id: string) => {
+    try {
+      const ticket = orders.find(o => o.id === id);
+      if (!ticket) return;
+      const nextStatus = ticket.ticketState === 'DONE' ? 'preparing' : 'ready';
+      await api.patch(`/kot/${id}`, { status: nextStatus });
+      setOrders(prev =>
+        prev.map(o =>
+          o.id === id
+            ? { ...o, ticketState: (nextStatus === 'ready' ? 'DONE' : 'PREPARING') as TicketState }
+            : o
+        )
+      );
+    } catch (err) {
+      console.error("Failed to update status to done:", err);
+    }
+  };
 
   return (
     <>
       <style>{`
         @keyframes shimmer {
-          0% { transform: translateX(-120%); }
-          100% { transform: translateX(320%); }
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(250%); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.2s ease-out forwards;
         }
       `}</style>
 
-      <div className="h-screen bg-[#111113] text-[#e4e4e7] font-sans select-none antialiased flex flex-col">
+      <div className="fixed inset-0 h-screen w-screen bg-[#111113] text-[#e4e4e7] font-sans select-none antialiased flex flex-col overflow-hidden">
 
         {/* Header */}
         <header className="bg-[#18181b] border-b border-[#27272a] px-6 py-3.5 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
-            <p className="text-[16px] font-bold text-white">Kitchen Display</p>
+            <p className="text-[16px] font-bold text-white">Kitchen Display System</p>
             <span className="text-[12px] text-[#52525b] tabular-nums"><LiveClock /></span>
           </div>
           
@@ -459,45 +497,60 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
         </header>
 
         {/* Kanban columns */}
-        <main className="flex-1 flex gap-4 p-5 overflow-hidden h-full">
-          {COLUMNS.map(col => {
-            const colOrders = orders.filter(o => o.ticketState === col.state);
-            return (
-              <div key={col.state} className="flex flex-col flex-1 min-w-0 min-h-0">
+        <main className="flex-1 flex gap-5 p-6 overflow-hidden w-full">
+          {isLoading ? (
+            <div className="flex-1 flex items-center justify-center text-neutral-600 gap-3">
+              <svg className="w-6 h-6 animate-spin text-[#e5b83b]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                <circle cx="12" cy="12" r="10" className="opacity-25" />
+                <path d="M4 12a8 8 0 0 1 8-8" className="opacity-75" />
+              </svg>
+              <span className="text-sm font-medium">Loading kitchen board...</span>
+            </div>
+          ) : error ? (
+            <div className="flex-1 flex items-center justify-center text-red-500 gap-3">
+              <span className="text-sm font-medium">{error}</span>
+            </div>
+          ) : (
+            COLUMNS.map(col => {
+              const colOrders = orders.filter(o => o.ticketState === col.state);
+              return (
+                <div key={col.state} className="flex flex-col flex-1 min-w-[280px] h-full overflow-hidden">
 
-                {/* Column header */}
-                <div className={`flex items-center justify-between px-4 py-3 rounded-xl border mb-4 flex-shrink-0 ${col.headerBg}`}>
-                  <span className="text-[13px] font-bold text-white">{col.label}</span>
-                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${col.countBg}`}>
-                    {colOrders.length}
-                  </span>
-                </div>
+                  {/* Column header */}
+                  <div className={`flex items-center justify-between px-4 py-3 rounded-xl border mb-4 flex-shrink-0 ${col.headerBg}`}>
+                    <span className="text-[13px] font-bold text-white">{col.label}</span>
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${col.countBg}`}>
+                      {colOrders.length}
+                    </span>
+                  </div>
 
-                {/* Scrollable cards */}
-                <div className="flex flex-col gap-4 overflow-y-auto flex-1 pb-2 pr-1" style={{ minHeight: 0 }}>
-                  {colOrders.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-[#3f3f46]">
-                      <svg className="w-7 h-7 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
-                        <path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
-                      </svg>
-                      <p className="text-[11px] font-medium">Nothing here</p>
-                    </div>
-                  ) : (
-                    colOrders.map(order => (
-                      <div key={order.id} className="px-2 py-1">
-                        <TicketCard
-                          order={order}
-                          onPreparing={handlePreparing}
-                          onDone={handleDone}
-                          onOpen={() => setSelectedOrder(order)}
-                        />
+                  {/* Scrollable grid area to safeguard against weird rotation bounding boxes */}
+                  <div className="flex-1 overflow-y-auto overflow-x-hidden pb-6 pr-1 custom-scrollbar">
+                    {colOrders.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-20 text-[#3f3f46]">
+                        <svg className="w-8 h-8 mb-2 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
+                        </svg>
+                        <p className="text-[12px] font-medium opacity-70">Nothing here</p>
                       </div>
-                    ))
-                  )}
+                    ) : (
+                      <div className="grid grid-cols-1 gap-5 pt-1 px-1">
+                        {colOrders.map(order => (
+                          <TicketCard
+                            key={order.id}
+                            order={order}
+                            onPreparing={handlePreparing}
+                            onDone={handleDone}
+                            onOpen={() => setSelectedOrder(order)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </main>
       </div>
 

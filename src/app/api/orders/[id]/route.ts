@@ -22,15 +22,16 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
   //   const permError = requiredPermission(auth.payload, "restaurant.tables.read");
   //   if (permError) return permError;
-  console.log("id : ",params.id)
-  const result = await getOrderByTable(auth.payload.activeOutletId!,params.id);
+  const { id } = await params;
+  console.log("id : ", id)
+  const result = await getOrderByTable(auth.payload.activeOutletId!, id);
 
   if (!result.success) {
     return NextResponse.json(

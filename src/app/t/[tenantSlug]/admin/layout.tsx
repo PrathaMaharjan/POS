@@ -2,12 +2,12 @@ import Sidebar from "./components/Sidebar";
 
 interface LayoutProps {
   children: React.ReactNode;
-  params: { tenantSlug: string }; 
+  params: Promise<{ tenantSlug: string }>; 
 }
 
-export default function TenantLayout({ children, params }: LayoutProps) {
+export default async function TenantLayout({ children, params }: LayoutProps) {
  
-  const { tenantSlug } = params;
+  const { tenantSlug } = await params;
 
   return (
     <div className="flex min-h-screen bg-black">

@@ -27,6 +27,13 @@ export async function listKotTickets(outletId: string) {
           tableId: true,
           customerName: true,
         },
+        with: {
+          table: {
+            columns: {
+              tableNumber: true,
+            },
+          },
+        },
       },
       items: {
         columns: {
@@ -67,6 +74,13 @@ export async function getKotTicketById(outletId: string, kotId: string) {
           orderNumber: true,
           tableId: true,
           customerName: true,
+        },
+        with: {
+          table: {
+            columns: {
+              tableNumber: true,
+            },
+          },
         },
       },
       items: {

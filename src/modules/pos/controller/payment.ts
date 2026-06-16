@@ -12,7 +12,7 @@ export async function createPayment(
   method: PaymentMethod
 ): Promise<ControllerResult<{ payment: typeof payments.$inferSelect; order: typeof orders.$inferSelect; totalPaid: number; balanceDue: number }>> {
   console.log("hiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii")
-  console.log(amount,method)
+  console.log(amount, method)
   // 1. Fetch the order from the database that matches both the given orderId and outletId
   const order = await db.query.orders.findFirst({
     where: (o, { eq, and }) => and(eq(o.id, orderId), eq(o.outletId, outletId)),
@@ -35,7 +35,7 @@ export async function createPayment(
 
   // 5. Start a try-catch block to gracefully handle any unexpected database or runtime errors
   try {
-    
+
     // 6. Insert the new payment record into the 'payments' table and destructure the first returned row as 'payment'
     const [payment] = await db
       .insert(payments)
@@ -55,10 +55,10 @@ export async function createPayment(
 
     // 8. Calculate total amount paid by summing up the payments (converting string amounts back to Numbers)
     const totalPaid = existingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-    
+
     // 9. Convert the order's total cost from a string/decimal to a JavaScript Number
     const orderTotal = Number(order.total);
-    
+
     // 10. Calculate remaining balance, ensuring it never goes below 0 (in case of overpayment)
     const balanceDue = Math.max(orderTotal - totalPaid, 0);
 
@@ -67,7 +67,7 @@ export async function createPayment(
 
     // 12. Business Logic Check: If the total payments meet or exceed the total order cost...
     if (totalPaid >= orderTotal) {
-      
+
       // 13. Update the order status to "completed" in the database and get the updated row
       const [closed] = await db
         .update(orders)
@@ -80,7 +80,7 @@ export async function createPayment(
 
       // 15. Check if this is a Dine-In order and if it is assigned to a physical table
       if (order.orderType === "dine_in" && order.tableId) {
-        
+
         // 16. Query for any *other* active orders currently assigned to this exact same table
         const otherActiveOrder = await db.query.orders.findFirst({
           where: (o, { eq, and }) =>
@@ -100,11 +100,11 @@ export async function createPayment(
 
     // 18. Success response returning the generated payment, final order status, and financial balances
     return { success: true, data: { payment, order: updatedOrder, totalPaid, balanceDue } };
-    
+
   } catch (error) {
     // 19. Error handling: Log the exact server-side error for developers to debug
     console.error("createPayment error:", error);
-    
+
     // 20. Return a generic 500 Internal Server Error to the client for security masking
     return { success: false, error: "Failed to record payment", status: 500 };
   }

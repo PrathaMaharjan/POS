@@ -20,7 +20,7 @@ type TableStatus = 'available' | 'occupied' | 'reserved' | 'dirty';
 type TableShape = 'square' | 'round';
 
 interface ActiveFoodStatus {
-  id: number;
+  id: string;
   orderNumber: number;
   tableName: string;
   type: 'DINE_IN' | 'TAKEAWAY';
@@ -137,7 +137,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [activeOrders, setActiveOrders] = useState<ActiveFoodStatus[]>([]);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
-  const [confirmingTakeawayId, setConfirmingTakeawayId] = useState<number | null>(null);
+  const [confirmingTakeawayId, setConfirmingTakeawayId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchTables() {
@@ -165,6 +165,32 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
     fetchTables();
   }, []);
 
+  useEffect(() => {
+    async function fetchTickets() {
+      try {
+        const res = await api.get('/kot');
+        const data = res.data;
+        const mapped: ActiveFoodStatus[] = (data.tickets ?? []).map((ticket: any) => {
+          const dbOrder = ticket.order ?? {};
+          return {
+            id: ticket.id,
+            orderNumber: dbOrder.orderNumber ?? 0,
+            tableName: dbOrder.table?.tableNumber ?? dbOrder.customerName ?? 'Table',
+            type: dbOrder.orderType === 'takeaway' ? 'TAKEAWAY' : 'DINE_IN',
+            ticketState: (ticket.status === 'ready' ? 'DONE' : (ticket.status?.toUpperCase() ?? 'PENDING')) as ActiveFoodStatus['ticketState'],
+          };
+        });
+        setActiveOrders(mapped);
+      } catch (err) {
+        console.error("Failed to fetch KOT tickets for table status:", err);
+      }
+    }
+
+    fetchTickets();
+    const interval = setInterval(fetchTickets, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   const occupied = tables.filter(t => t.status === 'occupied').length;
   const total = tables.length;
   const occupancyPct = total > 0 ? Math.round((occupied / total) * 100) : 0;
@@ -176,7 +202,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
     );
   };
 
-  const handleDismissTakeaway = (id: number) => {
+  const handleDismissTakeaway = (id: string) => {
     setActiveOrders(prev => prev.filter(order => order.id !== id));
     setConfirmingTakeawayId(null);
   };
@@ -186,19 +212,19 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
   };
 
   const handleTableStatusChange = async (tableId: string, nextStatus: TableStatus) => {
-  setTables(prevTables =>
-    prevTables.map(t => t.id === tableId ? { ...t, status: nextStatus } : t)
-  );
-  setSelectedTable(prev => prev && prev.id === tableId ? { ...prev, status: nextStatus } : prev);
+    setTables(prevTables =>
+      prevTables.map(t => t.id === tableId ? { ...t, status: nextStatus } : t)
+    );
+    setSelectedTable(prev => prev && prev.id === tableId ? { ...prev, status: nextStatus } : prev);
 
-  try {
-    console.log('PATCHing table:', tableId, 'to status:', nextStatus);
-    const res = await api.patch(`/tables/${tableId}`, { status: nextStatus });
-    console.log('PATCH success:', res.data);
-  } catch (err: any) {
-    console.error('PATCH FAILED:', err.response?.status, err.response?.data);
-  }
-};
+    try {
+      console.log('PATCHing table:', tableId, 'to status:', nextStatus);
+      const res = await api.patch(`/tables/${tableId}`, { status: nextStatus });
+      console.log('PATCH success:', res.data);
+    } catch (err: any) {
+      console.error('PATCH FAILED:', err.response?.status, err.response?.data);
+    }
+  };
 
   const readyTakeaways = activeOrders.filter(o => o.type === 'TAKEAWAY' && o.ticketState === 'DONE');
   const safeSlug = tenantSlug && tenantSlug !== 'undefined' ? tenantSlug : 'default';
@@ -207,7 +233,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
     <div className="min-h-screen bg-[#0c0c0d] text-[#e4e4e7] flex flex-col font-sans select-none antialiased">
       <main className="flex-1 flex flex-col px-8 py-6 gap-6 max-w-[1400px] mx-auto w-full">
 
-        
+
         <div className="flex items-center justify-between flex-wrap gap-4 bg-[#141416]/40 border border-neutral-900/60 rounded-2xl px-5 py-3.5">
           <div className="flex items-center flex-wrap gap-3">
             {(Object.keys(STATUS_CONFIG) as TableStatus[]).map((s) => (
@@ -232,7 +258,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
           </button>
         </div>
 
-   
+
         {role === 'cashier' && readyTakeaways.length > 0 && (
           <div className="bg-[#141416] border border-neutral-900 rounded-2xl p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2 text-xs font-black tracking-wider text-neutral-400 uppercase">
@@ -244,11 +270,10 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
                 return (
                   <div
                     key={order.id}
-                    className={`flex items-center gap-3 border px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 ${
-                      isConfirming
+                    className={`flex items-center gap-3 border px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 ${isConfirming
                         ? 'bg-[#3b1c1c] border-red-500/40 text-red-400'
                         : 'bg-[#162e1a] border-[#22c55e]/30 text-green-400'
-                    }`}
+                      }`}
                   >
                     <span>Order #{order.orderNumber}</span>
                     {isConfirming ? (
@@ -281,7 +306,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
           </div>
         )}
 
-     
+
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center text-neutral-600 gap-3">
             <Loader2 className="w-6 h-6 animate-spin" />
@@ -305,7 +330,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
           </div>
         )}
 
-      
+
         <div className="w-full mt-auto pt-4 border-t border-neutral-900">
           <div className="bg-[#141416] border border-neutral-900/80 rounded-2xl p-5 flex flex-col justify-between">
             <div>
