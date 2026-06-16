@@ -102,6 +102,7 @@ export const createDineInOrder = async (
   userId: string,
   input: CreateDineInOrderInput,
 ) => {
+  const TAX_RATE = 0
   const { items, tableId } = input;
   const table = await db.query.diningTables.findFirst({
     where: (t, { eq, and }) =>
@@ -118,8 +119,7 @@ export const createDineInOrder = async (
   if (!priced.success) return priced;
   const { itemRows, subtotal } = priced.data;
   // TODO: tax calculation - placeholder until outlet/org tax configuration is designed
-  const tax = 0.13;
-  const total = subtotal + tax;
+  const total = subtotal + TAX_RATE;
   const orderNumber = await getNextOrderNumber(outletId);
 
   try {
@@ -131,7 +131,7 @@ export const createDineInOrder = async (
         tableId,
         orderNumber,
         status: "pending",
-        tax: tax.toFixed(2),
+        tax: TAX_RATE.toFixed(2),
         total: total.toFixed(2),
         createdBy: userId,
       })
@@ -151,7 +151,7 @@ export const createDineInOrder = async (
       .insert(kotTickets)
       .values({
         orderId: order.id,
-        outletId : outletId,
+        outletId: outletId,
         status: "pending",
       })
       .returning();
@@ -234,7 +234,6 @@ export async function createTakeawayOrder(
     //       orderItemId: item.id,
     //     })),
     //   );
-   
 
     return { success: true, data: { order, items: insertedItems } };
   } catch (error) {
