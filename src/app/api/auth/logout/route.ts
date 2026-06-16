@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       const payload = verifyRefreshToken(token);
       await db.update(refreshTokens).set({ revoked: true }).where(eq(refreshTokens.id, payload.tokenId));
     } catch {
-      // ignore
+  
     }
   }
 
