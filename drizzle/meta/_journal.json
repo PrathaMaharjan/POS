@@ -43,6 +43,13 @@
       "when": 1781517087513,
       "tag": "0005_secret_human_robot",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781537067532,
+      "tag": "0006_condemned_doctor_strange",
+      "breakpoints": true
     }
   ]
 }

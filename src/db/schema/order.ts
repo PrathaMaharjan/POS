@@ -9,8 +9,9 @@ import {
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { outlets, users } from "."; 
+import { diningTables, outlets, users } from "."; 
 import { products } from "./inventory";
+import { payments } from "./payment";
 
 export const orderTypeEnum = pgEnum("order_type", ["dine_in", "takeaway"]);
 
@@ -59,11 +60,14 @@ export const orderItems = pgTable("order_items", {
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
   outlet: one(outlets, { fields: [orders.outletId], references: [outlets.id] }),
+  table: one(diningTables, { fields: [orders.tableId], references: [diningTables.id] }),
   createdByUser: one(users, { fields: [orders.createdBy], references: [users.id] }),
   items: many(orderItems),
+  payments: many(payments),
 }));
 
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   order: one(orders, { fields: [orderItems.orderId], references: [orders.id] }),
   product: one(products, { fields: [orderItems.productId], references: [products.id] }),
 }));
+
