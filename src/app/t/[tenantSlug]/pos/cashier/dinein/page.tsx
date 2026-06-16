@@ -16,7 +16,7 @@ import {
   Loader2,
 } from 'lucide-react';
 
-type TableStatus = 'available' | 'occupied' | 'reserved' | 'cleaning';
+type TableStatus = 'available' | 'occupied' | 'reserved' | 'dirty';
 type TableShape = 'square' | 'round';
 
 interface ActiveFoodStatus {
@@ -28,7 +28,7 @@ interface ActiveFoodStatus {
 }
 
 interface Table {
-  id: number;
+  id: string;
   label: string;
   status: TableStatus;
   shape: TableShape;
@@ -68,11 +68,11 @@ const STATUS_CONFIG: Record<TableStatus, {
     label: 'Reserved',
     dotColor: 'bg-[#3b82f6]',
   },
-  cleaning: {
+  dirty: {
     borderColor: 'border-[#e5b83b]/30 hover:border-[#e5b83b]/60',
     shadowColor: 'hover:shadow-[0_0_15px_rgba(229,184,59,0.15)]',
     iconColor: 'text-[#e5b83b]',
-    label: 'Cleaning',
+    label: 'Dirty',
     dotColor: 'bg-[#e5b83b]',
   },
 };
@@ -94,7 +94,7 @@ function TableCard({
     switch (table.status) {
       case 'occupied': return <Users className={`w-7 h-7 ${cfg.iconColor}`} strokeWidth={1.75} />;
       case 'reserved': return <Bookmark className={`w-7 h-7 ${cfg.iconColor}`} strokeWidth={1.75} />;
-      case 'cleaning': return <Eraser className={`w-7 h-7 ${cfg.iconColor}`} strokeWidth={1.75} />;
+      case 'dirty': return <Eraser className={`w-7 h-7 ${cfg.iconColor}`} strokeWidth={1.75} />;
       default: return <Armchair className={`w-7 h-7 ${cfg.iconColor}`} strokeWidth={1.75} />;
     }
   };
@@ -185,12 +185,20 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
     setSelectedTable(table);
   };
 
-  const handleTableStatusChange = (tableId: number, nextStatus: TableStatus) => {
-    setTables(prevTables =>
-      prevTables.map(t => t.id === tableId ? { ...t, status: nextStatus } : t)
-    );
-    setSelectedTable(prev => prev && prev.id === tableId ? { ...prev, status: nextStatus } : prev);
-  };
+  const handleTableStatusChange = async (tableId: string, nextStatus: TableStatus) => {
+  setTables(prevTables =>
+    prevTables.map(t => t.id === tableId ? { ...t, status: nextStatus } : t)
+  );
+  setSelectedTable(prev => prev && prev.id === tableId ? { ...prev, status: nextStatus } : prev);
+
+  try {
+    console.log('PATCHing table:', tableId, 'to status:', nextStatus);
+    const res = await api.patch(`/tables/${tableId}`, { status: nextStatus });
+    console.log('PATCH success:', res.data);
+  } catch (err: any) {
+    console.error('PATCH FAILED:', err.response?.status, err.response?.data);
+  }
+};
 
   const readyTakeaways = activeOrders.filter(o => o.type === 'TAKEAWAY' && o.ticketState === 'DONE');
   const safeSlug = tenantSlug && tenantSlug !== 'undefined' ? tenantSlug : 'default';
@@ -199,7 +207,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
     <div className="min-h-screen bg-[#0c0c0d] text-[#e4e4e7] flex flex-col font-sans select-none antialiased">
       <main className="flex-1 flex flex-col px-8 py-6 gap-6 max-w-[1400px] mx-auto w-full">
 
-        {/* Legend + Back */}
+        
         <div className="flex items-center justify-between flex-wrap gap-4 bg-[#141416]/40 border border-neutral-900/60 rounded-2xl px-5 py-3.5">
           <div className="flex items-center flex-wrap gap-3">
             {(Object.keys(STATUS_CONFIG) as TableStatus[]).map((s) => (
@@ -224,7 +232,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
           </button>
         </div>
 
-        {/* Takeaway Queue */}
+   
         {role === 'cashier' && readyTakeaways.length > 0 && (
           <div className="bg-[#141416] border border-neutral-900 rounded-2xl p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2 text-xs font-black tracking-wider text-neutral-400 uppercase">
@@ -273,7 +281,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
           </div>
         )}
 
-        {/* Table Grid */}
+     
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center text-neutral-600 gap-3">
             <Loader2 className="w-6 h-6 animate-spin" />
@@ -297,7 +305,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
           </div>
         )}
 
-        {/* Capacity Meter */}
+      
         <div className="w-full mt-auto pt-4 border-t border-neutral-900">
           <div className="bg-[#141416] border border-neutral-900/80 rounded-2xl p-5 flex flex-col justify-between">
             <div>

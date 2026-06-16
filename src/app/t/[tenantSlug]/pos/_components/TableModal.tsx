@@ -11,10 +11,10 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
-export type TableStatus = 'available' | 'occupied' | 'reserved' | 'cleaning';
+export type TableStatus = 'available' | 'occupied' | 'reserved' | 'dirty'; // ← renamed
 
 interface Table {
-  id: number;
+  id: string; // ← was number
   label: string;
   status: TableStatus;
   shape: 'round' | 'square';
@@ -25,7 +25,7 @@ interface TableModalProps {
   table: Table;
   tenantSlug: string;
   onClose: () => void;
-  onStatusChange?: (tableId: number, newStatus: TableStatus) => void;
+  onStatusChange?: (tableId: string, newStatus: TableStatus) => void; // ← was number
 }
 
 const TABS = ['Add Order', 'Order List', 'Join Table'] as const;
@@ -35,7 +35,7 @@ const STATUS_META: Record<TableStatus, { bg: string; text: string; dot: string; 
   available: { bg: 'bg-[#22c55e]/10', text: 'text-[#22c55e]', dot: 'bg-[#22c55e]', label: 'Available' },
   occupied:  { bg: 'bg-[#ef4444]/10', text: 'text-[#ef4444]', dot: 'bg-[#ef4444]', label: 'Occupied' },
   reserved:  { bg: 'bg-[#3b82f6]/10', text: 'text-[#3b82f6]', dot: 'bg-[#3b82f6]', label: 'Reserved' },
-  cleaning:  { bg: 'bg-[#e5b83b]/10', text: 'text-[#e5b83b]', dot: 'bg-[#e5b83b]', label: 'Cleaning' },
+  dirty:     { bg: 'bg-[#e5b83b]/10', text: 'text-[#e5b83b]', dot: 'bg-[#e5b83b]', label: 'Cleaning' }, // ← key renamed
 };
 
 const TAB_ICONS: Record<Tab, React.ReactNode> = {
@@ -74,7 +74,7 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
 
   function handleStatusClick(nextStatus: TableStatus) {
     setCurrentStatus(nextStatus);
-    onStatusChange?.(table.id, nextStatus);
+    onStatusChange?.(table.id, nextStatus); // ← bubbles up to Tables.tsx, which PATCHes the backend
   }
 
   function handleOrderCreated(newOrder: CreatedOrder) {
@@ -92,7 +92,7 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
     setIsPaymentOpen(false);
     setOrders([]);
     setDeliveredOrders({});
-    handleStatusClick('cleaning');
+    handleStatusClick('dirty'); // ← renamed from 'cleaning'
     onClose();
   }
 

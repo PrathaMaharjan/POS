@@ -50,7 +50,7 @@ export interface OrderItemRecord {
 export interface CreatedOrder {
   id: string;
   orderNumber: string;
-  tableId: number | null;
+  tableId: string | null;
   status: 'PENDING';
   total: number;
   subtotal: number;
@@ -60,7 +60,7 @@ export interface CreatedOrder {
 
 interface OrderProps {
   tenantSlug: string;
-  tableId?: number | null;
+  tableId?: string | null;
   orderType?: 'TAKEAWAY' | 'DINE_IN';
   showHeader?: boolean;
   onOrderCreated?: (order: CreatedOrder) => void;
@@ -186,24 +186,45 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
     if (cart.length === 0) return;
 
     if (orderType === 'DINE_IN') {
-      const newOrder: CreatedOrder = {
-        id: crypto.randomUUID(),
-        orderNumber: String(Math.floor(1000 + Math.random() * 9000)),
-        tableId,
-        status: 'PENDING',
-        total,
-        subtotal,
-        createdAt: new Date().toISOString(),
-        items: cart.map(item => ({
-          quantity: item.quantity,
-          name: item.product.name,
-          subtotal: parseFloat(item.product.price) * item.quantity,
-        })),
-      };
-      onOrderCreated?.(newOrder);
-      handleClearCart();
-      return;
-    }
+  try {
+    setIsPlacingOrder(true);
+
+    const res = await api.post('/orders/dine-in', {
+      tableId,
+      items: cart.map(item => ({
+        productId: item.product.id,
+        quantity: item.quantity,
+        notes: item.note || undefined,
+      })),
+    });
+
+    console.log("Dine-in order saved:", res.data);
+
+    const newOrder: CreatedOrder = {
+      id: res.data.id,
+      orderNumber: res.data.orderNumber,
+      tableId,
+      status: 'PENDING',
+      subtotal,
+      total,
+      createdAt: new Date().toISOString(),
+      items: cart.map(item => ({
+        quantity: item.quantity,
+        name: item.product.name,
+        subtotal: parseFloat(item.product.price) * item.quantity,
+      })),
+    };
+
+    onOrderCreated?.(newOrder);
+    handleClearCart();
+  } catch (err) {
+    console.error("Failed to create dine-in order", err);
+  } finally {
+    setIsPlacingOrder(false);
+  }
+
+  return;
+}
 
     setIsPlacingOrder(true);
     try {
