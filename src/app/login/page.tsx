@@ -7,6 +7,20 @@ import Link from "next/link";
 import Navbar from "../components/Navbar";
 import api from "@/lib/api";
 
+// Maps each role name to where they should land after login
+const ROLE_ROUTES: Record<string, string> = {
+  Owner: "dashboard",
+  Manager: "dashboard",
+  Cashier: "pos/cashier",
+  Waiter: "waiter",
+  "Kitchen Crew": "kitchen",
+};
+
+function getRouteForRole(role: string | null): string {
+  if (!role) return "dashboard"; // fallback if role is somehow missing
+  return ROLE_ROUTES[role] ?? "dashboard";
+}
+
 export default function LoginPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -44,14 +58,19 @@ export default function LoginPage() {
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("user", JSON.stringify(data.user));
       localStorage.setItem("activeOutletId", data.activeOutletId ?? "");
+      localStorage.setItem("role", data.role ?? "");
+      localStorage.setItem("permissions", JSON.stringify(data.permissions ?? []));
 
-  
       if (data.requiresOutletSelection) {
+        // role isn't known yet - it's determined per-outlet,
+        // so send them to pick an outlet first
         router.push(`/t/${data.user.slug}/select-outlet`);
         return;
       }
 
-      router.push(`/t/${data.user.slug}/pos/cashier`);
+      const targetPath = getRouteForRole(data.role);
+      console.log(targetPath)
+      router.push(`/t/${data.user.slug}/pos/${targetPath}`);
 
     } catch (err: any) {
       const apiError = err.response?.data?.error;
