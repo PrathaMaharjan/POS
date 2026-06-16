@@ -1,14 +1,16 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Order, { CreatedOrder } from './order';
 import PaymentModal from './PaymentModal';
+import api from '@/lib/api';
 import {
   X,
   ClipboardList,
   CreditCard,
   TableProperties,
   CheckCircle2,
+  Loader2,
 } from 'lucide-react';
 
 export type TableStatus = 'available' | 'occupied' | 'reserved' | 'dirty'; // ← renamed
@@ -33,13 +35,13 @@ type Tab = typeof TABS[number];
 
 const STATUS_META: Record<TableStatus, { bg: string; text: string; dot: string; label: string }> = {
   available: { bg: 'bg-[#22c55e]/10', text: 'text-[#22c55e]', dot: 'bg-[#22c55e]', label: 'Available' },
-  occupied:  { bg: 'bg-[#ef4444]/10', text: 'text-[#ef4444]', dot: 'bg-[#ef4444]', label: 'Occupied' },
-  reserved:  { bg: 'bg-[#3b82f6]/10', text: 'text-[#3b82f6]', dot: 'bg-[#3b82f6]', label: 'Reserved' },
-  dirty:     { bg: 'bg-[#e5b83b]/10', text: 'text-[#e5b83b]', dot: 'bg-[#e5b83b]', label: 'Cleaning' }, // ← key renamed
+  occupied: { bg: 'bg-[#ef4444]/10', text: 'text-[#ef4444]', dot: 'bg-[#ef4444]', label: 'Occupied' },
+  reserved: { bg: 'bg-[#3b82f6]/10', text: 'text-[#3b82f6]', dot: 'bg-[#3b82f6]', label: 'Reserved' },
+  dirty: { bg: 'bg-[#e5b83b]/10', text: 'text-[#e5b83b]', dot: 'bg-[#e5b83b]', label: 'Cleaning' }, // ← key renamed
 };
 
 const TAB_ICONS: Record<Tab, React.ReactNode> = {
-  'Add Order':  <ClipboardList className="w-4 h-4" />,
+  'Add Order': <ClipboardList className="w-4 h-4" />,
   'Order List': <CheckCircle2 className="w-4 h-4" />,
   'Join Table': <TableProperties className="w-4 h-4" />,
 };
@@ -47,12 +49,64 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
 export default function TableModal({ table, tenantSlug, onClose, onStatusChange }: TableModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>('Add Order');
   const [orders, setOrders] = useState<CreatedOrder[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [deliveredOrders, setDeliveredOrders] = useState<Record<string, boolean>>({});
   const [currentStatus, setCurrentStatus] = useState<TableStatus>(table.status);
+  const [rawOrderData, setRawOrderData] = useState<any>(null);
+
+  useEffect(() => {
+    async function fetchTableOrder() {
+      try {
+        setIsLoadingOrders(true);
+        setError(null);
+        const res = await api.get(`/orders/${table.id}`);
+        const data = res.data;
+        if (data && data.order) {
+          const dbOrder = data.order;
+          setRawOrderData(dbOrder);
+          const mappedOrder: CreatedOrder = {
+            id: dbOrder.id,
+            orderNumber: String(dbOrder.orderNumber),
+            tableId: dbOrder.tableId,
+            status: dbOrder.status.toUpperCase() as 'PENDING',
+            total: Number(dbOrder.total),
+            subtotal: Number(dbOrder.subtotal),
+            createdAt: dbOrder.createdAt,
+            items: (dbOrder.items ?? []).map((item: any) => ({
+              quantity: item.quantity,
+              name: item.product?.name ?? 'Unknown Item',
+              subtotal: Number(item.subtotal),
+            })),
+          };
+          setOrders([mappedOrder]);
+
+          // Automatically mark as delivered if KOT status is ready (DONE)
+          const hasReadyKot = (dbOrder.kotTickets ?? []).some((t: any) => t.status === 'ready');
+          if (hasReadyKot) {
+            setDeliveredOrders(prev => ({ ...prev, [dbOrder.id]: true }));
+          }
+        } else {
+          setOrders([]);
+          setRawOrderData(null);
+        }
+      } catch (err) {
+        console.error('Failed to fetch table orders:', err);
+        setError('Failed to load existing orders.');
+      } finally {
+        setIsLoadingOrders(false);
+      }
+    }
+
+    fetchTableOrder();
+  }, [table.id]);
 
   const totalTableBalance = useMemo(() =>
-    orders.reduce((sum, order) => sum + order.subtotal, 0),
+    orders.reduce((sum, order) => {
+      const orderSub = order.subtotal > 0 ? order.subtotal : order.items.reduce((itemSum, item) => itemSum + item.subtotal, 0);
+      return sum + orderSub;
+    }, 0),
     [orders]
   );
 
@@ -74,7 +128,7 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
 
   function handleStatusClick(nextStatus: TableStatus) {
     setCurrentStatus(nextStatus);
-    onStatusChange?.(table.id, nextStatus); // ← bubbles up to Tables.tsx, which PATCHes the backend
+    onStatusChange?.(table.id, nextStatus);
   }
 
   function handleOrderCreated(newOrder: CreatedOrder) {
@@ -92,12 +146,25 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
     setIsPaymentOpen(false);
     setOrders([]);
     setDeliveredOrders({});
-    handleStatusClick('dirty'); // ← renamed from 'cleaning'
+    handleStatusClick('dirty');
     onClose();
   }
 
-  function toggleDelivery(orderId: string) {
-    setDeliveredOrders(prev => ({ ...prev, [orderId]: !prev[orderId] }));
+  async function toggleDelivery(orderId: string) {
+    const isCurrentlyDelivered = !!deliveredOrders[orderId];
+    const newDeliveredState = !isCurrentlyDelivered;
+    setDeliveredOrders(prev => ({ ...prev, [orderId]: newDeliveredState }));
+
+    try {
+      if (rawOrderData && rawOrderData.kotTickets) {
+        for (const ticket of rawOrderData.kotTickets) {
+          const nextStatus = newDeliveredState ? 'ready' : 'preparing';
+          await api.patch(`/kot/${ticket.id}`, { status: nextStatus });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to update KOT status from TableModal:", err);
+    }
   }
 
   return (
@@ -124,11 +191,10 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
                   key={statusKey}
                   type="button"
                   onClick={() => handleStatusClick(statusKey)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide transition-all duration-150 ${
-                    isSelected
-                      ? 'bg-neutral-800 text-white shadow-sm'
-                      : 'text-neutral-500 hover:text-neutral-300'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide transition-all duration-150 ${isSelected
+                    ? 'bg-neutral-800 text-white shadow-sm'
+                    : 'text-neutral-500 hover:text-neutral-300'
+                    }`}
                 >
                   {meta.label}
                 </button>
@@ -150,11 +216,10 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all duration-150 border-b-2 -mb-[1px] ${
-                activeTab === tab
-                  ? 'text-[#e5b83b] border-[#e5b83b] bg-[#e5b83b]/5'
-                  : 'text-neutral-500 border-transparent hover:text-neutral-300'
-              }`}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all duration-150 border-b-2 -mb-[1px] ${activeTab === tab
+                ? 'text-[#e5b83b] border-[#e5b83b] bg-[#e5b83b]/5'
+                : 'text-neutral-500 border-transparent hover:text-neutral-300'
+                }`}
             >
               {TAB_ICONS[tab]}
               {tab}
@@ -183,7 +248,16 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
           {activeTab === 'Order List' && (
             <div className="h-full flex flex-col justify-between overflow-hidden">
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {orders.length === 0 ? (
+                {isLoadingOrders ? (
+                  <div className="h-full flex flex-col items-center justify-center text-neutral-600 gap-3">
+                    <Loader2 className="w-8 h-8 animate-spin text-[#e5b83b]" />
+                    <p className="text-sm">Loading order list...</p>
+                  </div>
+                ) : error ? (
+                  <div className="h-full flex flex-col items-center justify-center text-red-500 gap-3">
+                    <p className="text-sm">{error}</p>
+                  </div>
+                ) : orders.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-neutral-600 gap-3">
                     <ClipboardList className="w-12 h-12" strokeWidth={1.5} />
                     <p className="text-sm">No pending items found for {table.label}</p>
@@ -197,11 +271,10 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
                           <div>
                             <div className="flex items-center gap-2">
                               <h3 className="text-white font-semibold text-sm">Order #{order.orderNumber}</h3>
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
-                                isDelivered
-                                  ? 'bg-neutral-900 border-neutral-800 text-neutral-500'
-                                  : 'bg-[#e5b83b]/10 border-[#e5b83b]/20 text-[#e5b83b]'
-                              }`}>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${isDelivered
+                                ? 'bg-neutral-900 border-neutral-800 text-neutral-500'
+                                : 'bg-[#e5b83b]/10 border-[#e5b83b]/20 text-[#e5b83b]'
+                                }`}>
                                 {isDelivered ? 'Delivered' : 'Pending'}
                               </span>
                             </div>
@@ -225,11 +298,10 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
                           <button
                             type="button"
                             onClick={() => toggleDelivery(order.id)}
-                            className={`text-[10px] font-bold tracking-wide uppercase px-2.5 py-1.5 rounded-lg transition-colors border ${
-                              isDelivered
-                                ? 'border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-900'
-                                : 'bg-[#e5b83b] border-transparent text-[#0c0c0d] hover:bg-[#f5c847]'
-                            }`}
+                            className={`text-[10px] font-bold tracking-wide uppercase px-2.5 py-1.5 rounded-lg transition-colors border ${isDelivered
+                              ? 'border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-900'
+                              : 'bg-[#e5b83b] border-transparent text-[#0c0c0d] hover:bg-[#f5c847]'
+                              }`}
                           >
                             {isDelivered ? 'Mark Undelivered' : 'Mark Delivered'}
                           </button>
@@ -252,11 +324,10 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
                   <button
                     onClick={handleTableSettlement}
                     disabled={!allOrdersDelivered}
-                    className={`font-bold text-sm px-6 py-3 rounded-xl flex items-center gap-2 transition-all duration-150 select-none ${
-                      allOrdersDelivered
-                        ? 'bg-[#e5b83b] hover:bg-[#f5c847] text-[#0c0c0d] active:scale-[0.98] shadow-[0_4px_20px_rgba(229,184,59,0.1)] cursor-pointer'
-                        : 'bg-neutral-900 border border-neutral-800 text-neutral-600 cursor-not-allowed opacity-60'
-                    }`}
+                    className={`font-bold text-sm px-6 py-3 rounded-xl flex items-center gap-2 transition-all duration-150 select-none ${allOrdersDelivered
+                      ? 'bg-[#e5b83b] hover:bg-[#f5c847] text-[#0c0c0d] active:scale-[0.98] shadow-[0_4px_20px_rgba(229,184,59,0.1)] cursor-pointer'
+                      : 'bg-neutral-900 border border-neutral-800 text-neutral-600 cursor-not-allowed opacity-60'
+                      }`}
                   >
                     <CreditCard className="w-4 h-4" strokeWidth={2.5} />
                     Process Table Payment
@@ -289,6 +360,7 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
       <PaymentModal
         isOpen={isPaymentOpen}
         onClose={handlePaymentSuccessComplete}
+        orderId={orders[0]?.id}
         totalAmount={totalTableBalance}
         orderType="DINE_IN"
         tableId={table.label}

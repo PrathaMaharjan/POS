@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 export default function FullscreenToggle() {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Sync state if the user presses 'Esc' to exit fullscreen manually
+
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);

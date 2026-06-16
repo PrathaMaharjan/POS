@@ -12,11 +12,12 @@ export async function POST(req: NextRequest) {
       const payload = verifyRefreshToken(token);
       await db.update(refreshTokens).set({ revoked: true }).where(eq(refreshTokens.id, payload.tokenId));
     } catch {
-      // ignore
+  
     }
   }
 
   const response = NextResponse.json({ message: "Logged out" });
   response.cookies.delete("refreshToken");
+  response.cookies.delete("role")
   return response;
 }

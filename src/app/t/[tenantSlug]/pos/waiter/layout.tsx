@@ -10,14 +10,14 @@ const ROLE_HOME: Record<string, string> = {
   "Kitchen Crew": "kitchen",
 };
 
-export default function KitchenLayout({ children }: { children: React.ReactNode }) {
+export default function WaiterLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
     const role = localStorage.getItem("role");
-    if (role !== "Kitchen Crew") {
+    if (role !== "Waiter") {
       const home = ROLE_HOME[role ?? ""] ?? "admin";
       router.replace(`/t/${tenantSlug}/${home}`);
     } else {

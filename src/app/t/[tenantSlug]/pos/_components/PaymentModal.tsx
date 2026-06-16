@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useRef } from 'react';
+import api from '@/lib/api';
 
 
 
@@ -24,6 +25,7 @@ interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   totalAmount: number;
+  orderId?: string | null;
   cart?: CartItem[];
   orderType?: OrderType;
   tableId?: string | number | null;
@@ -35,6 +37,7 @@ export default function PaymentModal({
   isOpen, 
   onClose, 
   totalAmount, 
+  orderId = null,
   cart = [], 
   orderType = 'TAKEAWAY', 
   tableId = null 
@@ -42,24 +45,49 @@ export default function PaymentModal({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
   const [cashReceived, setCashReceived] = useState<string>('');
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [paymentResult, setPaymentResult] = useState<any>(null);
 
   const receiptRef = useRef<HTMLDivElement>(null);
 
   if (!isOpen) return null;
 
 
-  const tax = totalAmount * 0.08;
-  const grandTotal = totalAmount + tax;
+  const tax = Math.round(totalAmount * 0.08 * 100) / 100;
+  const grandTotal = Math.round((totalAmount + tax) * 100) / 100;
 
-  const handleConfirm = () => {
-
-    setIsSuccess(true);
+  const handleConfirm = async () => {
+    if (!orderId) {
+      setErrorMessage("No active order found to process payment.");
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      setErrorMessage(null);
+      const amountToSend = paymentMethod === 'Cash' && cashReceived
+        ? parseFloat(cashReceived)
+        : grandTotal;
+      const res = await api.post(`/orders/${orderId}/payment`, {
+        amount: amountToSend,
+        method: paymentMethod.toLowerCase() as 'cash' | 'card' | 'qr',
+      });
+      setPaymentResult(res.data);
+      setIsSuccess(true);
+    } catch (err: any) {
+      console.error("Payment failed:", err);
+      setErrorMessage(err.response?.data?.error ?? "Failed to process payment. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCloseModal = () => {
     setCashReceived('');
     setPaymentMethod('Cash');
     setIsSuccess(false);
+    setPaymentResult(null);
+    setErrorMessage(null);
     onClose();
   };
 
@@ -84,9 +112,29 @@ export default function PaymentModal({
                 </p>
               </div>
 
-              <div className="w-full bg-[#0c0c0d] rounded-xl p-4 border border-neutral-900 flex justify-between items-center text-sm">
-                <span className="text-neutral-400">Total Settled</span>
-                <span className="text-white font-bold text-base">Rs.{grandTotal.toFixed(2)}</span>
+              <div className="w-full bg-[#0c0c0d] rounded-xl p-4 border border-neutral-900 flex flex-col gap-2 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-neutral-400">Total Settled</span>
+                  <span className="text-white font-bold text-base">Rs.{grandTotal.toFixed(2)}</span>
+                </div>
+                {paymentMethod === 'Cash' && paymentResult && (
+                  <>
+                    <div className="flex justify-between items-center border-t border-neutral-800 pt-2">
+                      <span className="text-neutral-400">Cash Received</span>
+                      <span className="text-white font-semibold">
+                        Rs.{parseFloat(cashReceived || '0').toFixed(2)}
+                      </span>
+                    </div>
+                    {paymentResult.changeDue > 0 && (
+                      <div className="flex justify-between items-center border-t border-neutral-800 pt-2">
+                        <span className="text-neutral-400">Change Return</span>
+                        <span className="text-[#22c55e] font-bold text-base">
+                          Rs.{Number(paymentResult.changeDue).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
 
               <div className="w-full flex flex-col gap-2 mt-2">
@@ -179,12 +227,18 @@ export default function PaymentModal({
                 </div>
               )}
 
+              {errorMessage && (
+                <div className="text-red-500 text-xs font-semibold text-center mt-1 bg-red-500/10 border border-red-500/20 py-2 rounded-xl">
+                  {errorMessage}
+                </div>
+              )}
+
               <button
                 onClick={handleConfirm}
-                disabled={paymentMethod === 'Cash' && (!cashReceived || parseFloat(cashReceived) < grandTotal)}
-                className="w-full bg-[#e5b83b] hover:bg-[#f5c847] disabled:opacity-40 disabled:cursor-not-allowed text-[#0c0c0d] font-bold py-3 rounded-xl transition-all duration-150 text-sm"
+                disabled={isSubmitting || (paymentMethod === 'Cash' && (!cashReceived || parseFloat(cashReceived) < grandTotal))}
+                className="w-full bg-[#e5b83b] hover:bg-[#f5c847] disabled:opacity-40 disabled:cursor-not-allowed text-[#0c0c0d] font-bold py-3 rounded-xl transition-all duration-150 text-sm flex items-center justify-center gap-2"
               >
-                Confirm Payment
+                {isSubmitting ? 'Processing...' : 'Confirm Payment'}
               </button>
             </>
           )}

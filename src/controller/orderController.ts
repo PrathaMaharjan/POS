@@ -102,7 +102,7 @@ export const createDineInOrder = async (
   userId: string,
   input: CreateDineInOrderInput,
 ) => {
-  const TAX_RATE = 0
+  const TAX_RATE = 0.08;
   const { items, tableId } = input;
   const table = await db.query.diningTables.findFirst({
     where: (t, { eq, and }) =>
@@ -118,8 +118,8 @@ export const createDineInOrder = async (
   const priced = await priceItem(outletId, items);
   if (!priced.success) return priced;
   const { itemRows, subtotal } = priced.data;
-  // TODO: tax calculation - placeholder until outlet/org tax configuration is designed
-  const total = subtotal + TAX_RATE;
+  const tax = subtotal * TAX_RATE;
+  const total = subtotal + tax;
   const orderNumber = await getNextOrderNumber(outletId);
 
   try {
@@ -131,7 +131,8 @@ export const createDineInOrder = async (
         tableId,
         orderNumber,
         status: "pending",
-        tax: TAX_RATE.toFixed(2),
+        subtotal: subtotal.toFixed(2),
+        tax: tax.toFixed(2),
         total: total.toFixed(2),
         createdBy: userId,
       })
@@ -193,8 +194,8 @@ export async function createTakeawayOrder(
 
   const { itemRows, subtotal } = priced.data;
 
-  // TODO: tax calculation - placeholder until outlet/org tax configuration is designed
-  const tax = 0;
+  const TAX_RATE = 0.08;
+  const tax = subtotal * TAX_RATE;
   const total = subtotal + tax;
   const orderNumber = await getNextOrderNumber(outletId);
 
@@ -221,19 +222,19 @@ export async function createTakeawayOrder(
       .values(itemRows.map((row) => ({ ...row, orderId: order.id })))
       .returning();
 
-    // const [kotTicket] = await db
-    //   .insert(kotTickets)
-    //   .values({ orderId: order.id, outletId, status: "pending" })
-    //   .returning();
+    const [kotTicket] = await db
+      .insert(kotTickets)
+      .values({ orderId: order.id, outletId, status: "pending" })
+      .returning();
 
-    // await db
-    //   .insert(kotItems)
-    //   .values(
-    //     insertedItems.map((item) => ({
-    //       kotTicketId: kotTicket.id,
-    //       orderItemId: item.id,
-    //     })),
-    //   );
+    await db
+      .insert(kotItems)
+      .values(
+        insertedItems.map((item) => ({
+          kotTicketId: kotTicket.id,
+          orderItemId: item.id,
+        })),
+      );
 
     return { success: true, data: { order, items: insertedItems } };
   } catch (error) {
@@ -287,7 +288,15 @@ export async function getOrderByTable(outletId: string, tableId: string) {
     },
   });
 
-  return { success: true, data: { table, order: order ?? null } } as const;
+  if (!order) {
+    return { success: true, data: { table, order: null } } as const;
+  }
+
+  const kotTicketsList = await db.query.kotTickets.findMany({
+    where: (k, { eq }) => eq(k.orderId, order.id),
+  });
+
+  return { success: true, data: { table, order: { ...order, kotTickets: kotTicketsList } } } as const;
 }
 
 // ─────────────────────────────────────────────

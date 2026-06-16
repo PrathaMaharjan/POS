@@ -106,6 +106,7 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [createdTakeawayOrderId, setCreatedTakeawayOrderId] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -201,8 +202,8 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
     console.log("Dine-in order saved:", res.data);
 
     const newOrder: CreatedOrder = {
-      id: res.data.id,
-      orderNumber: res.data.orderNumber,
+      id: res.data.order.id,
+      orderNumber: res.data.order.orderNumber,
       tableId,
       status: 'PENDING',
       subtotal,
@@ -228,7 +229,7 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
 
     setIsPlacingOrder(true);
     try {
-      await api.post('/orders/takeaway', {
+      const res = await api.post('/orders/takeaway', {
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         items: cart.map(item => ({
@@ -237,6 +238,7 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
           notes: item.note || undefined,
         })),
       });
+      setCreatedTakeawayOrderId(res.data.order.id);
       setIsPaymentOpen(true);
     } catch (err: any) {
       console.error('Failed to place order:', err);
@@ -252,6 +254,7 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
     handleClearCart();
     setCustomerName('');
     setCustomerPhone('');
+    setCreatedTakeawayOrderId(null);
   };
 
   return (
@@ -533,6 +536,7 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
       <PaymentModal
         isOpen={isPaymentOpen}
         onClose={handlePaymentComplete}
+        orderId={createdTakeawayOrderId}
         totalAmount={subtotal}
         orderType="TAKEAWAY"
         tableId={null}

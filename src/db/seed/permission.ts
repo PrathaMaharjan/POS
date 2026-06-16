@@ -16,7 +16,12 @@ async function seedPermissions() {
   for (const [module, resources] of Object.entries(MODULES)) {
     for (const resource of resources) {
       for (const action of ACTIONS) {
-        rows.push({ module, resource, action, code: `${module}.${resource}.${action}` });
+        rows.push({
+          module,
+          resource,
+          action,
+          code: `${module}.${resource}.${action}`,
+        });
       }
     }
   }
@@ -27,13 +32,16 @@ async function seedPermissions() {
     .onConflictDoNothing()
     .returning();
 
-  console.log(`Seeded ${inserted.length} new permissions (56 total in catalog)`);
+  console.log(
+    `Seeded ${inserted.length} new permissions (56 total in catalog)`,
+  );
 }
 
 // Find an existing system role by name (org-level template, organizationId = null)
 async function findRoleByName(name: string) {
   return db.query.roles.findFirst({
-    where: (r, { eq, and, isNull }) => and(eq(r.name, name), isNull(r.organizationId)),
+    where: (r, { eq, and, isNull }) =>
+      and(eq(r.name, name), isNull(r.organizationId)),
   });
 }
 
@@ -68,9 +76,9 @@ async function renameOrCreateRole(oldName: string, newName: string) {
 async function setRolePermissions(roleId: string, permissionIds: string[]) {
   await db.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId));
   if (permissionIds.length === 0) return;
-  await db.insert(rolePermissions).values(
-    permissionIds.map((permissionId) => ({ roleId, permissionId }))
-  );
+  await db
+    .insert(rolePermissions)
+    .values(permissionIds.map((permissionId) => ({ roleId, permissionId })));
 }
 
 function code(p: { module: string; resource: string; action: string }) {
@@ -86,13 +94,18 @@ async function seedSystemRoles() {
 
   // --- 1. Owner (renamed from "Superadmin"): everything ---
   const owner = await renameOrCreateRole("Superadmin", "Owner");
-  await setRolePermissions(owner.id, allPerms.map((p) => p.id));
+  await setRolePermissions(
+    owner.id,
+    allPerms.map((p) => p.id),
+  );
 
   // --- 2. Manager (renamed from "Admin"): everything except core.*.delete ---
   const manager = await renameOrCreateRole("Admin", "Manager");
   await setRolePermissions(
     manager.id,
-    allPerms.filter((p) => !(p.module === "core" && p.action === "delete")).map((p) => p.id)
+    allPerms
+      .filter((p) => !(p.module === "core" && p.action === "delete"))
+      .map((p) => p.id),
   );
 
   // --- 3. Cashier: POS checkout, payments, shift drawer, order history, menu read ---
@@ -113,7 +126,7 @@ async function seedSystemRoles() {
       "restaurant.kot.read",
       "restaurant.bill_splits.create",
       "restaurant.bill_splits.read",
-    ])
+    ]),
   );
 
   // --- 4. Waiter: table selection, tableside ordering, KOT creation ---
@@ -128,17 +141,21 @@ async function seedSystemRoles() {
       "restaurant.kot.read",
       "pos.billing.create",
       "pos.billing.read",
-    ])
+      "pos.payments.create",
+      "pos.payments.read",
+    ]),
   );
 
   // --- 5. Kitchen Crew: KDS board, KOT state transitions only ---
   const kitchenCrew = await findOrCreateRole("Kitchen Crew");
   await setRolePermissions(
     kitchenCrew.id,
-    pick(["restaurant.kot.read", "restaurant.kot.update"])
+    pick(["restaurant.kot.read", "restaurant.kot.update"]),
   );
 
-  console.log("Seeded system roles: Owner, Manager, Cashier, Waiter, Kitchen Crew");
+  console.log(
+    "Seeded system roles: Owner, Manager, Cashier, Waiter, Kitchen Crew",
+  );
 }
 
 async function main() {

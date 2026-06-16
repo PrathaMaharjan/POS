@@ -30,9 +30,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <ThemeProvider>
-                  {children}
+          {children}
         </ThemeProvider>
-        {children}</body>
+      </body>
     </html>
   );
 }
