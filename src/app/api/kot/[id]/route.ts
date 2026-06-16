@@ -1,4 +1,5 @@
 import { requiredToken } from "@/lib/auth/requireAuth";
+import { requiredPermission } from "@/lib/permissions/requirePermission";
 import {
   getKotTicketById,
   updateKotStatus,
@@ -14,8 +15,8 @@ export async function GET(
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
-  //   const permError = requirePermission(auth.payload, "restaurant.kot.read");
-  //   if (permError) return permError;
+    const permError = requiredPermission(auth.payload, "restaurant.kot.read");
+    if (permError) return permError;
 
   const ticket = await getKotTicketById(auth.payload.activeOutletId!, id);
 
@@ -42,8 +43,8 @@ export async function PATCH(
   if (!auth.ok) return auth.response;
   const { id } = await params;
 
-  //   const permError = requirePermission(auth.payload, "restaurant.kot.update");
-  //   if (permError) return permError;
+    const permError = requiredPermission(auth.payload, "restaurant.kot.update");
+    if (permError) return permError;
 
   const body = await req.json();
   const parsed = schema.safeParse(body);

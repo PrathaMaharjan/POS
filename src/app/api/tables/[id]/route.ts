@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requiredToken } from "@/lib/auth/requireAuth";
 import { updateTableStatus } from "@/controller/tableController";
+import { requiredPermission } from "@/lib/permissions/requirePermission";
 
 
 const schema = z.object({
@@ -17,8 +18,8 @@ export async function PATCH(
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
-//   const permError = requirePermission(auth.payload, "restaurant.tables.update");
-//   if (permError) return permError;
+  const permError = requiredPermission(auth.payload, "restaurant.tables.update");
+  if (permError) return permError;
 
   const body = await req.json();
   const parsed = schema.safeParse(body);

@@ -1,4 +1,5 @@
 import { requiredToken } from "@/lib/auth/requireAuth";
+import { requiredPermission } from "@/lib/permissions/requirePermission";
 import {
   createPayment,
   listPaymentsForOrder,
@@ -19,11 +20,10 @@ export async function POST(
   if (!auth.ok) return auth.response;
   const { id } = await params;
 
-  // const permError = requirePermission(auth.payload, "pos.payments.create");
-  // if (permError) return permError;
+  const permError = requiredPermission(auth.payload, "pos.payments.create");
+  if (permError) return permError;
 
   const body = await req.json();
-  console.log(body)
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -58,8 +58,8 @@ export async function GET(
   if (!auth.ok) return auth.response;
 
   const { id } = await params;
-  //   const permError = requirePermission(auth.payload, "pos.payments.read");
-  //   if (permError) return permError;
+    const permError = requiredPermission(auth.payload, "pos.payments.read");
+    if (permError) return permError;
 
   const result = await listPaymentsForOrder(auth.payload.activeOutletId!, id);
 
