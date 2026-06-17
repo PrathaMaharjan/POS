@@ -1,4 +1,4 @@
-import { eq, sql, inArray, Column } from "drizzle-orm";
+import { eq, sql, inArray, Column, ne, and, notInArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   orders,
@@ -227,14 +227,12 @@ export async function createTakeawayOrder(
       .values({ orderId: order.id, outletId, status: "pending" })
       .returning();
 
-    await db
-      .insert(kotItems)
-      .values(
-        insertedItems.map((item) => ({
-          kotTicketId: kotTicket.id,
-          orderItemId: item.id,
-        })),
-      );
+    await db.insert(kotItems).values(
+      insertedItems.map((item) => ({
+        kotTicketId: kotTicket.id,
+        orderItemId: item.id,
+      })),
+    );
 
     return { success: true, data: { order, items: insertedItems } };
   } catch (error) {
@@ -302,12 +300,11 @@ export async function getOrderByTable(outletId: string, tableId: string) {
         where: (k, { eq }) => eq(k.orderId, order.id),
       });
       return { ...order, kotTickets: kotTicketsList };
-    })
+    }),
   );
 
   return { success: true, data: { table, orders: ordersWithKot } } as const;
 }
-
 
 // ─────────────────────────────────────────────
 // ADD ITEMS TO AN EXISTING ORDER
@@ -361,3 +358,72 @@ export async function getOrderByTable(outletId: string, tableId: string) {
 //     return { success: false, error: "Failed to add items to order", status: 500 };
 //   }
 // }
+
+export async function cancelOrder(
+  outletId: string,
+  orderId: string,
+): Promise<ControllerResult<typeof orders.$inferSelect>> {
+  const order = await db.query.orders.findFirst({
+    where: (o, { eq, and }) => and(eq(o.id, orderId), eq(o.outletId, outletId)),
+  });
+
+  if (!order) {
+    return { success: false, error: "Order not found", status: 404 };
+  }
+
+  if (order.status === "completed") {
+    return {
+      success: false,
+      error: "Cannot cancel a completed order",
+      status: 400,
+    };
+  }
+
+  if (order.status === "cancelled") {
+    return { success: false, error: "Order is already cancelled", status: 400 };
+  }
+
+  try {
+    //  const [cancelledOrder] = await db
+    // .update(orders)
+    // .set({ status: "cancelled", updatedAt: new Date() })
+    // .where(eq(orders.id, orderId))
+    // .returning();
+
+    const [cancelledOrder] = await db
+      .update(orders)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(eq(orders.id, orderId))
+      .returning();
+    await db
+      .update(kotTickets)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(
+        and(
+          eq(kotTickets.orderId, orderId),
+          ne(kotTickets.status, "cancelled"),
+        ),
+      );
+    // Free the dine-in table if no other active orders remain on it
+    if (order.orderType === "dine_in" && order.tableId) {
+      const otherActiveOrder = await db.query.orders.findFirst({
+        where: (o, { eq, and }) =>
+          and(
+            eq(o.tableId, order.tableId!),
+            ne(o.id, order.id),
+            notInArray(o.status, ["completed", "cancelled"]),
+          ),
+      });
+      if (!otherActiveOrder) {
+        await db
+          .update(diningTables)
+          .set({ status: "available" })
+          .where(eq(diningTables.id, order.tableId));
+      }
+    }
+       return { success: true, data: cancelledOrder };
+  } catch (error) {
+    console.error("cancelOrder error:", error);
+    return { success: false, error: "Failed to cancel order", status: 500 };
+  }
+}

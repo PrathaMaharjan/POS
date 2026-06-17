@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 const ROLE_HOME: Record<string, string> = {
   Owner: "admin",
   Manager: "admin",
-  Cashier: "pos/cashier",
+  Cashier: "cashier",
   Waiter: "waiter",
   "Kitchen Crew": "kitchen",
 };
