@@ -11,6 +11,7 @@ import {
   TableProperties,
   CheckCircle2,
   Loader2,
+  Trash2, // Added Trash2 icon for deletion
 } from 'lucide-react';
 
 export type TableStatus = 'available' | 'occupied' | 'reserved' | 'dirty';
@@ -26,11 +27,13 @@ interface Table {
 interface TableModalProps {
   table: Table;
   tenantSlug: string;
+  role?: 'cashier' | 'waiter';
   onClose: () => void;
   onStatusChange?: (tableId: string, newStatus: TableStatus) => void;
+  onKotStatusChange?: (ticketId: string, nextStatus: string) => void;
 }
 
-const TABS = ['Add Order', 'Order List', 'Join Table'] as const;
+const TABS = ['Add Order', 'Order List'] as const;
 type Tab = typeof TABS[number];
 
 const STATUS_META: Record<TableStatus, { bg: string; text: string; dot: string; label: string }> = {
@@ -42,11 +45,10 @@ const STATUS_META: Record<TableStatus, { bg: string; text: string; dot: string; 
 
 const TAB_ICONS: Record<Tab, React.ReactNode> = {
   'Add Order': <ClipboardList className="w-4 h-4" />,
-  'Order List': <CheckCircle2 className="w-4 h-4" />,
-  'Join Table': <TableProperties className="w-4 h-4" />,
+  'Order List': <CheckCircle2 className="w-4 h-4" />
 };
 
-export default function TableModal({ table, tenantSlug, onClose, onStatusChange }: TableModalProps) {
+export default function TableModal({ table, tenantSlug, role, onClose, onStatusChange, onKotStatusChange }: TableModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>('Add Order');
   const [orders, setOrders] = useState<CreatedOrder[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
@@ -55,11 +57,12 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
   const [deliveredOrders, setDeliveredOrders] = useState<Record<string, boolean>>({});
   const [currentStatus, setCurrentStatus] = useState<TableStatus>(table.status);
   const [rawOrderData, setRawOrderData] = useState<any[]>([]);
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchTableOrder() {
+    async function fetchTableOrder(silent = false) {
       try {
-        setIsLoadingOrders(true);
+        if (!silent) setIsLoadingOrders(true);
         setError(null);
         const res = await api.get(`/orders/${table.id}`);
         const data = res.data;
@@ -81,7 +84,6 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
               })),
             };
 
-            // Waiter-driven check: Check if all tickets have already been hand-delivered to the table
             const totalTickets = dbOrder.kotTickets ?? [];
             const isFullyServed = totalTickets.length > 0 && totalTickets.every((t: any) => t.status === 'served');
 
@@ -98,13 +100,15 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
         }
       } catch (err) {
         console.error('Failed to fetch table orders:', err);
-        setError('Failed to load existing orders.');
+        if (!silent) setError('Failed to load existing orders.');
       } finally {
-        setIsLoadingOrders(false);
+        if (!silent) setIsLoadingOrders(false);
       }
     }
 
     fetchTableOrder();
+    const interval = setInterval(() => fetchTableOrder(true), 5000);
+    return () => clearInterval(interval);
   }, [table.id]);
 
   const totalTableBalance = useMemo(() =>
@@ -155,26 +159,48 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
     onClose();
   }
 
+
+  async function deleteOrder(orderId: string) {
+    if (!window.confirm("Are you sure you want to delete this order?")) return;
+
+    setIsDeletingId(orderId);
+    try {
+      await api.delete(`/orders/${orderId}`);
+
+
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+      setRawOrderData(prev => prev.filter(o => o.id !== orderId));
+
+
+      if (orders.length <= 1) {
+        handleStatusClick('available');
+      }
+    } catch (err) {
+      console.error("Failed to cancel/delete order card:", err);
+      alert("Could not remove order. Check role authorization levels.");
+    } finally {
+      setIsDeletingId(null);
+    }
+  }
+
   async function toggleDelivery(orderId: string) {
     const isCurrentlyDelivered = !!deliveredOrders[orderId];
     const newDeliveredState = !isCurrentlyDelivered;
 
-    // Optimistically update the UI state so payment becomes clickable right away
     setDeliveredOrders(prev => ({ ...prev, [orderId]: newDeliveredState }));
 
     try {
       const currentOrder = rawOrderData.find((o: any) => o.id === orderId);
       if (currentOrder && currentOrder.kotTickets) {
-        // Safe backend sync loop using your proven /kot status update endpoint
         for (const ticket of currentOrder.kotTickets) {
           const nextStatus = newDeliveredState ? 'served' : 'ready';
           await api.patch(`/kot/${ticket.id}`, { status: nextStatus });
           ticket.status = nextStatus;
+          onKotStatusChange?.(ticket.id, nextStatus);
         }
       }
     } catch (err) {
       console.error("Failed to update status from TableModal:", err);
-      // Revert local UI state back if backend pipeline throws an error
       setDeliveredOrders(prev => ({ ...prev, [orderId]: isCurrentlyDelivered }));
     }
   }
@@ -277,6 +303,15 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
                 ) : (
                   orders.map((order) => {
                     const isDelivered = !!deliveredOrders[order.id];
+                    const rawOrder = rawOrderData.find((o: any) => o.id === order.id);
+                    const tickets = rawOrder?.kotTickets ?? [];
+                    const isFoodReady = tickets.length > 0 && tickets.every((t: any) => t.status === 'ready' || t.status === 'served');
+                    const showDeliveryButton = role !== 'waiter' || isFoodReady || isDelivered;
+
+                    const hasPreparing = tickets.some((t: any) => t.status === 'preparing');
+                    const hasPending = tickets.some((t: any) => t.status === 'pending');
+                    const isDeleting = isDeletingId === order.id;
+
                     return (
                       <div key={order.id} className="bg-[#141416] border border-neutral-800 rounded-xl p-4 flex flex-col gap-3">
                         <div className="flex justify-between items-start">
@@ -289,6 +324,17 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
                                 }`}>
                                 {isDelivered ? 'Delivered' : 'Pending Delivery'}
                               </span>
+
+
+                              <button
+                                type="button"
+                                disabled={isDeleting}
+                                onClick={() => deleteOrder(order.id)}
+                                className="ml-1 p-1 rounded-md text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150 disabled:opacity-40"
+                                title="Cancel Order"
+                              >
+
+                              </button>
                             </div>
                             <p className="text-[11px] text-neutral-500 mt-0.5">
                               {new Date(order.createdAt).toLocaleString()}
@@ -307,16 +353,23 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
                         </div>
 
                         <div className="pt-2 border-t border-neutral-900/40 flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => toggleDelivery(order.id)}
-                            className={`text-[10px] font-bold tracking-wide uppercase px-2.5 py-1.5 rounded-lg transition-colors border ${isDelivered
-                              ? 'border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-900'
-                              : 'bg-[#e5b83b] border-transparent text-[#0c0c0d] hover:bg-[#f5c847]'
-                              }`}
-                          >
-                            {isDelivered ? 'Mark Undelivered' : 'Mark Delivered'}
-                          </button>
+                          {showDeliveryButton ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleDelivery(order.id)}
+                              className={`text-[10px] font-bold tracking-wide uppercase px-2.5 py-1.5 rounded-lg transition-colors border ${isDelivered
+                                ? 'border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-900'
+                                : 'bg-[#e5b83b] border-transparent text-[#0c0c0d] hover:bg-[#f5c847]'
+                                }`}
+                            >
+                              {isDelivered ? 'Mark Undelivered' : 'Mark Delivered'}
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wide uppercase px-2.5 py-1.5 rounded-lg border border-neutral-900 bg-neutral-950/20 text-neutral-500">
+                              <span className={`w-1.5 h-1.5 rounded-full ${hasPreparing ? 'bg-blue-500 animate-pulse' : 'bg-[#e5b83b]/60'}`} />
+                              Kitchen: {hasPreparing ? 'Preparing' : (hasPending ? 'Pending' : 'Queueing')}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -349,23 +402,6 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
             </div>
           )}
 
-          {activeTab === 'Join Table' && (
-            <div className="h-full p-6 flex flex-col gap-4 overflow-y-auto">
-              <p className="text-xs font-bold tracking-widest text-neutral-500 uppercase">Merge with another table</p>
-              <p className="text-sm text-neutral-500">Select a table to join with {table.label}:</p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                {['T-01', 'T-03', 'T-04', 'T-05', 'T-06', 'T-07'].map((t) => (
-                  <button
-                    key={t}
-                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-neutral-800 bg-[#141416] hover:border-[#e5b83b]/60 hover:bg-[#e5b83b]/5 transition-all duration-150"
-                  >
-                    <TableProperties className="w-6 h-6 text-neutral-400" strokeWidth={1.75} />
-                    <span className="text-sm font-semibold text-white">{t}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
