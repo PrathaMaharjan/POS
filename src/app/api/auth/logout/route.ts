@@ -18,5 +18,6 @@ export async function POST(req: NextRequest) {
 
   const response = NextResponse.json({ message: "Logged out" });
   response.cookies.delete("refreshToken");
+  response.cookies.delete("role")
   return response;
 }

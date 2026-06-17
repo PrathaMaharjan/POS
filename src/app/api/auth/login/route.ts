@@ -117,13 +117,19 @@ export async function POST(req: NextRequest) {
     requiresOutletSelection: userOutletRows.length > 1,
   });
 
-  response.cookies.set("refreshToken", refreshToken, {
-    httpOnly: true,
+  // response.cookies.set("refreshToken", refreshToken, {
+  //   httpOnly: true,
+  //   secure: process.env.NODE_ENV === "production",
+  //   sameSite: "strict",
+  //   path: "/",
+  //   expires: getRefreshExpiryDate(),
+  // });
+  response.cookies.set("role", role ?? "", {
+    httpOnly: true, 
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
     path: "/",
     expires: getRefreshExpiryDate(),
   });
-
   return response;
 }
