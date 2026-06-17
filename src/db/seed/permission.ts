@@ -143,6 +143,7 @@ async function seedSystemRoles() {
       "pos.billing.read",
       "pos.payments.create",
       "pos.payments.read",
+       "pos.billing.update"
     ]),
   );
 

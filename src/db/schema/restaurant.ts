@@ -3,25 +3,10 @@ import { orderItems, orders } from "./order";
 import { outlets } from "./core";
 import { relations } from "drizzle-orm";
 
-export const kotStatusEnum = pgEnum("kot_status", [
-  "pending",
-  "preparing",
-  "ready",
-  "served",
-]);
 
-// export const kotTickets = pgTable("kot_tickets", {
-//   id: uuid("id").defaultRandom().primaryKey(),
-//   orderId: uuid("order_id")
-//     .notNull()
-//     .references(() => orders.id, { onDelete: "cascade" }),
-//   outletId: uuid("outlet_id")
-//     .notNull()
-//     .references(() => outlets.id, { onDelete: "cascade" }),
-//   status: kotStatusEnum("status").default("pending").notNull(),
-//   createdAt: timestamp("created_at").defaultNow().notNull(),
-//   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-// });
+
+export const kotStatusEnum = pgEnum("kot_status", ["pending", "preparing", "ready", "cancelled","served"]);
+
 export const kotTickets = pgTable("kot_ticket", {
   id: uuid("id").defaultRandom().primaryKey(),
   orderId: uuid("order_id")

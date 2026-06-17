@@ -30,7 +30,7 @@ export async function GET(
 
   const permError = requiredPermission(auth.payload, "restaurant.tables.read");
   if (permError) return permError;
-  const result = await getOrderByTable(auth.payload.activeOutletId!, (await params).id);
+  const result = await getOrderByTable(auth.payload.activeOutletId!, id);
 
   if (!result.success) {
     return NextResponse.json(
