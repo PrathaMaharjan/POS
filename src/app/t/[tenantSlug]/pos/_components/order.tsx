@@ -289,7 +289,7 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
               />
             </div>
             <button
-              onClick={() => router.push(`/t/${tenantSlug}/pos`)}
+              onClick={() => router.back()}
               style={{
                 backgroundColor: surfaceBg,
                 borderColor: borderCol,
