@@ -11,7 +11,7 @@ import api from "@/lib/api";
 const ROLE_ROUTES: Record<string, string> = {
   Owner: "dashboard",
   Manager: "dashboard",
-  Cashier: "pos/cashier",
+  Cashier: "cashier",
   Waiter: "waiter",
   "Kitchen Crew": "kitchen",
 };
