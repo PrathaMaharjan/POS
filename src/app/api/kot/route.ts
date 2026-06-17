@@ -6,7 +6,6 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(req: NextRequest) {
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
-  console.log(auth.payload)
 
   const permError = requiredPermission(auth.payload, "restaurant.kot.read");
   if (permError) return permError;
