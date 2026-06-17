@@ -7,6 +7,7 @@ export const kotStatusEnum = pgEnum("kot_status", [
   "pending",
   "preparing",
   "ready",
+  "served",
 ]);
 
 // export const kotTickets = pgTable("kot_tickets", {

@@ -264,7 +264,6 @@ export async function getOrderById(outletId: string, orderId: string) {
   });
 }
 
-// Get the current ACTIVE order for a dine-in table (if any)
 // "Active" = not completed and not cancelled - i.e. the table's ongoing session
 export async function getOrderByTable(outletId: string, tableId: string) {
   const table = await db.query.diningTables.findFirst({
@@ -275,29 +274,31 @@ export async function getOrderByTable(outletId: string, tableId: string) {
     return { success: false, error: "Table not found", status: 404 } as const;
   }
 
-  const order = await db.query.orders.findFirst({
+  const activeOrders = await db.query.orders.findMany({
     where: (o, { eq, and, notInArray }) =>
       and(
         eq(o.outletId, outletId),
         eq(o.tableId, tableId),
         notInArray(o.status, ["completed", "cancelled"]),
       ),
-    orderBy: (o, { desc }) => desc(o.createdAt),
+    orderBy: (o, { asc }) => asc(o.createdAt),
     with: {
       items: { with: { product: true } },
     },
   });
 
-  if (!order) {
-    return { success: true, data: { table, order: null } } as const;
-  }
+  const ordersWithKot = await Promise.all(
+    activeOrders.map(async (order) => {
+      const kotTicketsList = await db.query.kotTickets.findMany({
+        where: (k, { eq }) => eq(k.orderId, order.id),
+      });
+      return { ...order, kotTickets: kotTicketsList };
+    })
+  );
 
-  const kotTicketsList = await db.query.kotTickets.findMany({
-    where: (k, { eq }) => eq(k.orderId, order.id),
-  });
-
-  return { success: true, data: { table, order: { ...order, kotTickets: kotTicketsList } } } as const;
+  return { success: true, data: { table, orders: ordersWithKot } } as const;
 }
+
 
 // ─────────────────────────────────────────────
 // ADD ITEMS TO AN EXISTING ORDER

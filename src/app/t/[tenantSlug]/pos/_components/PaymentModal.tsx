@@ -26,6 +26,7 @@ interface PaymentModalProps {
   onClose: () => void;
   totalAmount: number;
   orderId?: string | null;
+  ordersList?: any[] | null;
   cart?: CartItem[];
   orderType?: OrderType;
   tableId?: string | number | null;
@@ -38,6 +39,7 @@ export default function PaymentModal({
   onClose, 
   totalAmount, 
   orderId = null,
+  ordersList = null,
   cart = [], 
   orderType = 'TAKEAWAY', 
   tableId = null 
@@ -58,21 +60,58 @@ export default function PaymentModal({
   const grandTotal = Math.round((totalAmount + tax) * 100) / 100;
 
   const handleConfirm = async () => {
-    if (!orderId) {
+    const targetOrders = ordersList && ordersList.length > 0
+      ? ordersList
+      : (orderId ? [{ id: orderId, total: grandTotal }] : []);
+
+    if (targetOrders.length === 0) {
       setErrorMessage("No active order found to process payment.");
       return;
     }
+
     try {
       setIsSubmitting(true);
       setErrorMessage(null);
-      const amountToSend = paymentMethod === 'Cash' && cashReceived
-        ? parseFloat(cashReceived)
-        : grandTotal;
-      const res = await api.post(`/orders/${orderId}/payment`, {
-        amount: amountToSend,
-        method: paymentMethod.toLowerCase() as 'cash' | 'card' | 'qr',
-      });
-      setPaymentResult(res.data);
+
+      let lastResData = null;
+      let totalChangeDue = 0;
+
+      if (paymentMethod === 'Cash' && cashReceived) {
+        let cashLeft = parseFloat(cashReceived);
+        
+        for (let i = 0; i < targetOrders.length; i++) {
+          const o = targetOrders[i];
+          const orderTotal = Number(o.total);
+          
+          // Pay the full total if we have enough cash, else pay whatever is left
+          const payAmount = Math.min(cashLeft, orderTotal);
+          
+          const res = await api.post(`/orders/${o.id}/payment`, {
+            amount: payAmount,
+            method: 'cash',
+          });
+          lastResData = res.data;
+          cashLeft = Math.max(cashLeft - payAmount, 0);
+        }
+        
+        // Change due is the remaining cash after paying all orders
+        totalChangeDue = Number(cashLeft.toFixed(2));
+        if (lastResData) {
+          lastResData.changeDue = totalChangeDue;
+        }
+      } else {
+        // Card or QR
+        for (let i = 0; i < targetOrders.length; i++) {
+          const o = targetOrders[i];
+          const res = await api.post(`/orders/${o.id}/payment`, {
+            amount: Number(o.total),
+            method: paymentMethod.toLowerCase() as 'cash' | 'card' | 'qr',
+          });
+          lastResData = res.data;
+        }
+      }
+
+      setPaymentResult(lastResData);
       setIsSuccess(true);
     } catch (err: any) {
       console.error("Payment failed:", err);

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import React, { use, useState, useEffect } from "react";
+import api from '@/lib/api';
 import {
   ShoppingBag,
   Utensils,
@@ -45,8 +46,8 @@ function CashierDashboardInner({ tenantSlug }: { tenantSlug: string }) {
 
   const modules = [
     { key: "takeaway", label: "Takeaway", href: `/t/${tenantSlug}/pos/cashier/takeaway`, icon: ShoppingBag },
-    { key: "dine-in",  label: "Dine-In",  href: `/t/${tenantSlug}/pos/cashier/dinein`,   icon: Utensils },
-    { key: "history",  label: "History",  href: `/t/${tenantSlug}/pos/cashier/history`,  icon: FileText },
+    { key: "dine-in", label: "Dine-In", href: `/t/${tenantSlug}/pos/cashier/dinein`, icon: Utensils },
+    { key: "history", label: "History", href: `/t/${tenantSlug}/pos/cashier/history`, icon: FileText },
   ];
 
   return (
@@ -147,7 +148,17 @@ function CashierDashboardInner({ tenantSlug }: { tenantSlug: string }) {
           </button>
 
           <button
-            onClick={() => router.push("/login")}
+            onClick={async () => {
+              try {
+
+                await api.post("/auth/logout");
+              } catch (err) {
+                console.error("Failed to invalidate session on backend:", err);
+              } finally {
+
+                router.push("/login");
+              }
+            }}
             style={{
               borderColor: isDark ? '#27272a' : '#fecaca',
               color: isDark ? '#a1a1aa' : '#ef4444',

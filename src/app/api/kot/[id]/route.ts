@@ -32,7 +32,7 @@ export async function GET(
 
 // update stataus
 const schema = z.object({
-  status: z.enum(["pending", "preparing", "ready"]),
+  status: z.enum(["pending", "preparing", "ready", "served"]),
 });
 
 export async function PATCH(

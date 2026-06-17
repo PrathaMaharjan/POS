@@ -2,12 +2,13 @@ import { db } from "@/db";
 import { kotTickets } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-type KotStatus = "pending" | "preparing" | "ready";
+type KotStatus = "pending" | "preparing" | "ready" | "served";
 
 const KOT_STATUS_TRANSITIONS: Record<KotStatus, KotStatus[]> = {
   pending: ["preparing", "ready"],
   preparing: ["ready", "pending"],
-  ready: ["preparing", "pending"],
+  ready: ["preparing", "pending", "served"],
+  served: ["ready"],
 };
 
 export async function listKotTickets(outletId: string) {

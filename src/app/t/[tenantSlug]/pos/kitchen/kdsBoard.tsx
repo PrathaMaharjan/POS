@@ -93,23 +93,21 @@ function OrderModal({ order, onClose, onPreparing, onDone }: {
         className="bg-[#1c1c1f] rounded-2xl border border-[#3f3f46] w-full max-w-sm mx-4 overflow-hidden shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
-        <div className={`px-5 pt-4 pb-3.5 border-b border-[#27272a] ${
-          order.ticketState === 'DONE'
-            ? 'bg-[#22c55e]/15'
-            : order.ticketState === 'PREPARING'
+        <div className={`px-5 pt-4 pb-3.5 border-b border-[#27272a] ${order.ticketState === 'DONE'
+          ? 'bg-[#22c55e]/15'
+          : order.ticketState === 'PREPARING'
             ? 'bg-blue-500/15'
             : isUrgent
-            ? 'bg-red-500/15'
-            : 'bg-[#27272a]/60'
-        }`}>
+              ? 'bg-red-500/15'
+              : 'bg-[#27272a]/60'
+          }`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-[16px] font-black text-white">#{order.orderNumber}</span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                order.type === 'TAKEAWAY'
-                  ? 'bg-[#e5b83b]/10 text-[#e5b83b] border-[#e5b83b]/25'
-                  : 'bg-blue-500/10 text-blue-400 border-blue-500/25'
-              }`}>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${order.type === 'TAKEAWAY'
+                ? 'bg-[#e5b83b]/10 text-[#e5b83b] border-[#e5b83b]/25'
+                : 'bg-blue-500/10 text-blue-400 border-blue-500/25'
+                }`}>
                 {label}
               </span>
               <span className={`text-[11px] font-bold ${isUrgent ? 'text-red-400' : 'text-[#52525b]'}`}>
@@ -121,7 +119,7 @@ function OrderModal({ order, onClose, onPreparing, onDone }: {
               className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#27272a] text-[#71717a] hover:text-white transition-all"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M18 6L6 18M6 6l12 12"/>
+                <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>
           </div>
@@ -164,11 +162,10 @@ function OrderModal({ order, onClose, onPreparing, onDone }: {
             <>
               <button
                 onClick={() => { onPreparing(order.id); onClose(); }}
-                className={`flex-1 py-2.5 rounded-xl text-[12px] font-bold transition-all active:scale-[0.97] ${
-                  order.ticketState === 'PREPARING'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-[#27272a] border border-[#3f3f46] text-[#a1a1aa] hover:bg-[#3f3f46]'
-                }`}
+                className={`flex-1 py-2.5 rounded-xl text-[12px] font-bold transition-all active:scale-[0.97] ${order.ticketState === 'PREPARING'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-[#27272a] border border-[#3f3f46] text-[#a1a1aa] hover:bg-[#3f3f46]'
+                  }`}
               >
                 {order.ticketState === 'PREPARING' ? '● Preparing' : 'Start Preparing'}
               </button>
@@ -205,19 +202,19 @@ function TicketCard({
     order.ticketState === 'DONE'
       ? 'bg-[#1a2e1f]'
       : order.ticketState === 'PREPARING'
-      ? 'bg-[#17213a]'
-      : isUrgent
-      ? 'bg-[#2a1a1a]'
-      : 'bg-[#21201a]';
+        ? 'bg-[#17213a]'
+        : isUrgent
+          ? 'bg-[#2a1a1a]'
+          : 'bg-[#21201a]';
 
   const tapeBg =
     order.ticketState === 'DONE'
       ? 'bg-[#22c55e]/30'
       : order.ticketState === 'PREPARING'
-      ? 'bg-blue-500/30'
-      : isUrgent
-      ? 'bg-red-500/30'
-      : 'bg-[#e5b83b]/20';
+        ? 'bg-blue-500/30'
+        : isUrgent
+          ? 'bg-red-500/30'
+          : 'bg-[#e5b83b]/20';
 
   return (
     <div
@@ -242,11 +239,10 @@ function TicketCard({
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             <span className="text-[13px] font-black text-white">#{order.orderNumber}</span>
-            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
-              order.type === 'TAKEAWAY'
-                ? 'bg-[#e5b83b]/10 text-[#e5b83b] border-[#e5b83b]/25'
-                : 'bg-blue-500/10 text-blue-400 border-blue-500/25'
-            }`}>
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${order.type === 'TAKEAWAY'
+              ? 'bg-[#e5b83b]/10 text-[#e5b83b] border-[#e5b83b]/25'
+              : 'bg-blue-500/10 text-blue-400 border-blue-500/25'
+              }`}>
               {label}
             </span>
           </div>
@@ -301,11 +297,10 @@ function TicketCard({
           <>
             <button
               onClick={() => onPreparing(order.id)}
-              className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all active:scale-[0.97] ${
-                order.ticketState === 'PREPARING'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-black/20 border border-white/10 text-[#a1a1aa] hover:bg-black/40'
-              }`}
+              className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all active:scale-[0.97] ${order.ticketState === 'PREPARING'
+                ? 'bg-blue-500 text-white'
+                : 'bg-black/20 border border-white/10 text-[#a1a1aa] hover:bg-black/40'
+                }`}
             >
               {order.ticketState === 'PREPARING' ? (
                 <span className="flex items-center justify-center gap-0.5">
@@ -341,23 +336,24 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
       try {
         const res = await api.get('/kot');
         const data = res.data;
-        const mapped: KitchenOrder[] = (data.tickets ?? []).map((ticket: any) => {
-          const dbOrder = ticket.order ?? {};
-          const elapsed = Math.floor((Date.now() - new Date(ticket.createdAt).getTime()) / 60000);
-          
+        const mapped: KitchenOrder[] = (data.tickets ?? [])
+          .filter((ticket: any) => ticket.status !== 'served')
+          .map((ticket: any) => {
+            const dbOrder = ticket.order ?? {};
+            const elapsed = Math.floor((Date.now() - new Date(ticket.createdAt).getTime()) / 60000);
+
           const mappedItems: KitchenItem[] = (ticket.items ?? []).map((ki: any) => {
             const oi = ki.orderItem ?? {};
             return {
               name: oi.product?.name ?? 'Unknown Product',
               quantity: oi.quantity ?? 1,
               notes: oi.notes ?? undefined,
-              };
-            });
+            };
+          });
 
-      
           let mappedState: TicketState = 'PENDING';
           const normalizedStatus = ticket.status?.toLowerCase();
-          
+
           if (normalizedStatus === 'ready') {
             mappedState = 'DONE';
           } else if (normalizedStatus === 'processing' || normalizedStatus === 'preparing') {
@@ -410,48 +406,45 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
     }
   };
 
-
   const handlePreparing = async (id: string) => {
-  try {
-    const ticket = orders.find(o => o.id === id);
-    if (!ticket) return;
-    
-    // Change 'processing' to 'preparing' to match your Zod schema
-    const nextStatus = ticket.ticketState === 'PREPARING' ? 'pending' : 'preparing'; 
-    await api.patch(`/kot/${id}`, { status: nextStatus });
-    
-    setOrders(prev =>
-      prev.map(o =>
-        o.id === id
-          ? { ...o, ticketState: (nextStatus === 'preparing' ? 'PREPARING' : 'PENDING') }
-          : o
-      )
-    );
-  } catch (err) {
-    console.error("Failed to update status:", err);
-  }
-};
+    try {
+      const ticket = orders.find(o => o.id === id);
+      if (!ticket) return;
 
-const handleDone = async (id: string) => {
-  try {
-    const ticket = orders.find(o => o.id === id);
-    if (!ticket) return;
-    
-    // Change 'processing' to 'preparing' here as well for the rollback path
-    const nextStatus = ticket.ticketState === 'DONE' ? 'preparing' : 'ready';
-    await api.patch(`/kot/${id}`, { status: nextStatus });
-    
-    setOrders(prev =>
-      prev.map(o =>
-        o.id === id
-          ? { ...o, ticketState: (nextStatus === 'ready' ? 'DONE' : 'PREPARING') }
-          : o
-      )
-    );
-  } catch (err) {
-    console.error("Failed to update status to done:", err);
-  }
-};
+      const nextStatus = ticket.ticketState === 'PREPARING' ? 'pending' : 'preparing';
+      await api.patch(`/kot/${id}`, { status: nextStatus });
+
+      setOrders(prev =>
+        prev.map(o =>
+          o.id === id
+            ? { ...o, ticketState: (nextStatus === 'preparing' ? 'PREPARING' : 'PENDING') }
+            : o
+        )
+      );
+    } catch (err) {
+      console.error("Failed to update status:", err);
+    }
+  };
+
+  const handleDone = async (id: string) => {
+    try {
+      const ticket = orders.find(o => o.id === id);
+      if (!ticket) return;
+
+      const nextStatus = ticket.ticketState === 'DONE' ? 'preparing' : 'ready';
+      await api.patch(`/kot/${id}`, { status: nextStatus });
+
+      setOrders(prev =>
+        prev.map(o =>
+          o.id === id
+            ? { ...o, ticketState: (nextStatus === 'ready' ? 'DONE' : 'PREPARING') }
+            : o
+        )
+      );
+    } catch (err) {
+      console.error("Failed to update status to done:", err);
+    }
+  };
 
   return (
     <>
@@ -477,7 +470,7 @@ const handleDone = async (id: string) => {
             <p className="text-[16px] font-bold text-white">Kitchen Display System</p>
             <span className="text-[12px] text-[#52525b] tabular-nums"><LiveClock /></span>
           </div>
-          
+
           <div className="flex items-center gap-2.5">
             <button
               onClick={toggleFullscreen}
@@ -487,26 +480,37 @@ const handleDone = async (id: string) => {
               {isFullscreen ? (
                 <>
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/>
+                    <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
                   </svg>
                   Exit Full
                 </>
               ) : (
                 <>
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
                   </svg>
                   Fullscreen
                 </>
               )}
             </button>
 
+            {/* Asynchronous Logout Handler */}
             <button
-              onClick={() => router.back()}
+              onClick={async () => {
+                try {
+
+                  await api.post("/auth/logout");
+                } catch (err) {
+                  console.error("Failed to cleanly terminate kitchen session:", err);
+                } finally {
+
+                  router.push("/login");
+                }
+              }}
               className="flex items-center gap-1.5 bg-[#27272a] hover:bg-red-950/40 border border-[#3f3f46] hover:border-red-900/50 text-[#a1a1aa] hover:text-red-400 px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               Logout
             </button>
@@ -546,7 +550,7 @@ const handleDone = async (id: string) => {
                     {colOrders.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-20 text-[#3f3f46]">
                         <svg className="w-8 h-8 mb-2 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
                         </svg>
                         <p className="text-[12px] font-medium opacity-70">Nothing here</p>
                       </div>

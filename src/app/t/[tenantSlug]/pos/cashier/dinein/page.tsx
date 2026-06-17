@@ -172,8 +172,10 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
       try {
         const res = await api.get('/kot');
         const data = res.data;
-        const mapped: ActiveFoodStatus[] = (data.tickets ?? []).map((ticket: any) => {
-          const dbOrder = ticket.order ?? {};
+        const mapped: ActiveFoodStatus[] = (data.tickets ?? [])
+          .filter((ticket: any) => ticket.status !== 'served')
+          .map((ticket: any) => {
+            const dbOrder = ticket.order ?? {};
           return {
             id: ticket.id,
             orderNumber: dbOrder.orderNumber ?? 0,
@@ -204,8 +206,13 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
     );
   };
 
-  const handleDismissTakeaway = (id: string) => {
-    setActiveOrders(prev => prev.filter(order => order.id !== id));
+  const handleDismissTakeaway = async (id: string) => {
+    try {
+      await api.patch(`/kot/${id}`, { status: 'served' });
+      setActiveOrders(prev => prev.filter(order => order.id !== id));
+    } catch (err) {
+      console.error("Failed to dismiss takeaway ticket:", err);
+    }
     setConfirmingTakeawayId(null);
   };
 

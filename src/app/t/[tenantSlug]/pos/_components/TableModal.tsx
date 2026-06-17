@@ -13,10 +13,10 @@ import {
   Loader2,
 } from 'lucide-react';
 
-export type TableStatus = 'available' | 'occupied' | 'reserved' | 'dirty'; // ← renamed
+export type TableStatus = 'available' | 'occupied' | 'reserved' | 'dirty';
 
 interface Table {
-  id: string; // ← was number
+  id: string;
   label: string;
   status: TableStatus;
   shape: 'round' | 'square';
@@ -27,7 +27,7 @@ interface TableModalProps {
   table: Table;
   tenantSlug: string;
   onClose: () => void;
-  onStatusChange?: (tableId: string, newStatus: TableStatus) => void; // ← was number
+  onStatusChange?: (tableId: string, newStatus: TableStatus) => void;
 }
 
 const TABS = ['Add Order', 'Order List', 'Join Table'] as const;
@@ -37,7 +37,7 @@ const STATUS_META: Record<TableStatus, { bg: string; text: string; dot: string; 
   available: { bg: 'bg-[#22c55e]/10', text: 'text-[#22c55e]', dot: 'bg-[#22c55e]', label: 'Available' },
   occupied: { bg: 'bg-[#ef4444]/10', text: 'text-[#ef4444]', dot: 'bg-[#ef4444]', label: 'Occupied' },
   reserved: { bg: 'bg-[#3b82f6]/10', text: 'text-[#3b82f6]', dot: 'bg-[#3b82f6]', label: 'Reserved' },
-  dirty: { bg: 'bg-[#e5b83b]/10', text: 'text-[#e5b83b]', dot: 'bg-[#e5b83b]', label: 'Cleaning' }, // ← key renamed
+  dirty: { bg: 'bg-[#e5b83b]/10', text: 'text-[#e5b83b]', dot: 'bg-[#e5b83b]', label: 'Cleaning' },
 };
 
 const TAB_ICONS: Record<Tab, React.ReactNode> = {
@@ -54,7 +54,7 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [deliveredOrders, setDeliveredOrders] = useState<Record<string, boolean>>({});
   const [currentStatus, setCurrentStatus] = useState<TableStatus>(table.status);
-  const [rawOrderData, setRawOrderData] = useState<any>(null);
+  const [rawOrderData, setRawOrderData] = useState<any[]>([]);
 
   useEffect(() => {
     async function fetchTableOrder() {
@@ -63,33 +63,38 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
         setError(null);
         const res = await api.get(`/orders/${table.id}`);
         const data = res.data;
-        if (data && data.order) {
-          const dbOrder = data.order;
-          setRawOrderData(dbOrder);
-          const mappedOrder: CreatedOrder = {
-            id: dbOrder.id,
-            orderNumber: String(dbOrder.orderNumber),
-            tableId: dbOrder.tableId,
-            status: dbOrder.status.toUpperCase() as 'PENDING',
-            total: Number(dbOrder.total),
-            subtotal: Number(dbOrder.subtotal),
-            createdAt: dbOrder.createdAt,
-            items: (dbOrder.items ?? []).map((item: any) => ({
-              quantity: item.quantity,
-              name: item.product?.name ?? 'Unknown Item',
-              subtotal: Number(item.subtotal),
-            })),
-          };
-          setOrders([mappedOrder]);
+        if (data && data.orders && data.orders.length > 0) {
+          setRawOrderData(data.orders);
+          const mappedOrders = data.orders.map((dbOrder: any) => {
+            const mappedOrder: CreatedOrder = {
+              id: dbOrder.id,
+              orderNumber: String(dbOrder.orderNumber),
+              tableId: dbOrder.tableId,
+              status: dbOrder.status.toUpperCase() as 'PENDING',
+              total: Number(dbOrder.total),
+              subtotal: Number(dbOrder.subtotal),
+              createdAt: dbOrder.createdAt,
+              items: (dbOrder.items ?? []).map((item: any) => ({
+                quantity: item.quantity,
+                name: item.product?.name ?? 'Unknown Item',
+                subtotal: Number(item.subtotal),
+              })),
+            };
 
-          // Automatically mark as delivered if KOT status is ready (DONE)
-          const hasReadyKot = (dbOrder.kotTickets ?? []).some((t: any) => t.status === 'ready');
-          if (hasReadyKot) {
-            setDeliveredOrders(prev => ({ ...prev, [dbOrder.id]: true }));
-          }
+            // Waiter-driven check: Check if all tickets have already been hand-delivered to the table
+            const totalTickets = dbOrder.kotTickets ?? [];
+            const isFullyServed = totalTickets.length > 0 && totalTickets.every((t: any) => t.status === 'served');
+
+            if (isFullyServed) {
+              setDeliveredOrders(prev => ({ ...prev, [dbOrder.id]: true }));
+            }
+
+            return mappedOrder;
+          });
+          setOrders(mappedOrders);
         } else {
           setOrders([]);
-          setRawOrderData(null);
+          setRawOrderData([]);
         }
       } catch (err) {
         console.error('Failed to fetch table orders:', err);
@@ -153,17 +158,24 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
   async function toggleDelivery(orderId: string) {
     const isCurrentlyDelivered = !!deliveredOrders[orderId];
     const newDeliveredState = !isCurrentlyDelivered;
+
+    // Optimistically update the UI state so payment becomes clickable right away
     setDeliveredOrders(prev => ({ ...prev, [orderId]: newDeliveredState }));
 
     try {
-      if (rawOrderData && rawOrderData.kotTickets) {
-        for (const ticket of rawOrderData.kotTickets) {
-          const nextStatus = newDeliveredState ? 'ready' : 'preparing';
+      const currentOrder = rawOrderData.find((o: any) => o.id === orderId);
+      if (currentOrder && currentOrder.kotTickets) {
+        // Safe backend sync loop using your proven /kot status update endpoint
+        for (const ticket of currentOrder.kotTickets) {
+          const nextStatus = newDeliveredState ? 'served' : 'ready';
           await api.patch(`/kot/${ticket.id}`, { status: nextStatus });
+          ticket.status = nextStatus;
         }
       }
     } catch (err) {
-      console.error("Failed to update KOT status from TableModal:", err);
+      console.error("Failed to update status from TableModal:", err);
+      // Revert local UI state back if backend pipeline throws an error
+      setDeliveredOrders(prev => ({ ...prev, [orderId]: isCurrentlyDelivered }));
     }
   }
 
@@ -275,7 +287,7 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
                                 ? 'bg-neutral-900 border-neutral-800 text-neutral-500'
                                 : 'bg-[#e5b83b]/10 border-[#e5b83b]/20 text-[#e5b83b]'
                                 }`}>
-                                {isDelivered ? 'Delivered' : 'Pending'}
+                                {isDelivered ? 'Delivered' : 'Pending Delivery'}
                               </span>
                             </div>
                             <p className="text-[11px] text-neutral-500 mt-0.5">
@@ -361,6 +373,7 @@ export default function TableModal({ table, tenantSlug, onClose, onStatusChange 
         isOpen={isPaymentOpen}
         onClose={handlePaymentSuccessComplete}
         orderId={orders[0]?.id}
+        ordersList={orders}
         totalAmount={totalTableBalance}
         orderType="DINE_IN"
         tableId={table.label}
