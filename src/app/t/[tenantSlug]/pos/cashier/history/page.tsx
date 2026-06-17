@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import api from '@/lib/api';
+import { Loader2 } from 'lucide-react';
 
 type OrderStatus = 'COMPLETED' | 'CANCELLED' | 'PENDING';
 type PaymentMethod = 'CASH' | 'CARD' | 'FONEPAY' | 'QR' | 'UNPAID';
@@ -14,7 +16,7 @@ interface OrderItem {
 }
 
 interface Order {
-  id: number;
+  id: string;
   orderNumber: number;
   status: OrderStatus;
   type: OrderType;
@@ -23,7 +25,7 @@ interface Order {
   subtotal: number;
   tax: number;
   total: number;
-  tableId?: number | null;
+  tableId?: string | null;
   tableName?: string | null;
   createdAt: string;
 }
@@ -33,68 +35,7 @@ interface HistoryProps {
   role?: 'cashier' | 'waiter';
 }
 
-const MOCK_ORDERS: Order[] = [
-  {
-    id: 1, orderNumber: 1001, status: 'COMPLETED', type: 'TAKEAWAY', paymentMethod: 'CASH',
-    items: [{ name: 'Espresso', quantity: 2, price: 150 }, { name: 'Croissant', quantity: 1, price: 180 }],
-    subtotal: 480, tax: 38.4, total: 518.4, createdAt: '2024-06-12T08:15:00Z',
-  },
-  {
-    id: 2, orderNumber: 1002, status: 'COMPLETED', type: 'DINE_IN', paymentMethod: 'CARD',
-    items: [{ name: 'Cappuccino', quantity: 2, price: 220 }, { name: 'Club Sandwich', quantity: 2, price: 320 }],
-    subtotal: 1080, tax: 86.4, total: 1166.4, tableId: 3, tableName: 'T-03', createdAt: '2024-06-12T09:30:00Z',
-  },
-  {
-    id: 3, orderNumber: 1003, status: 'PENDING', type: 'DINE_IN', paymentMethod: 'UNPAID',
-    items: [{ name: 'Latte', quantity: 1, price: 240 }, { name: 'Brownie', quantity: 2, price: 200 }],
-    subtotal: 640, tax: 51.2, total: 691.2, tableId: 7, tableName: 'T-07', createdAt: '2024-06-12T10:00:00Z',
-  },
-  {
-    id: 4, orderNumber: 1004, status: 'COMPLETED', type: 'TAKEAWAY', paymentMethod: 'FONEPAY',
-    items: [{ name: 'Americano', quantity: 3, price: 180 }],
-    subtotal: 540, tax: 43.2, total: 583.2, createdAt: '2024-06-12T10:45:00Z',
-  },
-  {
-    id: 5, orderNumber: 1005, status: 'CANCELLED', type: 'TAKEAWAY', paymentMethod: 'UNPAID',
-    items: [{ name: 'Flat White', quantity: 1, price: 260 }, { name: 'Masala Chai', quantity: 1, price: 100 }],
-    subtotal: 360, tax: 28.8, total: 388.8, createdAt: '2024-06-12T11:10:00Z',
-  },
-  {
-    id: 6, orderNumber: 1006, status: 'COMPLETED', type: 'DINE_IN', paymentMethod: 'CASH',
-    items: [{ name: 'Mocha', quantity: 2, price: 280 }, { name: 'Green Tea', quantity: 1, price: 120 }],
-    subtotal: 680, tax: 54.4, total: 734.4, tableId: 2, tableName: 'T-02', createdAt: '2024-06-12T11:50:00Z',
-  },
-  {
-    id: 7, orderNumber: 1007, status: 'PENDING', type: 'TAKEAWAY', paymentMethod: 'UNPAID',
-    items: [{ name: 'Iced Coffee', quantity: 2, price: 260 }],
-    subtotal: 520, tax: 41.6, total: 561.6, createdAt: '2024-06-12T12:20:00Z',
-  },
-  {
-    id: 8, orderNumber: 1008, status: 'COMPLETED', type: 'DINE_IN', paymentMethod: 'CARD',
-    items: [{ name: 'Cappuccino', quantity: 1, price: 220 }, { name: 'Brownie', quantity: 1, price: 200 }, { name: 'Croissant', quantity: 2, price: 180 }],
-    subtotal: 780, tax: 62.4, total: 842.4, tableId: 5, tableName: 'T-05', createdAt: '2024-06-12T13:05:00Z',
-  },
-  {
-    id: 9, orderNumber: 1009, status: 'CANCELLED', type: 'DINE_IN', paymentMethod: 'UNPAID',
-    items: [{ name: 'Espresso', quantity: 1, price: 150 }],
-    subtotal: 150, tax: 12, total: 162, tableId: 4, tableName: 'T-04', createdAt: '2024-06-12T13:40:00Z',
-  },
-  {
-    id: 10, orderNumber: 1010, status: 'COMPLETED', type: 'TAKEAWAY', paymentMethod: 'FONEPAY',
-    items: [{ name: 'Latte', quantity: 2, price: 240 }, { name: 'Club Sandwich', quantity: 1, price: 320 }],
-    subtotal: 800, tax: 64, total: 864, createdAt: '2024-06-12T14:15:00Z',
-  },
-  {
-    id: 11, orderNumber: 1011, status: 'PENDING', type: 'DINE_IN', paymentMethod: 'UNPAID',
-    items: [{ name: 'Masala Chai', quantity: 3, price: 100 }, { name: 'Brownie', quantity: 1, price: 200 }],
-    subtotal: 500, tax: 40, total: 540, tableId: 10, tableName: 'T-10', createdAt: '2024-06-12T14:50:00Z',
-  },
-  {
-    id: 12, orderNumber: 1012, status: 'COMPLETED', type: 'TAKEAWAY', paymentMethod: 'CASH',
-    items: [{ name: 'Flat White', quantity: 2, price: 260 }, { name: 'Green Tea', quantity: 1, price: 120 }],
-    subtotal: 640, tax: 51.2, total: 691.2, createdAt: '2024-06-12T15:30:00Z',
-  },
-];
+
 
 const STATUS_STYLES: Record<OrderStatus, { label: string; dot: string; text: string; bg: string }> = {
   COMPLETED: { label: 'Completed', dot: 'bg-[#22c55e]', text: 'text-[#22c55e]', bg: 'bg-[#22c55e]/10 border-[#22c55e]/20' },
@@ -128,14 +69,59 @@ function formatDate(iso: string): string {
 
 export default function History({ tenantSlug, role = 'cashier' }: HistoryProps) {
   const router = useRouter();
-  const [orders, setOrders] = useState<Order[]>(MOCK_ORDERS);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  const handleDeleteOrder = (e: React.MouseEvent, orderId: number) => {
+  useEffect(() => {
+    async function fetchOrders() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const res = await api.get('/orders');
+        const dbOrders = res.data.orders ?? [];
+        const mapped: Order[] = dbOrders.map((o: any) => {
+          const firstPayment = o.payments?.[0];
+          const paymentMethod = firstPayment?.method?.toUpperCase() ?? 'UNPAID';
+
+          const mappedItems: OrderItem[] = (o.items ?? []).map((item: any) => ({
+            name: item.product?.name ?? 'Unknown Item',
+            quantity: item.quantity,
+            price: Number(item.unitPrice),
+          }));
+
+          return {
+            id: o.id,
+            orderNumber: o.orderNumber,
+            status: o.status.toUpperCase() as OrderStatus,
+            type: o.orderType === 'takeaway' ? 'TAKEAWAY' : 'DINE_IN',
+            paymentMethod: paymentMethod as PaymentMethod,
+            items: mappedItems,
+            subtotal: Number(o.subtotal),
+            tax: Number(o.tax),
+            total: Number(o.total),
+            tableId: o.tableId,
+            tableName: o.table?.name ?? o.table?.tableNumber ?? null,
+            createdAt: o.createdAt,
+          };
+        });
+        setOrders(mapped);
+      } catch (err) {
+        console.error('Failed to fetch orders:', err);
+        setError('Failed to load order history.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchOrders();
+  }, []);
+
+  const handleDeleteOrder = (e: React.MouseEvent, orderId: string) => {
     e.stopPropagation();
     if (!window.confirm('Are you sure you want to permanently delete this order record?')) return;
     setOrders(prev => prev.filter(o => o.id !== orderId));
@@ -252,7 +238,16 @@ export default function History({ tenantSlug, role = 'cashier' }: HistoryProps) 
         </div>
 
         <div className="flex flex-col gap-3">
-          {paginatedOrders.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-neutral-600 gap-3">
+              <Loader2 className="w-8 h-8 animate-spin text-[#e5b83b]" />
+              <p className="text-sm font-medium">Loading history...</p>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-20 text-red-500 gap-2">
+              <p className="text-sm font-medium">{error}</p>
+            </div>
+          ) : paginatedOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-neutral-600 gap-2">
               <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>

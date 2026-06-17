@@ -5,8 +5,8 @@ import { eq } from "drizzle-orm";
 type KotStatus = "pending" | "preparing" | "ready" | "served";
 
 const KOT_STATUS_TRANSITIONS: Record<KotStatus, KotStatus[]> = {
-  pending: ["preparing", "ready"],
-  preparing: ["ready", "pending"],
+  pending: ["preparing", "ready", "served"],
+  preparing: ["ready", "pending", "served"],
   ready: ["preparing", "pending", "served"],
   served: ["ready"],
 };

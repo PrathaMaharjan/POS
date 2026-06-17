@@ -167,15 +167,14 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    async function fetchTickets() {
-      try {
-        const res = await api.get('/kot');
-        const data = res.data;
-        const mapped: ActiveFoodStatus[] = (data.tickets ?? [])
-          .filter((ticket: any) => ticket.status !== 'served')
-          .map((ticket: any) => {
-            const dbOrder = ticket.order ?? {};
+  async function fetchTickets() {
+    try {
+      const res = await api.get('/kot');
+      const data = res.data;
+      const mapped: ActiveFoodStatus[] = (data.tickets ?? [])
+        .filter((ticket: any) => ticket.status !== 'served')
+        .map((ticket: any) => {
+          const dbOrder = ticket.order ?? {};
           return {
             id: ticket.id,
             orderNumber: dbOrder.orderNumber ?? 0,
@@ -184,16 +183,27 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
             ticketState: (ticket.status === 'ready' ? 'DONE' : (ticket.status?.toUpperCase() ?? 'PENDING')) as ActiveFoodStatus['ticketState'],
           };
         });
-        setActiveOrders(mapped);
-      } catch (err) {
-        console.error("Failed to fetch KOT tickets for table status:", err);
-      }
+      setActiveOrders(mapped);
+    } catch (err) {
+      console.error("Failed to fetch KOT tickets for table status:", err);
     }
+  }
 
+  useEffect(() => {
     fetchTickets();
     const interval = setInterval(fetchTickets, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleKotStatusChange = (ticketId: string, nextStatus: string) => {
+    setActiveOrders(prev => {
+      if (nextStatus === 'served') {
+        return prev.filter(order => order.id !== ticketId);
+      }
+      return prev;
+    });
+    fetchTickets();
+  };
 
   const occupied = tables.filter(t => t.status === 'occupied').length;
   const total = tables.length;
@@ -368,8 +378,10 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
         <TableModal
           table={selectedTable}
           tenantSlug={tenantSlug}
+          role={role}
           onClose={() => setSelectedTable(null)}
           onStatusChange={handleTableStatusChange}
+          onKotStatusChange={handleKotStatusChange}
         />
       )}
     </div>

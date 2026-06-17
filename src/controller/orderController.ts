@@ -252,6 +252,15 @@ export const listOrder = async (outletId: string) => {
     where: (o, { eq }) => eq(o.outletId, outletId),
     orderBy: (o, { desc }) => desc(o.createdAt),
     limit: 50,
+    with: {
+      items: {
+        with: {
+          product: true,
+        },
+      },
+      table: true,
+      payments: true,
+    },
   });
 };
 // single order detail
