@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   UserPlus,
   Search,
@@ -16,55 +16,33 @@ import {
   XCircle,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
+import api from '@/lib/api';
+
 
 interface StaffMember {
-  id: string;
+  userId: string;
   name: string;
   role: string;
   email: string;
-  phone: string;
-  status: "active" | "inactive";
+  phone: string | null;
+  isActive: boolean;
 }
 
-const SEED_STAFF: StaffMember[] = [
-  {
-    id: "1",
-    name: "Kang Roy",
-    role: "Cashier / POS Operator",
-    email: "kang.roy@demo-restaurant.com",
-    phone: "9810000001",
-    status: "active",
-  },
-  {
-    id: "2",
-    name: "Aisha Karki",
-    role: "Floor Supervisor",
-    email: "aisha.karki@demo-restaurant.com",
-    phone: "9810000002",
-    status: "active",
-  },
-  {
-    id: "3",
-    name: "Prakash Thapa",
-    role: "Cashier / POS Operator",
-    email: "prakash.thapa@demo-restaurant.com",
-    phone: "9810000003",
-    status: "inactive",
-  },
-];
-
-const ROLE_OPTIONS = [
-  "Cashier ",
-  "Waiter",
-  "Kitchen Staff",
-
-];
+const ROLE_OPTIONS = ["Cashier", "Waiter", "Kitchen Crew"];
 
 const ITEMS_PER_PAGE = 8;
 
 export default function StaffPage() {
-  const [staff, setStaff] = useState<StaffMember[]>(SEED_STAFF);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalStaff, setTotalStaff] = useState(0);
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<StaffMember | null>(null);
   const [search, setSearch] = useState("");
@@ -78,30 +56,46 @@ export default function StaffPage() {
     password: "",
   });
 
-  // Dynamic Statistics Calculations
-  const totalStaff = staff.length;
-  const activeStaff = staff.filter((s) => s.status === "active").length;
-  const inactiveStaff = staff.filter((s) => s.status === "inactive").length;
+  const fetchStaff = useCallback(async () => {
+    setIsLoading(true);
+    setErrorMsg(null);
+    try {
+      const res = await api.get("/staff", {
+        params: { page: currentPage, limit: ITEMS_PER_PAGE },
+      });
+      const data = res.data;
+      setStaff(data.staff ?? []);
+      setTotalPages(data.pagination?.totalPages ?? 1);
+      setTotalStaff(data.pagination?.total ?? 0);
+    } catch (err: any) {
+      setErrorMsg(
+        typeof err?.response?.data?.error === "string"
+          ? err.response.data.error
+          : "Failed to load staff."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentPage]);
 
-  // Search filter
+  useEffect(() => {
+    fetchStaff();
+  }, [fetchStaff]);
+
+
   const filteredStaff = staff.filter(
     (member) =>
       member.name.toLowerCase().includes(search.toLowerCase()) ||
       member.role.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Pagination Math
-  const totalItems = filteredStaff.length;
-  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
-  const activePage = currentPage > totalPages ? totalPages : currentPage;
-  
-  const startIndex = (activePage - 1) * ITEMS_PER_PAGE;
-  const endIndex = startIndex + ITEMS_PER_PAGE;
-  const paginatedStaff = filteredStaff.slice(startIndex, endIndex);
+  const activeStaff = staff.filter((s) => s.isActive).length;
+  const inactiveStaff = staff.filter((s) => !s.isActive).length;
 
   function resetForm() {
     setForm({ name: "", role: ROLE_OPTIONS[0], email: "", phone: "", password: "" });
     setEditingMember(null);
+    setErrorMsg(null);
   }
 
   function handleOpenEdit(member: StaffMember) {
@@ -110,53 +104,76 @@ export default function StaffPage() {
       name: member.name,
       role: member.role,
       email: member.email,
-      phone: member.phone,
+      phone: member.phone ?? "",
       password: "••••••••",
     });
     setIsModalOpen(true);
   }
 
-  function handleSaveStaff() {
-    if (!form.name || !form.email) return;
+  async function handleSaveStaff() {
+    setErrorMsg(null);
 
     if (editingMember) {
-      setStaff((prev) =>
-        prev.map((s) =>
-          s.id === editingMember.id
-            ? { ...s, name: form.name, role: form.role, email: form.email, phone: form.phone }
-            : s
-        )
-      );
-    } else {
-      if (!form.password) return;
-      const newMember: StaffMember = {
-        id: crypto.randomUUID(),
+
+      try {
+        setIsSaving(true);
+        await api.patch(`/staff/${editingMember.userId}`, { role: form.role });
+        await fetchStaff();
+        resetForm();
+        setIsModalOpen(false);
+      } catch (err: any) {
+        setErrorMsg(err?.response?.data?.error ?? "Failed to update role.");
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
+    if (!form.name || !form.email || !form.password) return;
+
+    try {
+      setIsSaving(true);
+      await api.post("/staff", {
         name: form.name,
-        role: form.role,
         email: form.email,
-        phone: form.phone,
-        status: "active",
-      };
-      setStaff((prev) => [newMember, ...prev]);
+        phone: form.phone || undefined,
+        role: form.role,
+        password: form.password,
+      });
       setCurrentPage(1);
+      await fetchStaff();
+      resetForm();
+      setIsModalOpen(false);
+    } catch (err: any) {
+      const data = err?.response?.data;
+      if (data?.error?.fieldErrors) {
+        const firstField = Object.values(data.error.fieldErrors)[0] as string[] | undefined;
+        setErrorMsg(firstField?.[0] ?? "Please check the form for errors.");
+      } else {
+        setErrorMsg(typeof data?.error === "string" ? data.error : "Failed to create staff member.");
+      }
+    } finally {
+      setIsSaving(false);
     }
-
-    resetForm();
-    setIsModalOpen(false);
   }
 
-  function handleDeleteStaff(id: string) {
-    if (confirm("Are you sure you want to remove this staff member?")) {
-      setStaff((prev) => prev.filter((member) => member.id !== id));
+  async function handleDeleteStaff(userId: string) {
+    if (!confirm("Are you sure you want to remove this staff member?")) return;
+    try {
+      await api.delete(`/staff/${userId}`);
+      await fetchStaff();
+    } catch (err: any) {
+      alert(err?.response?.data?.error ?? "Failed to remove staff member.");
     }
   }
 
-  function toggleStatus(id: string) {
-    setStaff((prev) =>
-      prev.map((s) =>
-        s.id === id ? { ...s, status: s.status === "active" ? "inactive" : "active" } : s
-      )
-    );
+  async function toggleStatus(userId: string, currentlyActive: boolean) {
+    try {
+      await api.patch(`/staff/${userId}/status`, { isActive: !currentlyActive });
+      await fetchStaff();
+    } catch (err: any) {
+      alert(err?.response?.data?.error ?? "Failed to update status.");
+    }
   }
 
   return (
@@ -182,7 +199,7 @@ export default function StaffPage() {
             <CheckCircle className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Active</p>
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Active (this page)</p>
             <p className="text-xl font-semibold text-slate-800">{activeStaff}</p>
           </div>
         </div>
@@ -192,23 +209,20 @@ export default function StaffPage() {
             <XCircle className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Inactive</p>
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Inactive (this page)</p>
             <p className="text-xl font-semibold text-slate-800">{inactiveStaff}</p>
           </div>
         </div>
       </div>
 
-      {/* Utility Actions Bar */}
+    
       <div className="flex items-center justify-between gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Search staff by name or role..."
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search staff on this page..."
             className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
         </div>
@@ -221,7 +235,13 @@ export default function StaffPage() {
         </button>
       </div>
 
-      {/* Structured Box Container for Staff List */}
+      {errorMsg && !isModalOpen && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {errorMsg}
+        </div>
+      )}
+
+     
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
@@ -235,64 +255,74 @@ export default function StaffPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {paginatedStaff.map((member) => (
-                <tr key={member.id} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="py-4 px-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-700 border border-emerald-100">
-                        {member.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
-                      </div>
-                      <span className="font-medium text-slate-900">{member.name}</span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-4 text-slate-600 font-medium">{member.role}</td>
-                  <td className="py-4 px-4 text-slate-500">
-                    <div className="flex flex-col">
-                      <span className="font-medium text-slate-700">{member.email}</span>
-                      <span className="text-xs text-slate-400 mt-0.5 font-mono">{member.phone}</span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-4">
-                    <button
-                      type="button"
-                      onClick={() => toggleStatus(member.id)}
-                      title="Click to toggle status"
-                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:scale-105 active:scale-95 select-none ${
-                        member.status === "active"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200/50"
-                          : "bg-slate-100 text-slate-500 border border-slate-200"
-                      }`}
-                    >
-                      <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${member.status === "active" ? "bg-emerald-600" : "bg-slate-400"}`} />
-                      {member.status === "active" ? "Active" : "Inactive"}
-                    </button>
-                  </td>
-                  <td className="py-4 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => handleOpenEdit(member)}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                        title="Edit Profile"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteStaff(member.id)}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                        title="Remove Member"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {paginatedStaff.length === 0 && (
+              {isLoading ? (
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-sm text-slate-400">
-                    No staff members match your search parameters.
+                    <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                   </td>
                 </tr>
+              ) : (
+                <>
+                  {filteredStaff.map((member) => (
+                    <tr key={member.userId} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-700 border border-emerald-100">
+                            {member.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
+                          </div>
+                          <span className="font-medium text-slate-900">{member.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-slate-600 font-medium">{member.role}</td>
+                      <td className="py-4 px-4 text-slate-500">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-700">{member.email}</span>
+                          <span className="text-xs text-slate-400 mt-0.5 font-mono">{member.phone ?? "—"}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <button
+                          type="button"
+                          onClick={() => toggleStatus(member.userId, member.isActive)}
+                          title="Click to toggle status"
+                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:scale-105 active:scale-95 select-none ${
+                            member.isActive
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200/50"
+                              : "bg-slate-100 text-slate-500 border border-slate-200"
+                          }`}
+                        >
+                          <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${member.isActive ? "bg-emerald-600" : "bg-slate-400"}`} />
+                          {member.isActive ? "Active" : "Inactive"}
+                        </button>
+                      </td>
+                      <td className="py-4 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleOpenEdit(member)}
+                            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                            title="Edit Role"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteStaff(member.userId)}
+                            className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                            title="Remove Member"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredStaff.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-sm text-slate-400">
+                        No staff members match your search parameters.
+                      </td>
+                    </tr>
+                  )}
+                </>
               )}
             </tbody>
           </table>
@@ -300,15 +330,15 @@ export default function StaffPage() {
 
         <div className="flex items-center justify-between border-t border-slate-100 bg-white px-6 py-4">
           <div className="text-sm text-slate-500"></div>
-          
+
           <div className="flex items-center gap-6">
             <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
-              Page {activePage} of {totalPages}
+              Page {currentPage} of {totalPages}
             </span>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                disabled={activePage === 1}
+                disabled={currentPage === 1}
                 className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
                 title="Previous Page"
               >
@@ -316,7 +346,7 @@ export default function StaffPage() {
               </button>
               <button
                 onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                disabled={activePage === totalPages}
+                disabled={currentPage === totalPages}
                 className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
                 title="Next Page"
               >
@@ -331,15 +361,13 @@ export default function StaffPage() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl rounded-xl bg-white shadow-xl border border-slate-100 overflow-hidden">
-         
+
             <div className="relative flex items-center justify-center bg-emerald-600 p-6 text-white">
-             
-<div className="flex h-10 w-10 items-center justify-center  text-white">
-                  <UserPlus className="h-6 w-6" />
-                </div>
-             
+              <div className="flex h-10 w-10 items-center justify-center text-white">
+                <UserPlus className="h-6 w-6" />
+              </div>
               <h2 className="text-2xl font-semibold text-white text-center">
-                {editingMember ? "Modify Staff Profile" : "Add New Staff Member"}
+                {editingMember ? "Modify Staff Role" : "Add New Staff Member"}
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -349,6 +377,12 @@ export default function StaffPage() {
               </button>
             </div>
 
+            {errorMsg && (
+              <div className="mx-6 mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {errorMsg}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 gap-5 p-6 sm:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-500">Full Name</label>
@@ -356,7 +390,8 @@ export default function StaffPage() {
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="Enter your name"
-                  className="w-full rounded-lg border border-slate-200/80 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                  disabled={!!editingMember}
+                  className="w-full rounded-lg border border-slate-200/80 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60"
                 />
               </div>
 
@@ -384,7 +419,8 @@ export default function StaffPage() {
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
                     placeholder="Enter your email"
-                    className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                    disabled={!!editingMember}
+                    className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60"
                   />
                 </div>
               </div>
@@ -397,7 +433,8 @@ export default function StaffPage() {
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
                     placeholder="9XXXXXXXXX"
-                    className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                    disabled={!!editingMember}
+                    className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60"
                   />
                 </div>
               </div>
@@ -411,7 +448,7 @@ export default function StaffPage() {
                       type="password"
                       value={form.password}
                       onChange={(e) => setForm({ ...form, password: e.target.value })}
-                      placeholder="••••••••"
+                      placeholder="Minimum 8 characters"
                       className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
                     />
                   </div>
@@ -430,9 +467,11 @@ export default function StaffPage() {
               <button
                 type="button"
                 onClick={handleSaveStaff}
-                className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+                disabled={isSaving}
+                className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60"
               >
-                {editingMember ? "Save Structural Changes" : "Provision Profile"}
+                {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                {editingMember ? "Save Role" : "Add Staff"}
               </button>
             </div>
           </div>

@@ -241,7 +241,7 @@ export default function OrgStaffPage() {
         </div>
       </div>
 
-      {/* Utility Actions Bar */}
+    
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center max-w-2xl">
           <div className="relative flex-1 max-w-sm">
@@ -287,7 +287,7 @@ export default function OrgStaffPage() {
         </button>
       </div>
 
-      {/* Structured Box Container for Staff List */}
+      
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
@@ -374,7 +374,7 @@ export default function OrgStaffPage() {
           </table>
         </div>
 
-        {/* Pagination Section */}
+   
         <div className="flex items-center justify-between border-t border-slate-100 bg-white px-6 py-4">
           <div className="text-sm text-slate-500"></div>
           <div className="flex items-center gap-6">
@@ -444,7 +444,7 @@ export default function OrgStaffPage() {
                   />
                 </div>
 
-                {/* Role + Branch side by side */}
+              
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-slate-500">Role Classification</label>
