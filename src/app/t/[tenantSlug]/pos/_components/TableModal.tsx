@@ -184,26 +184,26 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
   }
 
   async function toggleDelivery(orderId: string) {
-    const isCurrentlyDelivered = !!deliveredOrders[orderId];
-    const newDeliveredState = !isCurrentlyDelivered;
+  const isCurrentlyDelivered = !!deliveredOrders[orderId];
+  const newDeliveredState = !isCurrentlyDelivered;
 
-    setDeliveredOrders(prev => ({ ...prev, [orderId]: newDeliveredState }));
+  setDeliveredOrders(prev => ({ ...prev, [orderId]: newDeliveredState }));
 
-    try {
-      const currentOrder = rawOrderData.find((o: any) => o.id === orderId);
-      if (currentOrder && currentOrder.kotTickets) {
-        for (const ticket of currentOrder.kotTickets) {
-          const nextStatus = newDeliveredState ? 'served' : 'ready';
-          await api.patch(`/kot/${ticket.id}`, { status: nextStatus });
-          ticket.status = nextStatus;
-          onKotStatusChange?.(ticket.id, nextStatus);
-        }
+  try {
+    const currentOrder = rawOrderData.find((o: any) => o.id === orderId);
+    if (currentOrder && currentOrder.kotTickets) {
+      for (const ticket of currentOrder.kotTickets) {
+        const nextStatus = newDeliveredState ? 'served' : 'ready';
+        await api.patch(`/kot/${ticket.id}/status`, { status: nextStatus }); // fixed: added /status
+        ticket.status = nextStatus;
+        onKotStatusChange?.(ticket.id, nextStatus);
       }
-    } catch (err) {
-      console.error("Failed to update status from TableModal:", err);
-      setDeliveredOrders(prev => ({ ...prev, [orderId]: isCurrentlyDelivered }));
     }
+  } catch (err) {
+    console.error("Failed to update status from TableModal:", err);
+    setDeliveredOrders(prev => ({ ...prev, [orderId]: isCurrentlyDelivered }));
   }
+}
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">

@@ -7,6 +7,7 @@ import {
   boolean,
   timestamp,
   pgEnum,
+  index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { outlets } from "./core";
@@ -33,8 +34,12 @@ export const diningTables = pgTable("dining_tables", {
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+},(t)=>[
+  index("dining_tables_outlet_idx").on(t.outletId)
+]);
 
 export const diningTablesRelations = relations(diningTables, ({ one }) => ({
   outlet: one(outlets, { fields: [diningTables.outletId], references: [outlets.id] }),
 }));
+
+

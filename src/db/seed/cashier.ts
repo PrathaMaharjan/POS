@@ -14,7 +14,6 @@ async function main() {
     })
     .returning();
 
-  console.log("Created organization:", org.id);
 
   // 2. Create an owner user
   const ownerPasswordHash = await hashPassword("Owner@123");

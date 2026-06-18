@@ -1,6 +1,7 @@
-import { pgTable, uuid, varchar, timestamp, unique } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, timestamp, unique,index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { organizations, users, outlets } from "./core";
+// import { index } from "drizzle-orm/gel-core";
 
 export const permissions = pgTable(
   "permissions",
@@ -13,7 +14,7 @@ export const permissions = pgTable(
   },
   (t) => ({
     uq: unique().on(t.module, t.resource, t.action),
-  })
+  }),
 );
 
 export const roles = pgTable("roles", {
@@ -37,9 +38,10 @@ export const rolePermissions = pgTable(
       .notNull()
       .references(() => permissions.id, { onDelete: "cascade" }),
   },
-  (t) => ({
-    uq: unique().on(t.roleId, t.permissionId),
-  })
+  (t) => [
+    unique().on(t.roleId, t.permissionId),
+    index("role_permissions_role_idx").on(t.roleId as any),
+  ],
 );
 
 export const userOutletRoles = pgTable(
@@ -56,9 +58,12 @@ export const userOutletRoles = pgTable(
       .notNull()
       .references(() => roles.id, { onDelete: "cascade" }),
   },
-  (t) => ({
-    uq: unique().on(t.userId, t.outletId),
-  })
+  (t) => [
+    unique().on(t.userId, t.outletId),
+    // composite index - this exact combo is what getUserPermissionsForOutlet
+    // and getUserRoleForOutlet filter on every single login/refresh
+    index("user_outlet_roles_user_outlet_idx").on(t.userId as any, t.outletId as any),
+  ],
 );
 
 export const rolesRelations = relations(roles, ({ many, one }) => ({
@@ -69,19 +74,34 @@ export const rolesRelations = relations(roles, ({ many, one }) => ({
   rolePermissions: many(rolePermissions),
 }));
 
-export const rolePermissionsRelations = relations(rolePermissions, ({ one }) => ({
-  role: one(roles, { fields: [rolePermissions.roleId], references: [roles.id] }),
-  permission: one(permissions, {
-    fields: [rolePermissions.permissionId],
-    references: [permissions.id],
+export const rolePermissionsRelations = relations(
+  rolePermissions,
+  ({ one }) => ({
+    role: one(roles, {
+      fields: [rolePermissions.roleId],
+      references: [roles.id],
+    }),
+    permission: one(permissions, {
+      fields: [rolePermissions.permissionId],
+      references: [permissions.id],
+    }),
   }),
-}));
+);
 
-export const userOutletRolesRelations = relations(userOutletRoles, ({ one }) => ({
-  user: one(users, { fields: [userOutletRoles.userId], references: [users.id] }),
-  outlet: one(outlets, {
-    fields: [userOutletRoles.outletId],
-    references: [outlets.id],
+export const userOutletRolesRelations = relations(
+  userOutletRoles,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userOutletRoles.userId],
+      references: [users.id],
+    }),
+    outlet: one(outlets, {
+      fields: [userOutletRoles.outletId],
+      references: [outlets.id],
+    }),
+    role: one(roles, {
+      fields: [userOutletRoles.roleId],
+      references: [roles.id],
+    }),
   }),
-  role: one(roles, { fields: [userOutletRoles.roleId], references: [roles.id] }),
-}));
+);

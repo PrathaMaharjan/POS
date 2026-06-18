@@ -1,0 +1,19 @@
+CREATE INDEX "email_verification_tokens_hash_idx" ON "email_verification_tokens" USING btree ("token_hash");--> statement-breakpoint
+CREATE INDEX "email_verification_tokens_user_idx" ON "email_verification_tokens" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "outlets_org_idx" ON "outlets" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "refresh_tokens_user_idx" ON "refresh_tokens" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "user_outlets_user_idx" ON "user_outlets" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "user_outlets_outlet_idx" ON "user_outlets" USING btree ("outlet_id");--> statement-breakpoint
+CREATE INDEX "dining_tables_outlet_idx" ON "dining_tables" USING btree ("outlet_id");--> statement-breakpoint
+CREATE INDEX "role_permissions_role_idx" ON "role_permissions" USING btree ("role_id");--> statement-breakpoint
+CREATE INDEX "user_outlet_roles_user_outlet_idx" ON "user_outlet_roles" USING btree ("user_id","outlet_id");--> statement-breakpoint
+CREATE INDEX "categories_outlet_idx" ON "categories" USING btree ("outlet_id");--> statement-breakpoint
+CREATE INDEX "order_items_order_idx" ON "order_items" USING btree ("order_id");--> statement-breakpoint
+CREATE INDEX "orders_outlet_idx" ON "orders" USING btree ("outlet_id");--> statement-breakpoint
+CREATE INDEX "orders_table_idx" ON "orders" USING btree ("table_id");--> statement-breakpoint
+CREATE INDEX "orders_outlet_ordernum_idx" ON "orders" USING btree ("outlet_id","order_number");--> statement-breakpoint
+CREATE INDEX "kot_items_ticket_idx" ON "kot_items" USING btree ("kot_ticket_id");--> statement-breakpoint
+CREATE INDEX "kot_tickets_order_idx" ON "kot_ticket" USING btree ("order_id");--> statement-breakpoint
+CREATE INDEX "kot_tickets_outlet_idx" ON "kot_ticket" USING btree ("outlet_id");--> statement-breakpoint
+CREATE INDEX "payments_order_idx" ON "payments" USING btree ("order_id");--> statement-breakpoint
+CREATE INDEX "payments_outlet_idx" ON "payments" USING btree ("outlet_id");

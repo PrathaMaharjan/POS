@@ -1,4 +1,4 @@
-import { pgEnum, pgTable, uuid,timestamp } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, uuid,timestamp, index } from "drizzle-orm/pg-core";
 import { orderItems, orders } from "./order";
 import { outlets } from "./core";
 import { relations } from "drizzle-orm";
@@ -18,7 +18,12 @@ export const kotTickets = pgTable("kot_ticket", {
   status: kotStatusEnum("status").default("pending").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+},
+(t)=>[
+  index("kot_tickets_order_idx").on(t.orderId),
+  index("kot_tickets_outlet_idx").on(t.outletId),
+]
+);
 /*
 kot_items just lists "which order items belong to this kitchen ticket" — it's the link between a KOT ticket and the specific items (e.g. 2x Momo, 1x Coffee) the kitchen needs to prepare for it.
 It exists separately so that if more items get added later, they can become a new ticket instead of being mixed into the old one.
@@ -31,7 +36,9 @@ export const kotItems = pgTable("kot_items", {
   orderItemId: uuid("order_item_id")
     .notNull()
     .references(() => orderItems.id, { onDelete: "cascade" }),
-});
+},(t)=>[
+  index("kot_items_ticket_idx").on(t.kotTicketId),
+]);
 
 export const kotTicketsRelations = relations(kotTickets, ({ one, many }) => ({
   order: one(orders, { fields: [kotTickets.orderId], references: [orders.id] }),
