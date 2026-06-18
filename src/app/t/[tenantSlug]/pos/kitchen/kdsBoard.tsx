@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import { useKotTickets } from '@/lib/hooks/useKotTickets';
 
 type TicketState = 'PENDING' | 'PREPARING' | 'DONE';
 type OrderType = 'TAKEAWAY' | 'DINE_IN';
@@ -331,16 +332,16 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Shared, deduped polling — 10s interval, only one active poll across all consumers
+  const { tickets: rawTickets, refetch } = useKotTickets(10000);
+
   useEffect(() => {
-    async function fetchTickets() {
-      try {
-        const res = await api.get('/kot');
-        const data = res.data;
-        const mapped: KitchenOrder[] = (data.tickets ?? [])
-          .filter((ticket: any) => ticket.status !== 'served')
-          .map((ticket: any) => {
-            const dbOrder = ticket.order ?? {};
-            const elapsed = Math.floor((Date.now() - new Date(ticket.createdAt).getTime()) / 60000);
+    try {
+      const mapped: KitchenOrder[] = (rawTickets ?? [])
+        .filter((ticket: any) => ticket.status !== 'served')
+        .map((ticket: any) => {
+          const dbOrder = ticket.order ?? {};
+          const elapsed = Math.floor((Date.now() - new Date(ticket.createdAt).getTime()) / 60000);
 
           const mappedItems: KitchenItem[] = (ticket.items ?? []).map((ki: any) => {
             const oi = ki.orderItem ?? {};
@@ -371,20 +372,15 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
           };
         });
 
-        setOrders(mapped);
-        setError(null);
-      } catch (err) {
-        console.error("Failed to fetch KOT tickets:", err);
-        setError("Failed to load kitchen tickets.");
-      } finally {
-        setIsLoading(false);
-      }
+      setOrders(mapped);
+      setError(null);
+    } catch (err) {
+      console.error("Failed to map KOT tickets:", err);
+      setError("Failed to load kitchen tickets.");
+    } finally {
+      setIsLoading(false);
     }
-
-    fetchTickets();
-    const interval = setInterval(fetchTickets, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  }, [rawTickets]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -421,6 +417,7 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
             : o
         )
       );
+      refetch();
     } catch (err) {
       console.error("Failed to update status:", err);
     }
@@ -441,6 +438,7 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
             : o
         )
       );
+      refetch();
     } catch (err) {
       console.error("Failed to update status to done:", err);
     }
@@ -498,12 +496,10 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
             <button
               onClick={async () => {
                 try {
-
                   await api.post("/auth/logout");
                 } catch (err) {
                   console.error("Failed to cleanly terminate kitchen session:", err);
                 } finally {
-
                   router.push("/login");
                 }
               }}

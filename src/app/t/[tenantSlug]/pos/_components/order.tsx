@@ -530,7 +530,7 @@ export default function Order({
               {isPlacingOrder ? (
                 'Placing Order...'
               ) : isDineInCashier ? (
-                'Order Disabled for Cashier'
+                'Place an Order'
               ) : orderType === 'DINE_IN' ? (
                 <><Plus className="w-4 h-4" strokeWidth={2.5} /> Place Order</>
               ) : (

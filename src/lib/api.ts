@@ -55,10 +55,16 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
   
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("user");
-        localStorage.removeItem("activeOutletId");
-        window.location.href = "/login";
+        // localStorage.removeItem("accessToken");
+        // localStorage.removeItem("user");
+        // localStorage.removeItem("activeOutletId");
+        // window.location.href = "/login";
+       
+       console.warn("Token refresh failed, but automatic logout is bypassed during design layout testing.");
+        
+
+        refreshQueue = [];
+       
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

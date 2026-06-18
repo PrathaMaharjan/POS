@@ -1,0 +1,95 @@
+"use client";
+
+import Link from "next/link";
+import { useParams, usePathname } from "next/navigation";
+import {
+  Users,
+  Store,
+  LayoutDashboard,
+  LogOut,
+  ShieldCheck,
+  HelpCircle,
+  Settings,
+} from "lucide-react";
+
+interface NavbarProps {
+  role: "org" | "manager";
+}
+
+export default function AdminNavbar({ role }: NavbarProps) {
+  const pathname = usePathname();
+  const { tenantSlug } = useParams();
+
+  const baseUrl = `/t/${tenantSlug}/${role}`;
+
+  // Base navigation items both roles can see
+  const navItems = [
+    { label: "Overview", href: baseUrl, icon: LayoutDashboard },
+    { label: "Manage Staff", href: `${baseUrl}/staff`, icon: Users },
+  ];
+
+  // Only the Organization role gets access to the Outlets view
+  if (role === "org") {
+    navItems.push({ label: "Outlets", href: `${baseUrl}/outlets`, icon: Store });
+  }
+
+  return (
+    <aside className="sticky top-0 flex h-screen w-64 flex-col border-r border-slate-200 bg-white">
+      {/* Logo & Context Section */}
+      <div className="flex items-center gap-2 border-b border-slate-200 px-6 py-5">
+        
+        <div className="flex flex-col">
+          <span className="font-semibold text-sm text-slate-800 tracking-tight capitalize leading-none mb-0.5">
+            {tenantSlug}
+          </span>
+          <span className="text-xs font-medium text-emerald-600 capitalize">
+            {role === "org" ? "Organization Admin" : "Manager Portal"}
+          </span>
+        </div>
+      </div>
+
+      {/* Primary Navigation */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <ul className="flex flex-col gap-2">
+          {navItems.map((item) => {
+            const IconComponent = item.icon as any;
+            const isActive = pathname === item.href;
+
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-emerald-600 text-white shadow-sm"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+                >
+                  <IconComponent
+                    className={`h-[18px] w-[18px] shrink-0 ${
+                      isActive ? "text-white" : "text-slate-400"
+                    }`}
+                  />
+                  {item.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
+      {/* Footer Section */}
+      <div className="flex flex-col gap-1 border-t border-slate-200 px-4 py-4">
+        
+        <button className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900">
+          <Settings className="h-[18px] w-[18px] text-slate-400" />
+          Settings
+        </button>
+        <button className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-rose-500 transition-colors hover:bg-rose-50">
+          <LogOut className="h-[18px] w-[18px] text-rose-400" />
+          Logout
+        </button>
+      </div>
+    </aside>
+  );
+}

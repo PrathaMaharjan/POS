@@ -326,16 +326,19 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
                                 {isDelivered ? 'Delivered' : 'Pending Delivery'}
                               </span>
 
-
-                              <button
-                                type="button"
-                                disabled={isDeleting}
-                                onClick={() => deleteOrder(order.id)}
-                                className="ml-1 p-1 rounded-md text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150 disabled:opacity-40"
-                                title="Cancel Order"
-                              >
-
-                              </button>
+<button
+  type="button"
+  disabled={isDeleting}
+  onClick={() => deleteOrder(order.id)}
+  className="ml-1 p-1 rounded-md text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150 disabled:opacity-40"
+  title="Cancel Order"
+>
+  {isDeleting ? (
+    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+  ) : (
+    <Trash2 className="w-3.5 h-3.5" />
+  )}
+</button>
                             </div>
                             <p className="text-[11px] text-neutral-500 mt-0.5">
                               {new Date(order.createdAt).toLocaleString()}
