@@ -1,4 +1,4 @@
-import { numeric, pgEnum, pgTable, uuid,timestamp } from "drizzle-orm/pg-core";
+import { numeric, pgEnum, pgTable, uuid,timestamp, index } from "drizzle-orm/pg-core";
 import { orders } from "./order";
 import { outlets, users } from "./core";
 import { relations } from "drizzle-orm";
@@ -19,7 +19,10 @@ export const payments = pgTable("payments", {
     .notNull()
     .references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+},(t)=>[
+  index("payments_order_idx").on(t.orderId),
+  index("payments_outlet_idx").on(t.outletId),
+]);
 
 // The payments table has foreign key relationships with orders, outlets, and users. Each payment belongs to one order, one outlet,
 //  and is received by one user, while an order, outlet, or user can be associated with many payments (one-to-many relationship).

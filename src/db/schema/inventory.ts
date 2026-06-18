@@ -7,6 +7,7 @@ import {
   boolean,
   integer,
   timestamp,
+  index
 } from "drizzle-orm/pg-core";
 import { outlets } from ".";
 import { relations } from "drizzle-orm";
@@ -21,7 +22,9 @@ export const categories = pgTable("categories", {
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+},(t)=>[
+  index("categories_outlet_idx").on(t.outletId as any),
+]);
 
 export const products = pgTable("products", {
   id: uuid("id").defaultRandom().primaryKey(),

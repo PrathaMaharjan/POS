@@ -9,8 +9,8 @@ import api from "@/lib/api";
 
 // Maps each role name to where they should land after login
 const ROLE_ROUTES: Record<string, string> = {
-  Owner: "dashboard",
-  Manager: "dashboard",
+  Owner: "admin/dashboard",
+  Manager: "admin/dashboard",
   Cashier: "cashier",
   Waiter: "waiter",
   "Kitchen Crew": "kitchen",
@@ -31,15 +31,18 @@ export default function LoginPage() {
 
   const [form, setForm] = useState({ email: "", password: "" });
 
-  useGSAP(() => {
-    gsap.from(".fade-in", {
-      opacity: 0,
-      y: 20,
-      duration: 1.2,
-      stagger: 0.08,
-      ease: "power3.out",
-    });
-  }, { scope: containerRef });
+  useGSAP(
+    () => {
+      gsap.from(".fade-in", {
+        opacity: 0,
+        y: 20,
+        duration: 1.2,
+        stagger: 0.08,
+        ease: "power3.out",
+      });
+    },
+    { scope: containerRef },
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -59,7 +62,10 @@ export default function LoginPage() {
       localStorage.setItem("user", JSON.stringify(data.user));
       localStorage.setItem("activeOutletId", data.activeOutletId ?? "");
       localStorage.setItem("role", data.role ?? "");
-      localStorage.setItem("permissions", JSON.stringify(data.permissions ?? []));
+      localStorage.setItem(
+        "permissions",
+        JSON.stringify(data.permissions ?? []),
+      );
 
       if (data.requiresOutletSelection) {
         // role isn't known yet - it's determined per-outlet,
@@ -67,17 +73,24 @@ export default function LoginPage() {
         router.push(`/t/${data.user.slug}/select-outlet`);
         return;
       }
-
+      
+      // Determine if the role is administrative
+      const isAdmin = ["Owner", "Manager"].includes(data.role);
       const targetPath = getRouteForRole(data.role);
-      console.log(targetPath)
-      router.push(`/t/${data.user.slug}/pos/${targetPath}`);
+  console.log("Role:", data.role);
+console.log("isAdmin:", isAdmin);
+console.log("targetPath:", targetPath);
 
+      // Conditionally prepend "pos/" only if it's NOT an admin role
+      const finalRoute = isAdmin
+        ? `/t/${data.user.slug}/${targetPath}`
+        : `/t/${data.user.slug}/pos/${targetPath}`;
+
+      router.push(finalRoute);
     } catch (err: any) {
       const apiError = err.response?.data?.error;
       const message =
-        typeof apiError === "string"
-          ? apiError
-          : "Invalid email or password";
+        typeof apiError === "string" ? apiError : "Invalid email or password";
       setError(message);
       setLoading(false);
     }
@@ -90,7 +103,6 @@ export default function LoginPage() {
     >
       <Navbar />
       <div className="w-full max-w-md space-y-10">
-
         <div className="space-y-2">
           <h1 className="text-center fade-in text-5xl font-light tracking-tight text-white uppercase leading-tight">
             Login
@@ -98,7 +110,6 @@ export default function LoginPage() {
         </div>
 
         <form className="space-y-6" onSubmit={handleSubmit}>
-
           {error && (
             <div className="text-red-400 text-sm text-center border border-red-800 py-2 px-4 rounded">
               {error}
@@ -138,15 +149,31 @@ export default function LoginPage() {
                 className="absolute right-0 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-300 transition-colors"
               >
                 {showPassword ? (
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
                   </svg>
                 ) : (
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
                   </svg>
                 )}
               </button>
@@ -162,16 +189,17 @@ export default function LoginPage() {
               {loading ? "Logging in..." : "Login"}
             </button>
           </div>
-
         </form>
 
         <p className="text-center fade-in text-sm text-zinc-600">
           Don't have an account?{" "}
-          <Link href="/signup" className="text-white hover:underline transition-all">
+          <Link
+            href="/signup"
+            className="text-white hover:underline transition-all"
+          >
             Sign up
           </Link>
         </p>
-
       </div>
     </div>
   );

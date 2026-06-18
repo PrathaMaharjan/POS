@@ -2,13 +2,21 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 
+// const ROLE_HOME: Record<string, string> = {
+//   Owner: "admin",
+//   Manager: "admin",
+//   Cashier: "cashier",
+//   Waiter: "waiter",
+//   "Kitchen Crew": "kitchen",
+// };
 const ROLE_HOME: Record<string, string> = {
-  Owner: "admin",
-  Manager: "admin",
+  Owner: "admin/dashboard",
+  Manager: "admin/dashboard",
   Cashier: "cashier",
   Waiter: "waiter",
   "Kitchen Crew": "kitchen",
 };
+
 
 export default function WaiterLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();

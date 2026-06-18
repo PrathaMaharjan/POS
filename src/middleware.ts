@@ -8,8 +8,8 @@ const ROUTE_ROLE_MAP: Record<string, string[]> = {
 };
 
 const ROLE_HOME: Record<string, string> = {
-  Owner: "admin",
-  Manager: "admin",
+  Owner: "admin/dashboard",
+  Manager: "admin/dashboard",
   Cashier: "cashier",
   Waiter: "waiter",
   "Kitchen Crew": "kitchen",
@@ -17,24 +17,24 @@ const ROLE_HOME: Record<string, string> = {
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-/**
+  /**
    * Use a Regular Expression to check if the path matches a multi-tenant pattern.
    * It looks for paths starting with "/t/", extracts the tenant name, and captures the remaining path.
-   * Example: "/t/mcdonalds/kitchen/orders" 
+   * Example: "/t/mcdonalds/kitchen/orders"
    * - match[1] (tenantSlug) = "mcdonalds"
    * - match[2] (rest)       = "kitchen/orders"
    */
   const match = pathname.match(/^\/t\/([^/]+)\/(.+)$/);
   if (!match) return NextResponse.next();
 
- // Destructure the regex match array. The first element is ignored, the 2nd is tenantSlug, and the 3rd is the rest of the path.
+  // Destructure the regex match array. The first element is ignored, the 2nd is tenantSlug, and the 3rd is the rest of the path.
   const [, tenantSlug, rest] = match;
   const role = req.cookies.get("role")?.value;
 
   if (!role) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
-/**
+  /**
    * Find which defined route rule matches the current requested path ('rest').
    * 1. Object.keys(ROUTE_ROLE_MAP) gets all protected route prefixes (['admin', 'kitchen', ...]).
    * 2. .filter(...) checks if the current sub-path exactly equals a rule OR starts with that rule followed by a slash (e.g., 'kitchen/orders' matches 'kitchen').
@@ -49,7 +49,9 @@ export function middleware(req: NextRequest) {
     const allowedRoles = ROUTE_ROLE_MAP[matchedRoute];
     if (!allowedRoles.includes(role)) {
       const home = ROLE_HOME[role] ?? "admin";
-      return NextResponse.redirect(new URL(`/t/${tenantSlug}/${home}`, req.url));
+      return NextResponse.redirect(
+        new URL(`/t/${tenantSlug}/${home}`, req.url),
+      );
     }
   }
 
