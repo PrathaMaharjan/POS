@@ -1,0 +1,225 @@
+import { db } from "@/db";
+import { userOutletRoles, userOutlets, users } from "@/db/schema";
+import { hashPassword } from "@/lib/auth/password";
+import { sendStaffWelcomeEmail } from "@/lib/email/sendStaffWelcomeEmail";
+import { and, eq, sql } from "drizzle-orm";
+
+const FRONTLINE_ROLES = ["Cashier", "Waiter", "Kitchen Crew"];
+
+export type ControllerResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: string; status: number };
+
+async function getFrontlineRoleId(roleName: string) {
+  if (!FRONTLINE_ROLES.includes(roleName)) return null;
+  const role = await db.query.roles.findFirst({
+    where: (r, { eq, and, isNull }) =>
+      and(eq(r.name, roleName), isNull(r.organizationId)),
+  });
+  return role?.id ?? null;
+}
+
+// -------------create staff -------------------
+
+export async function createStaff(
+  organizationId: string,
+  outletId: string,
+  input: {
+    name: string;
+    email: string;
+    phone?: string;
+    role: string;
+    password: string;
+  },
+): Promise<ControllerResult<{ userId: string }>> {
+  try {
+    const { name, email, phone, role, password } = input;
+    const roleId = await getFrontlineRoleId(role);
+    if (!roleId) {
+      return {
+        success: false,
+        error: "Role must be Cashier, Waiter, or Kitchen Crew",
+        status: 400,
+      };
+    }
+    const existing = await db.query.users.findFirst({
+      where: (u, { eq }) => eq(u.email, email),
+    });
+    if (existing) {
+      return {
+        success: false,
+        error:
+          "A user with this email already exists. Use 'assign existing' instead.",
+        status: 409,
+      };
+    }
+    const outlet = await db.query.outlets.findFirst({
+      where: (o, { eq }) => eq(o.id, outletId),
+    });
+    if (!outlet) {
+      return { success: false, error: "Outlet not found", status: 404 };
+    }
+    const passwordHash = await hashPassword(password);
+    const [newUser] = await db
+      .insert(users)
+      .values({
+        organizationId,
+        name,
+        email,
+        phone: phone ?? null,
+        passwordHash,
+        isOwner: false,
+        emailVerified: true, // admin-created, no separate verification needed
+      })
+      .returning();
+
+    await db.insert(userOutlets).values({ userId: newUser.id, outletId });
+    await db
+      .insert(userOutletRoles)
+      .values({ userId: newUser.id, outletId, roleId });
+    try {
+      await sendStaffWelcomeEmail(email, name, password, outlet.name, role);
+    } catch (err) {
+      console.error("Failed to send staff welcome email:", err);
+    }
+
+    return { success: true, data: { userId: newUser.id } };
+  } catch (error) {
+    console.error("createStaff error:", error);
+    return {
+      success: false,
+      error: "Failed to create staff member",
+      status: 500,
+    };
+  }
+}
+//---------------- update status ------------
+export async function updateStaffRole(
+  outletId: string,
+  userId: string,
+  newRole: string
+): Promise<ControllerResult<{ userId: string; role: string }>> {
+  const roleId = await getFrontlineRoleId(newRole);
+  if (!roleId) {
+    return { success: false, error: "Role must be Cashier, Waiter, or Kitchen Crew", status: 400 };
+  }
+
+  const existing = await db.query.userOutletRoles.findFirst({
+    where: (uor, { eq, and }) => and(eq(uor.userId, userId), eq(uor.outletId, outletId)),
+  });
+  if (!existing) {
+    return { success: false, error: "Staff member not found at this outlet", status: 404 };
+  }
+
+  await db
+    .update(userOutletRoles)
+    .set({ roleId })
+    .where(and(eq(userOutletRoles.userId, userId), eq(userOutletRoles.outletId, outletId)));
+
+  return { success: true, data: { userId, role: newRole } };
+}
+
+// ---------------delete staff ----------------------
+
+export async function removeStaff(outletId: string, userId: string): Promise<ControllerResult<null>> {
+  const existing = await db.query.userOutletRoles.findFirst({
+    where: (uor, { eq, and }) => and(eq(uor.userId, userId), eq(uor.outletId, outletId)),
+  });
+  if (!existing) {
+    return { success: false, error: "Staff member not found at this outlet", status: 404 };
+  }
+
+  await db.delete(userOutletRoles).where(and(eq(userOutletRoles.userId, userId), eq(userOutletRoles.outletId, outletId)));
+  await db.delete(userOutlets).where(and(eq(userOutlets.userId, userId), eq(userOutlets.outletId, outletId)));
+
+  return { success: true, data: null };
+}
+
+// ----------------------get single staff data -----------------------------
+
+export async function getStaffById(outletId: string, userId: string) {
+  const row = await db.query.userOutletRoles.findFirst({
+    where: (uor, { eq, and }) => and(eq(uor.userId, userId), eq(uor.outletId, outletId)),
+    with: {
+      user: { columns: { id: true, name: true, email: true, phone: true, isActive: true, createdAt: true } },
+      role: { columns: { name: true } },
+    },
+  });
+
+  if (!row) return null;
+
+  return {
+    userId: row.user.id,
+    name: row.user.name,
+    email: row.user.email,
+    phone: row.user.phone,
+    isActive: row.user.isActive,
+    createdAt: row.user.createdAt,
+    role: row.role.name,
+  };
+  
+}
+
+// --------------set All Staff --------------------
+
+export async function listStaff(outletId: string, limit: number, offset: number) {
+  const rows = await db.query.userOutletRoles.findMany({
+    where: (uor, { eq }) => eq(uor.outletId, outletId),
+    limit,
+    offset,
+    with: {
+      user: { columns: { id: true, name: true, email: true, phone: true, isActive: true } },
+      role: { columns: { name: true } },
+    },
+  });
+
+  const totalResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(userOutletRoles)
+    .where(eq(userOutletRoles.outletId, outletId));
+
+  const total = Number(totalResult[0]?.count ?? 0);
+
+  const staff = rows.map((r) => ({
+    userId: r.user.id,
+    name: r.user.name,
+    email: r.user.email,
+    phone: r.user.phone,
+    isActive: r.user.isActive,
+    role: r.role.name,
+  }));
+
+  return { staff, total };
+}
+
+// ------------change status ----------------------
+
+async function setStaffActiveStatus(
+  outletId: string,
+  userId: string,
+  isActive: boolean
+): Promise<ControllerResult<{ userId: string; isActive: boolean }>> {
+  // Confirm this staff member actually belongs to this outlet (tenant isolation)
+  const existing = await db.query.userOutletRoles.findFirst({
+    where: (uor, { eq, and }) => and(eq(uor.userId, userId), eq(uor.outletId, outletId)),
+  });
+  if (!existing) {
+    return { success: false, error: "Staff member not found at this outlet", status: 404 };
+  }
+
+  const [updated] = await db
+    .update(users)
+    .set({ isActive, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+    .returning();
+
+  return { success: true, data: { userId: updated.id, isActive: updated.isActive } };
+}
+
+export async function activateStaff(outletId: string, userId: string) {
+  return setStaffActiveStatus(outletId, userId, true);
+}
+
+export async function deactivateStaff(outletId: string, userId: string) {
+  return setStaffActiveStatus(outletId, userId, false);
+}
