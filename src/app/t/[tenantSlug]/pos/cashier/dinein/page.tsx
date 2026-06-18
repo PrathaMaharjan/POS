@@ -146,7 +146,6 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
         const res = await api.get('/tables');
         const raw = res.data.tables ?? [];
 
-        // Map backend fields to our Table interface
         const mapped: Table[] = raw.map((t: any) => ({
           id: t.id,
           label: t.name ?? t.tableNumber ?? `T-${t.id}`,
@@ -237,9 +236,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
     setSelectedTable(prev => prev && prev.id === tableId ? { ...prev, status: nextStatus } : prev);
 
     try {
-      console.log('PATCHing table:', tableId, 'to status:', nextStatus);
-      const res = await api.patch(`/tables/${tableId}`, { status: nextStatus });
-      console.log('PATCH success:', res.data);
+      await api.patch(`/tables/${tableId}`, { status: nextStatus });
     } catch (err: any) {
       console.error('PATCH FAILED:', err.response?.status, err.response?.data);
     }
@@ -252,7 +249,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
     <div className="min-h-screen bg-[#0c0c0d] text-[#e4e4e7] flex flex-col font-sans select-none antialiased">
       <main className="flex-1 flex flex-col px-8 py-6 gap-6 max-w-[1400px] mx-auto w-full">
 
-
+        {/* Filters and Controls */}
         <div className="flex items-center justify-between flex-wrap gap-4 bg-[#141416]/40 border border-neutral-900/60 rounded-2xl px-5 py-3.5">
           <div className="flex items-center flex-wrap gap-3">
             {(Object.keys(STATUS_CONFIG) as TableStatus[]).map((s) => (
@@ -277,7 +274,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
           </button>
         </div>
 
-
+        {/* Takeaway pickup panel */}
         {role === 'cashier' && readyTakeaways.length > 0 && (
           <div className="bg-[#141416] border border-neutral-900 rounded-2xl p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2 text-xs font-black tracking-wider text-neutral-400 uppercase">
@@ -325,7 +322,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
           </div>
         )}
 
-
+        {/* Main Grid display area */}
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center text-neutral-600 gap-3">
             <Loader2 className="w-6 h-6 animate-spin" />
@@ -349,7 +346,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
           </div>
         )}
 
-
+        {/* Metric footer banner */}
         <div className="w-full mt-auto pt-4 border-t border-neutral-900">
           <div className="bg-[#141416] border border-neutral-900/80 rounded-2xl p-5 flex flex-col justify-between">
             <div>
@@ -374,6 +371,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
         </div>
       </main>
 
+      {/* Table Detail Dialog Overlay */}
       {selectedTable && (
         <TableModal
           table={selectedTable}

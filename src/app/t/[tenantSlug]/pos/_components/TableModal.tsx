@@ -279,6 +279,7 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
               tableId={table.id}
               orderType="DINE_IN"
               showHeader={false}
+              role={role}
               onOrderCreated={handleOrderCreated}
             />
           )}
@@ -353,7 +354,7 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
                         </div>
 
                         <div className="pt-2 border-t border-neutral-900/40 flex justify-end">
-                          {showDeliveryButton ? (
+                          {role !== 'cashier' && showDeliveryButton ? (
                             <button
                               type="button"
                               onClick={() => toggleDelivery(order.id)}
@@ -365,10 +366,12 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
                               {isDelivered ? 'Mark Undelivered' : 'Mark Delivered'}
                             </button>
                           ) : (
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wide uppercase px-2.5 py-1.5 rounded-lg border border-neutral-900 bg-neutral-950/20 text-neutral-500">
-                              <span className={`w-1.5 h-1.5 rounded-full ${hasPreparing ? 'bg-blue-500 animate-pulse' : 'bg-[#e5b83b]/60'}`} />
-                              Kitchen: {hasPreparing ? 'Preparing' : (hasPending ? 'Pending' : 'Queueing')}
-                            </div>
+                            role === 'cashier' && isDelivered ? null : (
+                              <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wide uppercase px-2.5 py-1.5 rounded-lg border border-neutral-900 bg-neutral-950/20 text-neutral-500">
+                                <span className={`w-1.5 h-1.5 rounded-full ${hasPreparing ? 'bg-blue-500 animate-pulse' : 'bg-[#e5b83b]/60'}`} />
+                                Kitchen: {hasPreparing ? 'Preparing' : (hasPending ? 'Pending' : 'Queueing')}
+                              </div>
+                            )
                           )}
                         </div>
                       </div>
