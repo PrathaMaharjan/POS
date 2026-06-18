@@ -32,6 +32,8 @@ export default function AdminNavbar({ role }: NavbarProps) {
     navItems.push({ label: "Outlets", href: `${baseUrl}/outlets`, icon: Store });
   }
 
+  navItems.push({ label: "Settings", href: `${baseUrl}/settings`, icon: Settings });
+
   return (
     <aside className="sticky top-0 flex h-screen w-64 flex-col border-r border-slate-200 bg-white">
       {/* Logo & Context Section */}
@@ -79,11 +81,6 @@ export default function AdminNavbar({ role }: NavbarProps) {
 
       {/* Footer Section */}
       <div className="flex flex-col gap-1 border-t border-slate-200 px-4 py-4">
-        
-        <button className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900">
-          <Settings className="h-[18px] w-[18px] text-slate-400" />
-          Settings
-        </button>
         <button className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-rose-500 transition-colors hover:bg-rose-50">
           <LogOut className="h-[18px] w-[18px] text-rose-400" />
           Logout
