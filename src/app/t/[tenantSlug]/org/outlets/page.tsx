@@ -13,6 +13,8 @@ import {
   XCircle,
   Hash,
   FileText,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 interface Outlet {
@@ -51,11 +53,14 @@ const SEED_OUTLETS: Outlet[] = [
   },
 ];
 
+const ITEMS_PER_PAGE = 8;
+
 export default function OutletsPage() {
   const [outlets, setOutlets] = useState<Outlet[]>(SEED_OUTLETS);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOutlet, setEditingOutlet] = useState<Outlet | null>(null);
   const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [form, setForm] = useState({
     name: "",
@@ -74,6 +79,15 @@ export default function OutletsPage() {
       outlet.name.toLowerCase().includes(search.toLowerCase()) ||
       outlet.code.toLowerCase().includes(search.toLowerCase())
   );
+
+  // Pagination Math
+  const totalItems = filteredOutlets.length;
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+  const activePage = currentPage > totalPages ? totalPages : currentPage;
+
+  const startIndex = (activePage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedOutlets = filteredOutlets.slice(startIndex, endIndex);
 
   function resetForm() {
     setForm({ name: "", code: "", address: "", panNumber: "" });
@@ -112,6 +126,7 @@ export default function OutletsPage() {
         status: "active",
       };
       setOutlets((prev) => [newOutlet, ...prev]);
+      setCurrentPage(1);
     }
 
     resetForm();
@@ -137,7 +152,6 @@ export default function OutletsPage() {
       {/* Page Full-Width Green Header */}
       <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Outlets</h1>
-       
       </div>
 
       {/* Top Status Dashboards */}
@@ -179,7 +193,10 @@ export default function OutletsPage() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
             placeholder="Search by outlet name or code..."
             className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
@@ -201,7 +218,7 @@ export default function OutletsPage() {
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/50 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
                 <th className="py-3 px-4">Outlet Name</th>
-                <th className="py-3 px-4">Branch Code</th>
+                <th className="py-3 px-4">Outlet Id</th>
                 <th className="py-3 px-4">Address</th>
                 <th className="py-3 px-4">PAN Number</th>
                 <th className="py-3 px-4">Status</th>
@@ -209,7 +226,7 @@ export default function OutletsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredOutlets.map((outlet) => (
+              {paginatedOutlets.map((outlet) => (
                 <tr key={outlet.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="py-4 px-4">
                     <div className="flex items-center gap-3">
@@ -268,7 +285,7 @@ export default function OutletsPage() {
                   </td>
                 </tr>
               ))}
-              {filteredOutlets.length === 0 && (
+              {paginatedOutlets.length === 0 && (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-sm text-slate-400">
                     No outlets match your search parameters.
@@ -278,44 +295,77 @@ export default function OutletsPage() {
             </tbody>
           </table>
         </div>
+
+
+        <div className="flex items-center justify-between border-t border-slate-100 bg-white px-6 py-4">
+          <div className="text-sm text-slate-500">
+
+          </div>
+
+          <div className="flex items-center gap-6">
+            <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
+              Page {activePage} of {totalPages}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                disabled={activePage === 1}
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                title="Previous Page"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                disabled={activePage === totalPages}
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                title="Next Page"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Add / Edit Outlet Dialog Modal */}
+
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl rounded-xl bg-white shadow-xl border border-slate-100">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl rounded-xl bg-white shadow-xl border border-slate-100 overflow-hidden">
+            <div className="relative flex items-center justify-center bg-emerald-600 p-6 text-white">
+              <div className="flex flex-col items-center gap-2 text-center">
+            
+              
+                        <div className="flex h-10 w-10 items-center justify-center  text-white">
                   <Store className="h-5 w-5" />
                 </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-900">
+                  <h2 className="text-lg font-semibold text-white">
                     {editingOutlet ? "Modify Outlet Details" : "Register New Outlet"}
                   </h2>
-                  <p className="text-sm text-slate-500">
-                    {editingOutlet ? "Update physical locations, tracking records, and regional parameters." : "Add a brand new physical branch outlet locations to your profile."}
-                  </p>
-                </div>
+                 
+               
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="absolute right-6 top-6 rounded-md p-1 text-emerald-100 hover:bg-white/10 hover:text-white"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <div className="grid grid-cols-1 gap-5 p-6 sm:grid-cols-3">
               <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Outlet Branch Name</label>
+                <label className="mb-2 block text-sm font-semibold text-slate-500">Outlet Branch Name</label>
                 <input
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="e.g., Kathmandu Main Branch"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  placeholder="Enter the name of branch"
+                  className="w-full rounded-lg border border-slate-200/80 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Unique Branch Code</label>
+                <label className="mb-2 block text-sm font-semibold text-slate-500">Outlet Id</label>
                 <div className="relative">
                   <Hash className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
@@ -323,34 +373,34 @@ export default function OutletsPage() {
                     onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
                     placeholder="KTM-01"
                     maxLength={10}
-                    className="w-full rounded-lg border border-slate-200 py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 uppercase"
+                    className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all uppercase"
                   />
                 </div>
               </div>
 
               <div className="sm:col-span-3">
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Physical Address Location</label>
+                <label className="mb-2 block text-sm font-semibold text-slate-500">Location</label>
                 <div className="relative">
                   <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
                     value={form.address}
                     onChange={(e) => setForm({ ...form, address: e.target.value })}
-                    placeholder="Street address, City location details..."
-                    className="w-full rounded-lg border border-slate-200 py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    placeholder="Enter your location"
+                    className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
                   />
                 </div>
               </div>
 
               <div className="sm:col-span-3">
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Business Registration / PAN Number</label>
+                <label className="mb-2 block text-sm font-semibold text-slate-500">Business Registration / PAN Number</label>
                 <div className="relative">
                   <FileText className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
                     value={form.panNumber}
                     onChange={(e) => setForm({ ...form, panNumber: e.target.value })}
-                    placeholder="9-digit corporate identifier code"
+                    placeholder="Enter your Business Registration / PAN Number"
                     maxLength={9}
-                    className="w-full rounded-lg border border-slate-200 py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
                   />
                 </div>
               </div>

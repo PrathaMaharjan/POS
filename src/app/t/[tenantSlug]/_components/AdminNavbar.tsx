@@ -22,13 +22,12 @@ export default function AdminNavbar({ role }: NavbarProps) {
 
   const baseUrl = `/t/${tenantSlug}/${role}`;
 
-  // Base navigation items both roles can see
   const navItems = [
     { label: "Overview", href: baseUrl, icon: LayoutDashboard },
     { label: "Manage Staff", href: `${baseUrl}/staff`, icon: Users },
   ];
 
-  // Only the Organization role gets access to the Outlets view
+
   if (role === "org") {
     navItems.push({ label: "Outlets", href: `${baseUrl}/outlets`, icon: Store });
   }
