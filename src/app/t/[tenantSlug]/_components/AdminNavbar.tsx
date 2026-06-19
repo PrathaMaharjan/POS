@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
+import api from "@/lib/api";
 import {
   Users,
   Store,
@@ -10,6 +12,8 @@ import {
   ShieldCheck,
   HelpCircle,
   Settings,
+  Loader2,
+  UtensilsCrossed,
 } from "lucide-react";
 
 interface NavbarProps {
@@ -18,7 +22,9 @@ interface NavbarProps {
 
 export default function AdminNavbar({ role }: NavbarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { tenantSlug } = useParams();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const baseUrl = `/t/${tenantSlug}/${role}`;
 
@@ -27,6 +33,9 @@ export default function AdminNavbar({ role }: NavbarProps) {
     { label: "Manage Staff", href: `${baseUrl}/staff`, icon: Users },
   ];
 
+  if (role === "manager") {
+    navItems.push({ label: "Menu", href: `${baseUrl}/menu`, icon: UtensilsCrossed });
+  }
 
   if (role === "org") {
     navItems.push({ label: "Outlets", href: `${baseUrl}/outlets`, icon: Store });
@@ -34,11 +43,21 @@ export default function AdminNavbar({ role }: NavbarProps) {
 
   navItems.push({ label: "Settings", href: `${baseUrl}/settings`, icon: Settings });
 
+  async function handleLogout() {
+    setIsLoggingOut(true);
+    try {
+      await api.post("/auth/logout");
+    } catch (err) {
+      console.error("Failed to invalidate session on backend:", err);
+    } finally {
+      router.push("/login");
+    }
+  }
+
   return (
     <aside className="sticky top-0 flex h-screen w-64 flex-col border-r border-slate-200 bg-white">
       {/* Logo & Context Section */}
       <div className="flex items-center gap-2 border-b border-slate-200 px-6 py-5">
-        
         <div className="flex flex-col">
           <span className="font-semibold text-sm text-slate-800 tracking-tight capitalize leading-none mb-0.5">
             {tenantSlug}
@@ -81,8 +100,16 @@ export default function AdminNavbar({ role }: NavbarProps) {
 
       {/* Footer Section */}
       <div className="flex flex-col gap-1 border-t border-slate-200 px-4 py-4">
-        <button className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-rose-500 transition-colors hover:bg-rose-50">
-          <LogOut className="h-[18px] w-[18px] text-rose-400" />
+        <button
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-rose-500 transition-colors hover:bg-rose-50 disabled:opacity-60"
+        >
+          {isLoggingOut ? (
+            <Loader2 className="h-[18px] w-[18px] animate-spin text-rose-400" />
+          ) : (
+            <LogOut className="h-[18px] w-[18px] text-rose-400" />
+          )}
           Logout
         </button>
       </div>

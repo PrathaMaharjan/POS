@@ -13,9 +13,9 @@ const schema = z.object({
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
+  { params }: { params: Promise<{ userid: string }> }
 ) {
-  const { userId } = await params;
+  const { userid } = await params;
 
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
@@ -33,7 +33,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Provide at least one field to update" }, { status: 400 });
   }
 
-  const result = await updateStaffInfo(auth.payload.activeOutletId!, userId, parsed.data);
+  const result = await updateStaffInfo(auth.payload.activeOutletId!, userid, parsed.data);
 
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: result.status });

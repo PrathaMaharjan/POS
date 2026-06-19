@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import api from '@/lib/api';
 
@@ -47,6 +48,9 @@ export default function StaffPage() {
   const [editingMember, setEditingMember] = useState<StaffMember | null>(null);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+
+  const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -114,18 +118,48 @@ export default function StaffPage() {
     setErrorMsg(null);
 
     if (editingMember) {
+      if (!form.name || !form.email) return;
+      setIsSaving(true);
 
-      try {
-        setIsSaving(true);
-        await api.patch(`/staff/${editingMember.userId}`, { role: form.role });
-        await fetchStaff();
-        resetForm();
-        setIsModalOpen(false);
-      } catch (err: any) {
-        setErrorMsg(err?.response?.data?.error ?? "Failed to update role.");
-      } finally {
-        setIsSaving(false);
+ 
+      const infoChanged =
+        form.name !== editingMember.name ||
+        form.email !== editingMember.email ||
+        (form.phone || "") !== (editingMember.phone ?? "");
+      const roleChanged = form.role !== editingMember.role;
+
+      const errors: string[] = [];
+
+      if (infoChanged) {
+        try {
+          await api.patch(`/staff/${editingMember.userId}/info`, {
+            name: form.name,
+            email: form.email,
+            phone: form.phone || undefined,
+          });
+        } catch (err: any) {
+          errors.push(err?.response?.data?.error ?? "Failed to update profile details.");
+        }
       }
+
+      if (roleChanged) {
+        try {
+          await api.patch(`/staff/${editingMember.userId}`, { role: form.role });
+        } catch (err: any) {
+          errors.push(err?.response?.data?.error ?? "Failed to update role.");
+        }
+      }
+
+      await fetchStaff();
+      setIsSaving(false);
+
+      if (errors.length > 0) {
+        setErrorMsg(errors.join(" "));
+        return; // keep modal open so the person can see what failed
+      }
+
+      resetForm();
+      setIsModalOpen(false);
       return;
     }
 
@@ -157,13 +191,18 @@ export default function StaffPage() {
     }
   }
 
-  async function handleDeleteStaff(userId: string) {
-    if (!confirm("Are you sure you want to remove this staff member?")) return;
+  async function confirmDeleteStaff() {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await api.delete(`/staff/${userId}`);
+      await api.delete(`/staff/${deleteTarget.userId}`);
       await fetchStaff();
+      setDeleteTarget(null);
     } catch (err: any) {
-      alert(err?.response?.data?.error ?? "Failed to remove staff member.");
+      setErrorMsg(err?.response?.data?.error ?? "Failed to remove staff member.");
+      setDeleteTarget(null);
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -199,7 +238,7 @@ export default function StaffPage() {
             <CheckCircle className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Active (this page)</p>
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Active </p>
             <p className="text-xl font-semibold text-slate-800">{activeStaff}</p>
           </div>
         </div>
@@ -215,7 +254,7 @@ export default function StaffPage() {
         </div>
       </div>
 
-    
+
       <div className="flex items-center justify-between gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -241,7 +280,7 @@ export default function StaffPage() {
         </div>
       )}
 
-     
+
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
@@ -300,12 +339,12 @@ export default function StaffPage() {
                           <button
                             onClick={() => handleOpenEdit(member)}
                             className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                            title="Edit Role"
+                            title="Edit Staff"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => handleDeleteStaff(member.userId)}
+                            onClick={() => setDeleteTarget(member)}
                             className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
                             title="Remove Member"
                           >
@@ -367,7 +406,7 @@ export default function StaffPage() {
                 <UserPlus className="h-6 w-6" />
               </div>
               <h2 className="text-2xl font-semibold text-white text-center">
-                {editingMember ? "Modify Staff Role" : "Add New Staff Member"}
+                {editingMember ? "Edit Staff Member" : "Add New Staff Member"}
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -390,8 +429,7 @@ export default function StaffPage() {
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="Enter your name"
-                  disabled={!!editingMember}
-                  className="w-full rounded-lg border border-slate-200/80 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60"
+                  className="w-full rounded-lg border border-slate-200/80 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
                 />
               </div>
 
@@ -419,8 +457,7 @@ export default function StaffPage() {
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
                     placeholder="Enter your email"
-                    disabled={!!editingMember}
-                    className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60"
+                    className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
                   />
                 </div>
               </div>
@@ -433,8 +470,7 @@ export default function StaffPage() {
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
                     placeholder="9XXXXXXXXX"
-                    disabled={!!editingMember}
-                    className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60"
+                    className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
                   />
                 </div>
               </div>
@@ -471,7 +507,54 @@ export default function StaffPage() {
                 className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60"
               >
                 {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-                {editingMember ? "Save Role" : "Add Staff"}
+                {editingMember ? "Save Changes" : "Add Staff"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
+          onClick={() => !isDeleting && setDeleteTarget(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-xl bg-white shadow-xl border border-slate-100 overflow-hidden"
+          >
+            <div className="flex flex-col items-center gap-4 p-8 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-600">
+                <AlertTriangle className="h-7 w-7" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Remove Staff Member</h2>
+                <p className="mt-2 text-sm text-slate-500">
+                  Are you sure you want to remove{" "}
+                  <span className="font-semibold text-slate-700">{deleteTarget.name}</span>{" "}
+                  from staff? 
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-center gap-3 border-t border-slate-100 p-6 bg-slate-50/50">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={isDeleting}
+                className="flex-1 rounded-lg px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteStaff}
+                disabled={isDeleting}
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-700 disabled:opacity-60"
+              >
+                {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
+                Remove
               </button>
             </div>
           </div>

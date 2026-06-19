@@ -111,7 +111,7 @@ export default function Order({
   const [createdTakeawayOrderId, setCreatedTakeawayOrderId] = useState<string | null>(null);
   const router = useRouter();
 
-  // Determine if this specific action should be restricted
+
   const isDineInCashier = role === 'cashier' && orderType === 'DINE_IN';
 
   useEffect(() => {
