@@ -5,7 +5,8 @@ import { eq } from "drizzle-orm";
 const MODULES: Record<string, string[]> = {
   pos: ["billing", "payments", "shift_reports"],
   restaurant: ["tables", "kot", "bill_splits"],
-  inventory: ["products", "stock", "recipes", "suppliers"],
+  // inventory: ["products", "stock", "recipes", "suppliers"],
+  inventory: ["categories", "products", "stock", "recipes", "suppliers"],
   core: ["outlets", "users", "roles"],
 };
 

@@ -7,24 +7,33 @@ import {
   boolean,
   integer,
   timestamp,
-  index
+  index,
+  uniqueIndex
 } from "drizzle-orm/pg-core";
 import { outlets } from ".";
 import { relations } from "drizzle-orm";
 
-export const categories = pgTable("categories", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  outletId: uuid("outlet_id")
-    .notNull()
-    .references(() => outlets.id, { onDelete: "cascade" }),
-  name: varchar("name", { length: 100 }).notNull(),
-  sortOrder: integer("sort_order").default(0).notNull(),
-  isActive: boolean("is_active").default(true).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-},(t)=>[
-  index("categories_outlet_idx").on(t.outletId as any),
-]);
+export const categories = pgTable(
+  "categories",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    outletId: uuid("outlet_id")
+      .notNull()
+      .references(() => outlets.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 100 }).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("categories_outlet_idx").on(t.outletId as any),
+    uniqueIndex("categories_outlet_name_unique").on(
+      t.outletId as any,
+      t.name as any,
+    ),
+  ],
+);
 
 export const products = pgTable("products", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -44,13 +53,21 @@ export const products = pgTable("products", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-
 export const categoriesRelations = relations(categories, ({ one, many }) => ({
-  outlet: one(outlets, { fields: [categories.outletId], references: [outlets.id] }),
+  outlet: one(outlets, {
+    fields: [categories.outletId],
+    references: [outlets.id],
+  }),
   products: many(products),
 }));
 
 export const productsRelations = relations(products, ({ one }) => ({
-  outlet: one(outlets, { fields: [products.outletId], references: [outlets.id] }),
-  category: one(categories, { fields: [products.categoryId], references: [categories.id] }),
+  outlet: one(outlets, {
+    fields: [products.outletId],
+    references: [outlets.id],
+  }),
+  category: one(categories, {
+    fields: [products.categoryId],
+    references: [categories.id],
+  }),
 }));

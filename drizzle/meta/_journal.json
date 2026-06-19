@@ -71,6 +71,13 @@
       "when": 1781773181010,
       "tag": "0009_loud_stepford_cuckoos",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781853539657,
+      "tag": "0010_jazzy_karen_page",
+      "breakpoints": true
     }
   ]
 }
