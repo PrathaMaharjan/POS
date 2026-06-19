@@ -35,7 +35,10 @@ const ROLE_OPTIONS = ["Cashier", "Waiter", "Kitchen Crew"];
 
 const ITEMS_PER_PAGE = 8;
 
+
+
 export default function StaffPage() {
+  
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [totalPages, setTotalPages] = useState(1);
   const [totalStaff, setTotalStaff] = useState(0);
@@ -51,6 +54,8 @@ export default function StaffPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [roleFilter, setRoleFilter] = useState<string>("All");
+
 
   const [form, setForm] = useState({
     name: "",
@@ -86,12 +91,13 @@ export default function StaffPage() {
     fetchStaff();
   }, [fetchStaff]);
 
-
-  const filteredStaff = staff.filter(
-    (member) =>
-      member.name.toLowerCase().includes(search.toLowerCase()) ||
-      member.role.toLowerCase().includes(search.toLowerCase())
-  );
+const filteredStaff = staff.filter((member) => {
+  const matchesSearch =
+    member.name.toLowerCase().includes(search.toLowerCase()) ||
+    member.role.toLowerCase().includes(search.toLowerCase());
+  const matchesRole = roleFilter === "All" || member.role === roleFilter;
+  return matchesSearch && matchesRole;
+});
 
   const activeStaff = staff.filter((s) => s.isActive).length;
   const inactiveStaff = staff.filter((s) => !s.isActive).length;
@@ -155,7 +161,7 @@ export default function StaffPage() {
 
       if (errors.length > 0) {
         setErrorMsg(errors.join(" "));
-        return; // keep modal open so the person can see what failed
+        return; 
       }
 
       resetForm();
@@ -256,23 +262,47 @@ export default function StaffPage() {
 
 
       <div className="flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search staff on this page..."
-            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          />
-        </div>
-        <button
-          onClick={() => { resetForm(); setIsModalOpen(true); }}
-          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 active:scale-98"
-        >
-          <UserPlus className="h-4 w-4" />
-          Add Staff
-        </button>
-      </div>
+  <div className="flex items-center gap-3">
+    {/* Search */}
+    <div className="relative w-80">
+      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search staff on this page..."
+        className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+      />
+    </div>
+
+    {/* Role Filter */}
+    <select
+      value={roleFilter}
+      onChange={(e) => setRoleFilter(e.target.value)}
+      className="rounded-lg border border-slate-200 bg-white py-2 px-3 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+    >
+      <option value="All">All Roles</option>
+      {ROLE_OPTIONS.map((role) => (
+        <option key={role} value={role}>
+          {role}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  {/* Add Staff Button */}
+  <button
+    onClick={() => {
+      resetForm();
+      setIsModalOpen(true);
+    }}
+    className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+  >
+    <UserPlus className="h-4 w-4" />
+    Add Staff
+  </button>
+</div>
+       
+      
 
       {errorMsg && !isModalOpen && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

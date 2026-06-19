@@ -9,11 +9,10 @@ import {
   Store,
   LayoutDashboard,
   LogOut,
-  ShieldCheck,
-  HelpCircle,
   Settings,
   Loader2,
   UtensilsCrossed,
+  Layers,
 } from "lucide-react";
 
 interface NavbarProps {
@@ -35,6 +34,7 @@ export default function AdminNavbar({ role }: NavbarProps) {
 
   if (role === "manager") {
     navItems.push({ label: "Menu", href: `${baseUrl}/menu`, icon: UtensilsCrossed });
+    navItems.push({ label: "Tables", href: `${baseUrl}/tables`, icon: Layers });
   }
 
   if (role === "org") {
@@ -73,6 +73,8 @@ export default function AdminNavbar({ role }: NavbarProps) {
         <ul className="flex flex-col gap-2">
           {navItems.map((item) => {
             const IconComponent = item.icon as any;
+            
+            // Exact path validation check supporting highlighting rules profiles
             const isActive = pathname === item.href;
 
             return (
@@ -103,7 +105,7 @@ export default function AdminNavbar({ role }: NavbarProps) {
         <button
           onClick={handleLogout}
           disabled={isLoggingOut}
-          className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-rose-500 transition-colors hover:bg-rose-50 disabled:opacity-60"
+          className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-rose-500 transition-colors hover:bg-rose-50 disabled:opacity-60 animate-none"
         >
           {isLoggingOut ? (
             <Loader2 className="h-[18px] w-[18px] animate-spin text-rose-400" />
