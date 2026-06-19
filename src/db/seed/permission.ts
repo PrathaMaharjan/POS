@@ -104,7 +104,17 @@ async function seedSystemRoles() {
   await setRolePermissions(
     manager.id,
     allPerms
-      .filter((p) => !(p.module === "core" && p.action === "delete"))
+      .filter((p) => {
+        // Block core.outlets.delete and core.roles.delete, but allow core.users.delete
+        if (
+          p.module === "core" &&
+          p.action === "delete" &&
+          p.resource !== "users"
+        ) {
+          return false;
+        }
+        return true;
+      })
       .map((p) => p.id),
   );
 
@@ -145,7 +155,7 @@ async function seedSystemRoles() {
       "pos.billing.read",
       "pos.payments.create",
       "pos.payments.read",
-       "pos.billing.update"
+      "pos.billing.update",
     ]),
   );
 

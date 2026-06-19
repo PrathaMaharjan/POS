@@ -223,3 +223,98 @@ export async function activateStaff(outletId: string, userId: string) {
 export async function deactivateStaff(outletId: string, userId: string) {
   return setStaffActiveStatus(outletId, userId, false);
 }
+
+
+
+// ─────────────────────────────────────────────
+// ASSIGN AN EXISTING ORG USER TO THIS OUTLET
+// ─────────────────────────────────────────────
+export async function assignExistingStaff(
+  organizationId: string,
+  outletId: string,
+  input: { email: string; role: string }
+): Promise<ControllerResult<{ userId: string }>> {
+  const { email, role } = input;
+
+  const roleId = await getFrontlineRoleId(role);
+  if (!roleId) {
+    return { success: false, error: "Role must be Cashier, Waiter, or Kitchen Crew", status: 400 };
+  }
+
+  const targetUser = await db.query.users.findFirst({ where: (u, { eq }) => eq(u.email, email) });
+  if (!targetUser) {
+    return { success: false, error: "No user found with this email. Use 'create' to add a new account.", status: 404 };
+  }
+
+  if (targetUser.organizationId !== organizationId) {
+    return { success: false, error: "This user belongs to a different organization", status: 403 };
+  }
+
+  const alreadyAssigned = await db.query.userOutlets.findFirst({
+    where: (uo, { eq, and }) => and(eq(uo.userId, targetUser.id), eq(uo.outletId, outletId)),
+  });
+  if (alreadyAssigned) {
+    return { success: false, error: "This user already has access to this outlet", status: 409 };
+  }
+
+  try {
+    await db.insert(userOutlets).values({ userId: targetUser.id, outletId });
+    await db.insert(userOutletRoles).values({ userId: targetUser.id, outletId, roleId });
+
+    return { success: true, data: { userId: targetUser.id } };
+  } catch (error) {
+    console.error("assignExistingStaff error:", error);
+    return { success: false, error: "Failed to assign staff member", status: 500 };
+  }
+}
+
+
+// update 
+
+export async function updateStaffInfo(
+  outletId: string,
+  userId: string,
+  input: { name?: string; phone?: string; email?: string }
+): Promise<ControllerResult<{ userId: string; name: string; email: string; phone: string | null }>> {
+  const { name, phone, email } = input;
+
+  // Confirm this staff member belongs to this outlet (tenant isolation)
+  const existing = await db.query.userOutletRoles.findFirst({
+    where: (uor, { eq, and }) => and(eq(uor.userId, userId), eq(uor.outletId, outletId)),
+  });
+  if (!existing) {
+    return { success: false, error: "Staff member not found at this outlet", status: 404 };
+  }
+
+  // If changing email, make sure it isn't already taken by someone else
+  if (email) {
+    const emailTaken = await db.query.users.findFirst({
+      where: (u, { eq, and, ne }) => and(eq(u.email, email), ne(u.id, userId)),
+    });
+    if (emailTaken) {
+      return { success: false, error: "This email is already in use by another account", status: 409 };
+    }
+  }
+
+  // Only update fields that were actually provided
+  const updateValues: Record<string, unknown> = { updatedAt: new Date() };
+  if (name !== undefined) updateValues.name = name;
+  if (phone !== undefined) updateValues.phone = phone;
+  if (email !== undefined) updateValues.email = email;
+
+  try {
+    const [updated] = await db
+      .update(users)
+      .set(updateValues)
+      .where(eq(users.id, userId))
+      .returning();
+
+    return {
+      success: true,
+      data: { userId: updated.id, name: updated.name, email: updated.email, phone: updated.phone },
+    };
+  } catch (error) {
+    console.error("updateStaffInfo error:", error);
+    return { success: false, error: "Failed to update staff information", status: 500 };
+  }
+}
