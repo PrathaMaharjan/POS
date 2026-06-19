@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "dining_tables_outlet_number_unique" ON "dining_tables" USING btree ("outlet_id","table_number");

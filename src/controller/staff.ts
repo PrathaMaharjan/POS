@@ -1,8 +1,8 @@
 import { db } from "@/db";
-import { userOutletRoles, userOutlets, users } from "@/db/schema";
+import { roles, userOutletRoles, userOutlets, users } from "@/db/schema";
 import { hashPassword } from "@/lib/auth/password";
 import { sendStaffWelcomeEmail } from "@/lib/email/sendStaffWelcomeEmail";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, notInArray, sql } from "drizzle-orm";
 
 const FRONTLINE_ROLES = ["Cashier", "Waiter", "Kitchen Crew"];
 
@@ -162,34 +162,44 @@ export async function getStaffById(outletId: string, userId: string) {
 
 // --------------set All Staff --------------------
 
+
+
 export async function listStaff(outletId: string, limit: number, offset: number) {
-  const rows = await db.query.userOutletRoles.findMany({
-    where: (uor, { eq }) => eq(uor.outletId, outletId),
-    limit,
-    offset,
-    with: {
-      user: { columns: { id: true, name: true, email: true, phone: true, isActive: true } },
-      role: { columns: { name: true } },
-    },
-  });
+  const EXCLUDED_ROLES = ["Owner", "Manager"];
 
-  const totalResult = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(userOutletRoles)
-    .where(eq(userOutletRoles.outletId, outletId));
+  const baseFilter = and(
+    eq(userOutletRoles.outletId, outletId),
+    notInArray(roles.name, EXCLUDED_ROLES)
+  );
 
-  const total = Number(totalResult[0]?.count ?? 0);
+  const [rows, totalResult] = await Promise.all([
+    db
+      .select({
+        userId: users.id,
+        name: users.name,
+        email: users.email,
+        phone: users.phone,
+        isActive: users.isActive,
+        role: roles.name,
+      })
+      .from(userOutletRoles)
+      .innerJoin(users, eq(userOutletRoles.userId, users.id))
+      .innerJoin(roles, eq(userOutletRoles.roleId, roles.id))
+      .where(baseFilter)
+      .limit(limit)
+      .offset(offset),
 
-  const staff = rows.map((r) => ({
-    userId: r.user.id,
-    name: r.user.name,
-    email: r.user.email,
-    phone: r.user.phone,
-    isActive: r.user.isActive,
-    role: r.role.name,
-  }));
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(userOutletRoles)
+      .innerJoin(roles, eq(userOutletRoles.roleId, roles.id))
+      .where(baseFilter),
+  ]);
 
-  return { staff, total };
+  return {
+    staff: rows,
+    total: Number(totalResult[0]?.count ?? 0),
+  };
 }
 
 // ------------change status ----------------------

@@ -1,0 +1,1 @@
+ALTER TYPE "public"."table_shape" ADD VALUE 'rectangle';
