@@ -10,11 +10,11 @@ import { useRouter, useParams } from "next/navigation";
 //   "Kitchen Crew": "kitchen",
 // };
 const ROLE_HOME: Record<string, string> = {
-  Owner: "admin/dashboard",
-  Manager: "admin/dashboard",
-  Cashier: "cashier",
-  Waiter: "waiter",
-  "Kitchen Crew": "kitchen",
+  Owner: "org",
+  Manager: "manager",
+  Cashier: "pos/cashier",
+  Waiter: "pos/waiter",
+  "Kitchen Crew": "pos/kitchen",
 };
 
 export default function KitchenLayout({ children }: { children: React.ReactNode }) {

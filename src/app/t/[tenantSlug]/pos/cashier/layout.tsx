@@ -2,20 +2,15 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 
-// const ROLE_HOME: Record<string, string> = {
-//   Owner: "admin",
-//   Manager: "admin",
-//   Cashier: "cashier",
-//   Waiter: "waiter",
-//   "Kitchen Crew": "kitchen",
-// };
+
 const ROLE_HOME: Record<string, string> = {
-  Owner: "admin/dashboard",
-  Manager: "admin/dashboard",
-  Cashier: "cashier",
-  Waiter: "waiter",
-  "Kitchen Crew": "kitchen",
+  Owner: "org",
+  Manager: "manager",
+  Cashier: "pos/cashier",
+  Waiter: "pos/waiter",
+  "Kitchen Crew": "pos/kitchen",
 };
+
 
 export default function CashierLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -25,7 +20,7 @@ export default function CashierLayout({ children }: { children: React.ReactNode 
   useEffect(() => {
     const role = localStorage.getItem("role");
     if (role !== "Cashier") {
-      const home = ROLE_HOME[role ?? ""] ?? "admin";
+    const home = ROLE_HOME[role ?? ""] ?? "pos/cashier";
       router.replace(`/t/${tenantSlug}/${home}`);
     } else {
       setChecked(true);

@@ -8,17 +8,25 @@ import Navbar from "../components/Navbar";
 import api from "@/lib/api";
 
 // Maps each role name to where they should land after login
+// const ROLE_ROUTES: Record<string, string> = {
+//   Owner: "admin/dashboard",
+//   Manager: "admin/dashboard",
+//   Cashier: "cashier",
+//   Waiter: "waiter",
+//   "Kitchen Crew": "kitchen",
+// };
+
 const ROLE_ROUTES: Record<string, string> = {
-  Owner: "admin/dashboard",
-  Manager: "admin/dashboard",
-  Cashier: "cashier",
-  Waiter: "waiter",
-  "Kitchen Crew": "kitchen",
+  Owner: "org",
+  Manager: "manager",
+  Cashier: "pos/cashier",
+  Waiter: "pos/waiter",
+  "Kitchen Crew": "pos/kitchen",
 };
 
 function getRouteForRole(role: string | null): string {
-  if (!role) return "dashboard"; // fallback if role is somehow missing
-  return ROLE_ROUTES[role] ?? "dashboard";
+  if (!role) return "pos/cashier";
+  return ROLE_ROUTES[role] ?? "pos/cashier";
 }
 
 export default function LoginPage() {
@@ -67,33 +75,24 @@ export default function LoginPage() {
         JSON.stringify(data.permissions ?? []),
       );
 
-      if (data.requiresOutletSelection) {
-        // role isn't known yet - it's determined per-outlet,
-        // so send them to pick an outlet first
-        router.push(`/t/${data.user.slug}/select-outlet`);
-        return;
-      }
-      
-      // Determine if the role is administrative
-      const isAdmin = ["Owner", "Manager"].includes(data.role);
-      const targetPath = getRouteForRole(data.role);
-  console.log("Role:", data.role);
-console.log("isAdmin:", isAdmin);
-console.log("targetPath:", targetPath);
+   
+    if (data.requiresOutletSelection) {
+      router.push(`/t/${data.user.slug}/select-outlet`);
+      return;
+    }
 
-      // Conditionally prepend "pos/" only if it's NOT an admin role
-      const finalRoute = isAdmin
-        ? `/t/${data.user.slug}/${targetPath}`
-        : `/t/${data.user.slug}/pos/${targetPath}`;
+    const targetPath = getRouteForRole(data.role);
+    router.push(`/t/${data.user.slug}/${targetPath}`);
 
-      router.push(finalRoute);
     } catch (err: any) {
       const apiError = err.response?.data?.error;
       const message =
         typeof apiError === "string" ? apiError : "Invalid email or password";
       setError(message);
       setLoading(false);
-    }
+    } finally {
+    setLoading(false); }
+    
   }
 
   return (

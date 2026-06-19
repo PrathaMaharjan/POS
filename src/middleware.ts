@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const ROUTE_ROLE_MAP: Record<string, string[]> = {
-  admin: ["Owner", "Manager"],
-  kitchen: ["Kitchen Crew"],
-  waiter: ["Waiter"],
-  cashier: ["Cashier"],
+  org: ["Owner"],
+  manager: ["Manager"],
+  "pos/cashier": ["Cashier"],
+  "pos/waiter": ["Waiter"],
+  "pos/kitchen": ["Kitchen Crew"],
 };
 
 const ROLE_HOME: Record<string, string> = {
-  Owner: "admin/dashboard",
-  Manager: "admin/dashboard",
-  Cashier: "cashier",
-  Waiter: "waiter",
-  "Kitchen Crew": "kitchen",
+  Owner: "org",
+  Manager: "manager",
+  Cashier: "pos/cashier",
+  Waiter: "pos/waiter",
+  "Kitchen Crew": "pos/kitchen",
 };
 
 export function middleware(req: NextRequest) {
