@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { randomUUID } from "crypto";
 import { db } from "@/db";
 import { refreshTokens } from "@/db/schema";
 import { verifyPassword } from "@/lib/auth/password";
@@ -14,7 +14,6 @@ import {
   getUserRoleForOutlet,
 } from "@/lib/permissions/getUserPermissions";
 import { hashToken } from "@/lib/auth/hashtoken";
-// import { hashToken } from "@/lib/auth/hashToken";
 
 const schema = z.object({
   email: z.string().email(),
@@ -22,114 +21,131 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.flatten() },
-      { status: 400 },
-    );
-  }
+  try {
+    const body = await req.json();
+    const parsed = schema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.flatten() },
+        { status: 400 },
+      );
+    }
 
-  const { email, password } = parsed.data;
+    const { email, password } = parsed.data;
 
-  const user = await db.query.users.findFirst({
-    where: (u, { eq }) => eq(u.email, email),
-    with: { organization: true },
-  });
+    // ── 1. Find user ──
+    const user = await db.query.users.findFirst({
+      where: (u, { eq }) => eq(u.email, email),
+      with: { organization: true },
+    });
 
-  if (!user || !user.isActive) {
-    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
-  }
+    if (!user || !user.isActive) {
+      return NextResponse.json(
+        { error: "Invalid credentials" },
+        { status: 401 },
+      );
+    }
 
-  if (!user.emailVerified) {
-    return NextResponse.json(
-      { error: "Please verify your email before logging in" },
-      { status: 403 },
-    );
-  }
+    if (!user.emailVerified) {
+      return NextResponse.json(
+        { error: "Please verify your email before logging in" },
+        { status: 403 },
+      );
+    }
 
-  const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) {
-    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
-  }
+    // ── 2. Verify password + fetch outlets in parallel ──
+    const [valid, userOutletRows] = await Promise.all([
+      verifyPassword(password, user.passwordHash),
+      db.query.userOutlets.findMany({
+        where: (uo, { eq }) => eq(uo.userId, user.id),
+        with: { outlet: true },
+      }),
+    ]);
 
-  const userOutletRows = await db.query.userOutlets.findMany({
-    where: (uo, { eq }) => eq(uo.userId, user.id),
-    with: { outlet: true },
-  });
+    if (!valid) {
+      return NextResponse.json(
+        { error: "Invalid credentials" },
+        { status: 401 },
+      );
+    }
 
-  let activeOutletId: string | null = null;
-  let permissions: string[] = [];
-  let role: string | null = null;
+    // ── 3. Resolve active outlet + permissions + role ──
+    let activeOutletId: string | null = null;
+    let permissions: string[] = [];
+    let role: string | null = null;
 
-  if (userOutletRows.length === 1) {
-    activeOutletId = userOutletRows[0].outletId;
-    permissions = await getUserPermissionsForOutlet(user.id, activeOutletId);
-    const roleRow = await getUserRoleForOutlet(user.id, activeOutletId);
-    role = roleRow?.name ?? null;
-  }
+    if (userOutletRows.length === 1) {
+      activeOutletId = userOutletRows[0].outletId;
 
-  const accessToken = signAccessToken({
-    userId: user.id,
-    organizationId: user.organizationId,
-    activeOutletId,
-    permissions,
-    role,
-  });
+      const [perms, roleRow] = await Promise.all([
+        getUserPermissionsForOutlet(user.id, activeOutletId),
+        getUserRoleForOutlet(user.id, activeOutletId),
+      ]);
 
-  const [tokenRecord] = await db
-    .insert(refreshTokens)
-    .values({
+      permissions = perms;
+      role = roleRow?.name ?? null;
+    }
+
+    // ── 4. Sign access token ──
+    const accessToken = signAccessToken({
       userId: user.id,
-      tokenHash: "pending",
-      expiresAt: getRefreshExpiryDate(),
-    })
-    .returning();
-
-  const refreshToken = signRefreshToken({
-    userId: user.id,
-    tokenId: tokenRecord.id,
-  });
-
-  await db
-    .update(refreshTokens)
-    .set({ tokenHash: hashToken(refreshToken) })
-    .where(eq(refreshTokens.id, tokenRecord.id));
-
-  const response = NextResponse.json({
-    accessToken,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      isOwner: user.isOwner,
       organizationId: user.organizationId,
-      slug: user.organization.slug,
-    },
-    role,
-    permissions,
-    outlets: userOutletRows.map((uo) => ({
-      id: uo.outlet.id,
-      name: uo.outlet.name,
-    })),
-    activeOutletId,
-    requiresOutletSelection: userOutletRows.length > 1,
-  });
+      activeOutletId,
+      permissions,
+      role,
+    });
 
-  // response.cookies.set("refreshToken", refreshToken, {
-  //   httpOnly: true,
-  //   secure: process.env.NODE_ENV === "production",
-  //   sameSite: "strict",
-  //   path: "/",
-  //   expires: getRefreshExpiryDate(),
-  // });
-  response.cookies.set("role", role ?? "", {
-    httpOnly: true, 
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    path: "/",
-    expires: getRefreshExpiryDate(),
-  });
-  return response;
+    // ── 5. Create refresh token — single insert using pre-generated UUID ──
+    const tokenId = randomUUID();
+    const refreshToken = signRefreshToken({ userId: user.id, tokenId });
+
+    await db.insert(refreshTokens).values({
+      id: tokenId,
+      userId: user.id,
+      tokenHash: hashToken(refreshToken),
+      expiresAt: getRefreshExpiryDate(),
+    });
+
+    // ── 6. Build response ──
+    const response = NextResponse.json({
+      accessToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        isOwner: user.isOwner,
+        organizationId: user.organizationId,
+        slug: user.organization.slug,
+      },
+      role,
+      permissions,
+      outlets: userOutletRows.map((uo) => ({
+        id: uo.outlet.id,
+        name: uo.outlet.name,
+      })),
+      activeOutletId,
+      requiresOutletSelection: userOutletRows.length > 1,
+    });
+
+    // ── 7. Set cookies ──
+    response.cookies.set("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+      expires: getRefreshExpiryDate(),
+    });
+
+    response.cookies.set("role", role ?? "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+      expires: getRefreshExpiryDate(),
+    });
+
+    return response;
+  } catch (error) {
+    console.log(error);
+  }
 }
