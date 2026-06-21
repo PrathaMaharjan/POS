@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { categories } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { tr } from "zod/v4/locales";
+import { formatProduct } from "./product";
 
 export async function getCategories(outletId: string) {
   return db.query.categories.findMany({
@@ -21,7 +22,7 @@ export async function getProductByCategory(
   outletId: string,
   categoryId: string,
 ) {
-  return db.query.products.findMany({
+  const rows = await db.query.products.findMany({
     where: (p, { eq, and }) =>
       and(
         eq(p.outletId, outletId),
@@ -32,6 +33,7 @@ export async function getProductByCategory(
       category: true,
     },
   });
+  return rows.map(formatProduct);
 }
 
 export type ControllerResult<T> =

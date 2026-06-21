@@ -16,7 +16,7 @@ function isUniqueViolation(error: unknown): boolean {
   );
 }
 
-function formatProduct(p: {
+export function formatProduct<T extends {
   id: string;
   name: string;
   description?: string | null;
@@ -25,7 +25,7 @@ function formatProduct(p: {
   isActive?: boolean;
   isAvailable?: boolean;
   categoryId: string;
-}) {
+}>(p: T) {
   return {
     ...p,
     price: Number(p.price),

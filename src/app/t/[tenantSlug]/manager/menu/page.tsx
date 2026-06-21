@@ -116,9 +116,13 @@ export default function MenuManagement() {
  async function fetchProducts() {
   setIsLoadingProducts(true);
   try {
-    const res = await api.get(`/product?categoryId=${activeCategoryId}`); // ← changed
+    const res = await api.get(`/product?categoryId=${activeCategoryId}`);
+
+    console.log("PRODUCT RESPONSE:", res.data);
+
     const cat = categories.find((c) => c.id === activeCategoryId);
     const products = res.data.products ?? [];
+
     setMenuItems(
       products.map((p: any) => ({
         ...p,
