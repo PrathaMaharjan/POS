@@ -79,11 +79,11 @@ export default function Order({
 
   const accent        = isDark ? '#e5b83b' : '#16a34a';
   const accentText    = isDark ? '#0c0c0d' : '#ffffff';
-const pageBg     = isDark ? '#0c0c0d' : '#f6fdf7';
-const surfaceBg  = isDark ? '#141416' : '#edfaf0';
-const surfaceBg2 = isDark ? '#1c1c1e' : '#d9f5df';
-const skeletonBg = isDark ? '#1c1c1e' : '#d9f5df';
-const borderCol  = isDark ? '#27272a' : '#a8e6b3';
+  const pageBg     = isDark ? '#0c0c0d' : '#f6fdf7';
+  const surfaceBg  = isDark ? '#141416' : '#edfaf0';
+  const surfaceBg2 = isDark ? '#1c1c1e' : '#d9f5df';
+  const skeletonBg = isDark ? '#1c1c1e' : '#d9f5df';
+  const borderCol  = isDark ? '#27272a' : '#a8e6b3';
 
   const borderHover   = isDark ? 'rgba(229,184,59,0.6)' : 'rgba(22,163,74,0.6)';
   const textPrim      = isDark ? '#ffffff' : '#14532d';
@@ -94,10 +94,10 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
   const accentGlow    = isDark ? '0 4px 20px rgba(229,184,59,0.15)' : '0 4px 20px rgba(22,163,74,0.15)';
 
   const cartLineBg    = isDark ? '#0c0c0d' : '#f0fdf4';
-  // ─────────────────────────────────────────────────────────────
 
   const [categories, setCategories] = useState<Category[]>([]);
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  // Initialize to 'ALL' by default so everything displays immediately
+  const [activeCategory, setActiveCategory] = useState<string | null>('ALL');
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -117,7 +117,6 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
         const res = await api.get('/categories');
         const cats: Category[] = res.data.categories ?? [];
         setCategories(cats);
-        if (cats.length > 0) setActiveCategory(cats[0].id);
       } catch (err) {
         console.error('Failed to fetch categories:', err);
       } finally {
@@ -132,10 +131,12 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
     async function fetchProducts() {
       try {
         setIsLoadingProducts(true);
-        // const res = await api.get(`/categories/${activeCategory}/products`);
-        const res = await api.get(`/product?categoryId=${activeCategory}`)
+        
+        // If 'ALL' is selected, omit the categoryId query parameter to fetch all menu items
+        const endpoint = activeCategory === 'ALL' ? '/product' : `/product?categoryId=${activeCategory}`;
+        const res = await api.get(endpoint);
+        
         setProducts(res.data.products ?? []);
-        console.log(products)
       } catch (err) {
         console.error('Failed to fetch products:', err);
         setProducts([]);
@@ -190,45 +191,45 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
     if (cart.length === 0) return;
 
     if (orderType === 'DINE_IN') {
-  try {
-    setIsPlacingOrder(true);
+      try {
+        setIsPlacingOrder(true);
 
-    const res = await api.post('/orders/dine-in', {
-      tableId,
-      items: cart.map(item => ({
-        productId: item.product.id,
-        quantity: item.quantity,
-        notes: item.note || undefined,
-      })),
-    });
+        const res = await api.post('/orders/dine-in', {
+          tableId,
+          items: cart.map(item => ({
+            productId: item.product.id,
+            quantity: item.quantity,
+            notes: item.note || undefined,
+          })),
+        });
 
-    console.log("Dine-in order saved:", res.data);
+        console.log("Dine-in order saved:", res.data);
 
-    const newOrder: CreatedOrder = {
-      id: res.data.order.id,
-      orderNumber: res.data.order.orderNumber,
-      tableId,
-      status: 'PENDING',
-      subtotal,
-      total,
-      createdAt: new Date().toISOString(),
-      items: cart.map(item => ({
-        quantity: item.quantity,
-        name: item.product.name,
-        subtotal: parseFloat(item.product.price) * item.quantity,
-      })),
-    };
+        const newOrder: CreatedOrder = {
+          id: res.data.order.id,
+          orderNumber: res.data.order.orderNumber,
+          tableId,
+          status: 'PENDING',
+          subtotal,
+          total,
+          createdAt: new Date().toISOString(),
+          items: cart.map(item => ({
+            quantity: item.quantity,
+            name: item.product.name,
+            subtotal: parseFloat(item.product.price) * item.quantity,
+          })),
+        };
 
-    onOrderCreated?.(newOrder);
-    handleClearCart();
-  } catch (err) {
-    console.error("Failed to create dine-in order", err);
-  } finally {
-    setIsPlacingOrder(false);
-  }
+        onOrderCreated?.(newOrder);
+        handleClearCart();
+      } catch (err) {
+        console.error("Failed to create dine-in order", err);
+      } finally {
+        setIsPlacingOrder(false);
+      }
 
-  return;
-}
+      return;
+    }
 
     setIsPlacingOrder(true);
     try {
@@ -259,24 +260,6 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
     setCustomerPhone('');
     setCreatedTakeawayOrderId(null);
   };
-
-  const handleCancelOrder = async (id: string) => {
-  if (!window.confirm('Are you sure you want to cancel this order?')) return;
-
-  try {
-    await api.patch(`/orders/${id}/cancel`);
-    // Order is cancelled on the backend - clear out any local state tied to it
-    if (id === createdTakeawayOrderId) {
-      setCreatedTakeawayOrderId(null);
-      setIsPaymentOpen(false);
-      handleClearCart();
-    }
-  } catch (err: any) {
-    console.error('Failed to cancel order:', err);
-    const message = err.response?.data?.error;
-    alert(typeof message === 'string' ? message : 'Failed to cancel order. Please try again.');
-  }
-};
 
   return (
     <div
@@ -339,23 +322,37 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
                   <div key={i} style={{ backgroundColor: skeletonBg }} className="h-9 w-24 rounded-lg animate-pulse" />
                 ))}
               </div>
-            ) : categories.length === 0 ? (
-              <span className="text-sm" style={{ color: textMuted }}>No categories found</span>
             ) : (
-              categories.map(category => (
+              <>
+                {/* 1. Static All Items Button */}
                 <button
-                  key={category.id}
-                  onClick={() => setActiveCategory(category.id)}
+                  onClick={() => setActiveCategory('ALL')}
                   style={
-                    activeCategory === category.id
+                    activeCategory === 'ALL'
                       ? { backgroundColor: accent, color: accentText, borderColor: accent }
                       : { backgroundColor: surfaceBg2, color: textMuted, borderColor: borderCol }
                   }
                   className="px-5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap border transition-all duration-150"
                 >
-                  {category.name}
+                  All Items
                 </button>
-              ))
+
+                {/* 2. Dynamic Categories */}
+                {categories.map(category => (
+                  <button
+                    key={category.id}
+                    onClick={() => setActiveCategory(category.id)}
+                    style={
+                      activeCategory === category.id
+                        ? { backgroundColor: accent, color: accentText, borderColor: accent }
+                        : { backgroundColor: surfaceBg2, color: textMuted, borderColor: borderCol }
+                    }
+                    className="px-5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap border transition-all duration-150"
+                  >
+                    {category.name}
+                  </button>
+                ))}
+              </>
             )}
           </div>
 

@@ -44,17 +44,13 @@ export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const categoryId = searchParams.get("categoryId");
 
-  if (!categoryId) {
-    return NextResponse.json({ error: "categoryId is required" }, { status: 400 });
-  }
-
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 100);
   const page = Math.max(parseInt(searchParams.get("page") ?? "1"), 1);
   const offset = (page - 1) * limit;
 
   const result = await listProducts(
     auth.payload.activeOutletId!,
-    categoryId,
+    categoryId || undefined,
     limit,
     offset
   );
