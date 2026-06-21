@@ -192,9 +192,17 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
   try {
     const currentOrder = rawOrderData.find((o: any) => o.id === orderId);
     if (currentOrder && currentOrder.kotTickets) {
+      const nextStatus = newDeliveredState ? 'served' : 'ready';
+      
+      // 1. Update all tickets on the server concurrently and wait for completion
+      await Promise.all(
+        currentOrder.kotTickets.map((ticket: any) =>
+          api.patch(`/kot/${ticket.id}`, { status: nextStatus })
+        )
+      );
+
+      // 2. Once server updates succeed, update local status and trigger parent notification
       for (const ticket of currentOrder.kotTickets) {
-        const nextStatus = newDeliveredState ? 'served' : 'ready';
-        await api.patch(`/kot/${ticket.id}/status`, { status: nextStatus }); // fixed: added /status
         ticket.status = nextStatus;
         onKotStatusChange?.(ticket.id, nextStatus);
       }

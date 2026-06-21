@@ -236,7 +236,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
     setSelectedTable(prev => prev && prev.id === tableId ? { ...prev, status: nextStatus } : prev);
 
     try {
-      await api.patch(`/tables/${tableId}`, { status: nextStatus });
+      await api.patch(`/tables/${tableId}/status`, { status: nextStatus });
     } catch (err: any) {
       console.error('PATCH FAILED:', err.response?.status, err.response?.data);
     }

@@ -62,6 +62,7 @@ interface OrderProps {
   tenantSlug: string;
   tableId?: string | null;
   orderType?: 'TAKEAWAY' | 'DINE_IN';
+  role?: 'cashier' | 'waiter';
   showHeader?: boolean;
   onOrderCreated?: (order: CreatedOrder) => void;
 }
