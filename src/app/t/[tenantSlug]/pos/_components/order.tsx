@@ -63,7 +63,6 @@ interface OrderProps {
   tableId?: string | null;
   orderType?: 'TAKEAWAY' | 'DINE_IN';
   showHeader?: boolean;
-  role?: string; // Accept role prop
   onOrderCreated?: (order: CreatedOrder) => void;
 }
 
@@ -72,7 +71,6 @@ export default function Order({
   tableId = null,
   orderType = 'TAKEAWAY',
   showHeader = true,
-  role,
   onOrderCreated,
 }: OrderProps) {
   const { theme } = useTheme();
@@ -80,11 +78,11 @@ export default function Order({
 
   const accent        = isDark ? '#e5b83b' : '#16a34a';
   const accentText    = isDark ? '#0c0c0d' : '#ffffff';
-  const pageBg     = isDark ? '#0c0c0d' : '#f6fdf7';
-  const surfaceBg  = isDark ? '#141416' : '#edfaf0';
-  const surfaceBg2 = isDark ? '#1c1c1e' : '#d9f5df';
-  const skeletonBg = isDark ? '#1c1c1e' : '#d9f5df';
-  const borderCol  = isDark ? '#27272a' : '#a8e6b3';
+const pageBg     = isDark ? '#0c0c0d' : '#f6fdf7';
+const surfaceBg  = isDark ? '#141416' : '#edfaf0';
+const surfaceBg2 = isDark ? '#1c1c1e' : '#d9f5df';
+const skeletonBg = isDark ? '#1c1c1e' : '#d9f5df';
+const borderCol  = isDark ? '#27272a' : '#a8e6b3';
 
   const borderHover   = isDark ? 'rgba(229,184,59,0.6)' : 'rgba(22,163,74,0.6)';
   const textPrim      = isDark ? '#ffffff' : '#14532d';
@@ -111,9 +109,6 @@ export default function Order({
   const [createdTakeawayOrderId, setCreatedTakeawayOrderId] = useState<string | null>(null);
   const router = useRouter();
 
-
-  const isDineInCashier = role === 'cashier' && orderType === 'DINE_IN';
-
   useEffect(() => {
     async function fetchCategories() {
       try {
@@ -136,8 +131,10 @@ export default function Order({
     async function fetchProducts() {
       try {
         setIsLoadingProducts(true);
-        const res = await api.get(`/categories/${activeCategory}/products`);
+        // const res = await api.get(`/categories/${activeCategory}/products`);
+        const res = await api.get(`/product?categoryId=${activeCategory}`)
         setProducts(res.data.products ?? []);
+        console.log(products)
       } catch (err) {
         console.error('Failed to fetch products:', err);
         setProducts([]);
@@ -189,48 +186,48 @@ export default function Order({
   const total = subtotal + tax;
 
   const handleAction = async () => {
-    if (cart.length === 0 || isDineInCashier) return;
+    if (cart.length === 0) return;
 
     if (orderType === 'DINE_IN') {
-      try {
-        setIsPlacingOrder(true);
+  try {
+    setIsPlacingOrder(true);
 
-        const res = await api.post('/orders/dine-in', {
-          tableId,
-          items: cart.map(item => ({
-            productId: item.product.id,
-            quantity: item.quantity,
-            notes: item.note || undefined,
-          })),
-        });
+    const res = await api.post('/orders/dine-in', {
+      tableId,
+      items: cart.map(item => ({
+        productId: item.product.id,
+        quantity: item.quantity,
+        notes: item.note || undefined,
+      })),
+    });
 
-        console.log("Dine-in order saved:", res.data);
+    console.log("Dine-in order saved:", res.data);
 
-        const newOrder: CreatedOrder = {
-          id: res.data.order.id,
-          orderNumber: res.data.order.orderNumber,
-          tableId,
-          status: 'PENDING',
-          subtotal,
-          total,
-          createdAt: new Date().toISOString(),
-          items: cart.map(item => ({
-            quantity: item.quantity,
-            name: item.product.name,
-            subtotal: parseFloat(item.product.price) * item.quantity,
-          })),
-        };
+    const newOrder: CreatedOrder = {
+      id: res.data.order.id,
+      orderNumber: res.data.order.orderNumber,
+      tableId,
+      status: 'PENDING',
+      subtotal,
+      total,
+      createdAt: new Date().toISOString(),
+      items: cart.map(item => ({
+        quantity: item.quantity,
+        name: item.product.name,
+        subtotal: parseFloat(item.product.price) * item.quantity,
+      })),
+    };
 
-        onOrderCreated?.(newOrder);
-        handleClearCart();
-      } catch (err) {
-        console.error("Failed to create dine-in order", err);
-      } finally {
-        setIsPlacingOrder(false);
-      }
+    onOrderCreated?.(newOrder);
+    handleClearCart();
+  } catch (err) {
+    console.error("Failed to create dine-in order", err);
+  } finally {
+    setIsPlacingOrder(false);
+  }
 
-      return;
-    }
+  return;
+}
 
     setIsPlacingOrder(true);
     try {
@@ -261,6 +258,24 @@ export default function Order({
     setCustomerPhone('');
     setCreatedTakeawayOrderId(null);
   };
+
+  const handleCancelOrder = async (id: string) => {
+  if (!window.confirm('Are you sure you want to cancel this order?')) return;
+
+  try {
+    await api.patch(`/orders/${id}/cancel`);
+    // Order is cancelled on the backend - clear out any local state tied to it
+    if (id === createdTakeawayOrderId) {
+      setCreatedTakeawayOrderId(null);
+      setIsPaymentOpen(false);
+      handleClearCart();
+    }
+  } catch (err: any) {
+    console.error('Failed to cancel order:', err);
+    const message = err.response?.data?.error;
+    alert(typeof message === 'string' ? message : 'Failed to cancel order. Please try again.');
+  }
+};
 
   return (
     <div
@@ -516,21 +531,18 @@ export default function Order({
               </div>
             </div>
 
-            {/* Combined CTA Button */}
             <button
               onClick={handleAction}
-              disabled={cart.length === 0 || isPlacingOrder || isDineInCashier}
+              disabled={cart.length === 0 || isPlacingOrder}
               style={{
-                backgroundColor: isDineInCashier ? (isDark ? '#27272a' : '#e5e5e5') : accent,
-                color: isDineInCashier ? textMuted : accentText,
-                boxShadow: isDineInCashier ? 'none' : accentGlow,
+                backgroundColor: accent,
+                color: accentText,
+                boxShadow: accentGlow,
               }}
               className="w-full font-bold text-[14px] py-3 rounded-xl flex items-center justify-center gap-2 transition-all duration-150 hover:opacity-90 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {isPlacingOrder ? (
                 'Placing Order...'
-              ) : isDineInCashier ? (
-                'Place an Order'
               ) : orderType === 'DINE_IN' ? (
                 <><Plus className="w-4 h-4" strokeWidth={2.5} /> Place Order</>
               ) : (
