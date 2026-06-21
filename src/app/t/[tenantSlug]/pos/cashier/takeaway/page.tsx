@@ -17,7 +17,7 @@ function TakeawayPageInner({ tenantSlug }: { tenantSlug: string }) {
       style={{ backgroundColor: isDark ?  '#0c0c0d' : '#f6fdf7' }}
       className="h-screen w-full overflow-hidden flex flex-col transition-colors duration-200"
     >
-      <Order tenantSlug={tenantSlug} orderType="TAKEAWAY" role="cashier" />
+      <Order tenantSlug={tenantSlug} orderType="TAKEAWAY" />
     </div>
   );
 }
