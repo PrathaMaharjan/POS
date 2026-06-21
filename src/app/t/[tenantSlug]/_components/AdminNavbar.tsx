@@ -10,6 +10,8 @@ import {
   LayoutDashboard,
   LogOut,
   Settings,
+  ShoppingBag,
+  CreditCard,
   Loader2,
   UtensilsCrossed,
   Layers,
@@ -32,10 +34,12 @@ export default function AdminNavbar({ role }: NavbarProps) {
     { label: "Manage Staff", href: `${baseUrl}/staff`, icon: Users },
   ];
 
-  if (role === "manager") {
-    navItems.push({ label: "Menu", href: `${baseUrl}/menu`, icon: UtensilsCrossed });
-    navItems.push({ label: "Tables", href: `${baseUrl}/tables`, icon: Layers });
-  }
+ if (role === "manager") {
+  navItems.push({ label: "Menu",     href: `${baseUrl}/menu`,     icon: UtensilsCrossed });
+  navItems.push({ label: "Tables",   href: `${baseUrl}/tables`,   icon: Layers          });
+  navItems.push({ label: "Orders",   href: `${baseUrl}/orders`,   icon: ShoppingBag     });
+  navItems.push({ label: "Payments", href: `${baseUrl}/payments`, icon: CreditCard      });
+}
 
   if (role === "org") {
     navItems.push({ label: "Outlets", href: `${baseUrl}/outlets`, icon: Store });
