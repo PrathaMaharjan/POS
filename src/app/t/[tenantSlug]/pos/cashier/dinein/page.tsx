@@ -261,10 +261,10 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
           </div>
           <button
             onClick={() => {
-              if (role === 'waiter') {
-                router.push(`/t/${safeSlug}/pos/waiter`);
-              } else {
+              if (role === 'cashier') {
                 router.push(`/t/${safeSlug}/pos/cashier`);
+              } else {
+                router.push(`/t/${safeSlug}/pos`);
               }
             }}
             className="flex items-center gap-2 bg-[#141416] border border-neutral-800 hover:border-[#e5b83b]/60 text-neutral-400 hover:text-white px-4 py-2 rounded-xl text-xs font-semibold tracking-wide uppercase transition-all duration-150 shrink-0"
