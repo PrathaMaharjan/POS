@@ -63,9 +63,9 @@ export const orderItems = pgTable(
     orderId: uuid("order_id")
       .notNull()
       .references(() => orders.id, { onDelete: "cascade" }),
-    productId: uuid("product_id")
-      .notNull()
-      .references(() => products.id, { onDelete: "restrict" }),
+    productId: uuid("product_id").references(() => products.id, {
+      onDelete: "set null",
+    }), // ← changed
     quantity: integer("quantity").notNull(),
     unitPrice: numeric("unit_price", { precision: 10, scale: 2 }).notNull(),
     subtotal: numeric("subtotal", { precision: 10, scale: 2 }).notNull(),

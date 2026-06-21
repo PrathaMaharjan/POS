@@ -8,7 +8,7 @@ import {
   integer,
   timestamp,
   index,
-  uniqueIndex
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { outlets } from ".";
 import { relations } from "drizzle-orm";
@@ -35,23 +35,31 @@ export const categories = pgTable(
   ],
 );
 
-export const products = pgTable("products", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  outletId: uuid("outlet_id")
-    .notNull()
-    .references(() => outlets.id, { onDelete: "cascade" }),
-  categoryId: uuid("category_id")
-    .notNull()
-    .references(() => categories.id, { onDelete: "restrict" }),
-  name: varchar("name", { length: 150 }).notNull(),
-  description: text("description"),
-  price: numeric("price", { precision: 10, scale: 2 }).notNull(),
-  imageUrl: text("image_url"),
-  isAvailable: boolean("is_available").default(true).notNull(),
-  isActive: boolean("is_active").default(true).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const products = pgTable(
+  "products",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    outletId: uuid("outlet_id")
+      .notNull()
+      .references(() => outlets.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => categories.id, { onDelete: "restrict" }),
+    name: varchar("name", { length: 150 }).notNull(),
+    description: text("description"),
+    price: numeric("price", { precision: 10, scale: 2 }).notNull(),
+    imagePublicId: text("image_public_id"),
+    isAvailable: boolean("is_available").default(true).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("products_outlet_idx").on(t.outletId),
+    index("products_category_idx").on(t.categoryId),
+    uniqueIndex("products_outlet_name_unique").on(t.outletId, t.name),
+  ],
+);
 
 export const categoriesRelations = relations(categories, ({ one, many }) => ({
   outlet: one(outlets, {
