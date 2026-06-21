@@ -228,37 +228,37 @@ const filteredStaff = staff.filter((member) => {
       </div>
 
       {/* Top Status Dashboards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-50 text-slate-600">
-            <Users className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Staff</p>
-            <p className="text-xl font-semibold text-slate-800">{totalStaff}</p>
-          </div>
-        </div>
+<div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+  <div className="rounded-xl border-l-4 border-l-slate-400 border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between">
+    <div>
+      <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Staff</p>
+      <p className="text-3xl font-bold text-slate-800 mt-1">{totalStaff}</p>
+    </div>
+    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
+      <Users className="h-6 w-6" />
+    </div>
+  </div>
 
-        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-            <CheckCircle className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Active </p>
-            <p className="text-xl font-semibold text-slate-800">{activeStaff}</p>
-          </div>
-        </div>
+  <div className="rounded-xl border-l-4 border-l-emerald-500 border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between">
+    <div>
+      <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Active</p>
+      <p className="text-3xl font-bold text-slate-800 mt-1">{activeStaff}</p>
+    </div>
+    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+      <CheckCircle className="h-6 w-6" />
+    </div>
+  </div>
 
-        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
-            <XCircle className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Inactive (this page)</p>
-            <p className="text-xl font-semibold text-slate-800">{inactiveStaff}</p>
-          </div>
-        </div>
-      </div>
+  <div className="rounded-xl border-l-4 border-l-amber-500 border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between">
+    <div>
+      <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Inactive </p>
+      <p className="text-3xl font-bold text-slate-800 mt-1">{inactiveStaff}</p>
+    </div>
+    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+      <XCircle className="h-6 w-6" />
+    </div>
+  </div>
+</div>
 
 
       <div className="flex items-center justify-between gap-4">

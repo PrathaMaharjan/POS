@@ -75,28 +75,39 @@ export default function PaymentsPage() {
       {/* Header */}
       <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Payment Ledger</h1>
-        <p className="text-sm text-emerald-100/80 mt-1">Audit transactions and settlement statuses</p>
+
       </div>
 
     
-
-  {/* Summary Cards */}
+{/* Summary Cards */}
 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-  <div className="rounded-xl border-l-4 border-l-emerald-500 border border-slate-200 bg-white p-5 shadow-sm">
-    <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Net Revenue</p>
-    <p className="text-3xl font-bold text-slate-800 mt-1">Rs. {totalReceived.toLocaleString()}</p>
+  <div className="rounded-xl border-l-4 border-l-emerald-500 border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between">
+    <div>
+      <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Net Revenue</p>
+      <p className="text-3xl font-bold text-slate-800 mt-1">Rs. {totalReceived.toLocaleString()}</p>
+    </div>
+    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+      <CheckCircle2 className="h-6 w-6" />
+    </div>
   </div>
-  <div className="rounded-xl border-l-4 border-l-amber-500 border border-slate-200 bg-white p-5 shadow-sm">
-    <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Open / Pending</p>
-    <p className="text-3xl font-bold text-slate-800 mt-1">Rs. {pendingVolume.toLocaleString()}</p>
+
+  <div className="rounded-xl border-l-4 border-l-amber-500 border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between">
+    <div>
+      <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Open / Pending</p>
+      <p className="text-3xl font-bold text-slate-800 mt-1">Rs. {pendingVolume.toLocaleString()}</p>
+    </div>
+    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+      <Clock className="h-6 w-6" />
+    </div>
   </div>
-  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between">
+
+  <div className="rounded-xl border-l-4 border-l-slate-400 border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between">
     <div>
       <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Transactions</p>
       <p className="text-3xl font-bold text-slate-800 mt-1">{SEED_PAYMENTS.length}</p>
     </div>
-    <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-      <TrendingUp className="h-7 w-7" />
+    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
+      <TrendingUp className="h-6 w-6" />
     </div>
   </div>
 </div>
