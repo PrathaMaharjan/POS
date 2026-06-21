@@ -25,12 +25,12 @@ export function useKotTickets(pollIntervalMs = 10000) {
     subscriberCount++;
     listeners.push(setTickets);
 
-    // First subscriber starts the polling; later subscribers just listen
+   
     if (subscriberCount === 1) {
       fetchAndBroadcast();
       intervalId = setInterval(fetchAndBroadcast, pollIntervalMs);
     } else {
-      // Give late subscribers the latest cached data immediately
+     
       setTickets(cachedTickets);
     }
 

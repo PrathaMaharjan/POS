@@ -293,26 +293,36 @@ export default function Order({
                 onBlur={e => (e.currentTarget.style.borderColor = borderCol)}
               />
             </div>
-            <button
-              onClick={() => router.back()}
-              style={{
-                backgroundColor: surfaceBg,
-                borderColor: borderCol,
-                color: textMuted,
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.borderColor = borderHover;
-                (e.currentTarget as HTMLElement).style.color = textPrim;
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.borderColor = borderCol;
-                (e.currentTarget as HTMLElement).style.color = textMuted;
-              }}
-              className="flex items-center gap-2 border px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 shrink-0"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Go Back
-            </button>
+            {showHeader && (
+              <button
+                onClick={() => {
+                  if (role === 'waiter') {
+                    router.push(`/t/${tenantSlug}/pos/waiter`);
+                  } else if (role === 'cashier') {
+                    router.push(`/t/${tenantSlug}/pos/cashier`);
+                  } else {
+                    router.back();
+                  }
+                }}
+                style={{
+                  backgroundColor: surfaceBg,
+                  borderColor: borderCol,
+                  color: textMuted,
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = borderHover;
+                  (e.currentTarget as HTMLElement).style.color = textPrim;
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = borderCol;
+                  (e.currentTarget as HTMLElement).style.color = textMuted;
+                }}
+                className="flex items-center gap-2 border px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 shrink-0"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Go Back
+              </button>
+            )}
           </div>
 
           {/* Category tabs */}

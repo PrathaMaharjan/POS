@@ -457,7 +457,7 @@ export default function MenuManagement() {
         </div>
       )}
 
-      {/* Category Save / Change Form Modal */}
+     
       {categoryModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 w-full max-w-sm rounded-xl shadow-xl overflow-hidden">

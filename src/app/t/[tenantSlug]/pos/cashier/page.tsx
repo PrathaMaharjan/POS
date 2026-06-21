@@ -42,7 +42,7 @@ function CashierDashboardInner({ tenantSlug }: { tenantSlug: string }) {
     }
   };
 
-  const accent = isDark ? '#e5b83b' : '#16a34a';
+  const accent = isDark ? '#e5b83b' : '#0f6b4a'; // deep emerald to match gradient
 
   const modules = [
     { key: "takeaway", label: "Takeaway", href: `/t/${tenantSlug}/pos/cashier/takeaway`, icon: ShoppingBag },
@@ -52,8 +52,10 @@ function CashierDashboardInner({ tenantSlug }: { tenantSlug: string }) {
 
   return (
     <div style={{
-      backgroundColor: isDark ? '#0c0c0d' : '#ffffff',
-      color: isDark ? '#e4e4e7' : '#171717',
+      background: isDark
+        ? '#0c0c0d'
+        : 'linear-gradient(135deg, #18a172 0%, #0e6e4d 55%, #073822 100%)',
+      color: isDark ? '#e4e4e7' : '#ffffff',
     }} className="h-screen w-full min-h-screen flex flex-col font-sans select-none antialiased transition-colors duration-200">
 
       {/* Header */}
@@ -61,11 +63,11 @@ function CashierDashboardInner({ tenantSlug }: { tenantSlug: string }) {
         <button
           onClick={() => setIsSettingsOpen(true)}
           style={{
-            backgroundColor: isDark ? '#141416' : '#f0fdf4',
-            borderColor: isDark ? '#27272a' : '#bbf7d0',
-            color: isDark ? '#a1a1aa' : '#15803d',
+            backgroundColor: isDark ? '#141416' : 'rgba(255,255,255,0.12)',
+            borderColor: isDark ? '#27272a' : 'rgba(255,255,255,0.25)',
+            color: isDark ? '#a1a1aa' : '#ffffff',
           }}
-          className="p-2.5 border rounded-xl transition-all duration-150 hover:scale-105 active:scale-95 shadow-sm"
+          className="p-2.5 border rounded-xl backdrop-blur-sm transition-all duration-150 hover:scale-105 active:scale-95 shadow-sm"
           title="Open Settings"
         >
           <Settings className="w-5 h-5" strokeWidth={2} />
@@ -75,10 +77,10 @@ function CashierDashboardInner({ tenantSlug }: { tenantSlug: string }) {
       <main className="flex-1 max-w-7xl w-full mx-auto px-8 pb-12 pt-2 flex flex-col justify-between gap-12 overflow-hidden">
 
         <div className="space-y-2">
-          <h1 style={{ color: isDark ? '#ffffff' : '#14532d' }} className="text-4xl text-center sm:text-5xl font-bold">
+          <h1 style={{ color: '#ffffff' }} className="text-4xl text-center sm:text-5xl font-bold">
             WELCOME BACK
           </h1>
-          <p style={{ color: isDark ? '#a1a1aa' : '#4b7a58' }} className="text-center text-lg font-normal">
+          <p style={{ color: isDark ? '#a1a1aa' : 'rgba(255,255,255,0.75)' }} className="text-center text-lg font-normal">
             Select a service module to begin.
           </p>
         </div>
@@ -92,36 +94,34 @@ function CashierDashboardInner({ tenantSlug }: { tenantSlug: string }) {
                 key={mod.key}
                 onClick={() => router.push(mod.href)}
                 style={{
-                  backgroundColor: isDark ? '#18181b' : '#f0fdf4',
-                  borderColor: isDark ? '#27272a' : '#bbf7d0',
+                  backgroundColor: isDark ? '#18181b' : '#e5e7eb', // light gray
+                  borderColor: isDark ? '#27272a' : 'transparent',
                 }}
                 onMouseEnter={e => {
                   const el = e.currentTarget as HTMLElement;
-                  el.style.borderColor = accent;
                   el.style.transform = 'translateY(-4px)';
                   el.style.boxShadow = isDark
                     ? '0 0 30px rgba(229,184,59,0.08)'
-                    : '0 10px 30px rgba(22,163,74,0.1)';
+                    : '0 20px 40px rgba(0,0,0,0.25)';
                 }}
                 onMouseLeave={e => {
                   const el = e.currentTarget as HTMLElement;
-                  el.style.borderColor = isDark ? '#27272a' : '#bbf7d0';
                   el.style.transform = 'translateY(0)';
-                  el.style.boxShadow = 'none';
+                  el.style.boxShadow = isDark ? 'none' : '0 10px 25px rgba(0,0,0,0.15)';
                 }}
                 className="group relative h-[380px] rounded-2xl border p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 overflow-hidden"
               >
                 <div className="relative z-10 flex flex-col items-center">
                   <div
                     style={{
-                      borderColor: isDark ? 'rgba(229,184,59,0.2)' : 'rgba(22,163,74,0.25)',
-                      backgroundColor: isDark ? 'rgba(229,184,59,0.05)' : 'rgba(22,163,74,0.08)',
+                      borderColor: isDark ? 'rgba(229,184,59,0.2)' : accent,
+                      backgroundColor: isDark ? 'rgba(229,184,59,0.05)' : '#ffffff',
                     }}
                     className="w-20 h-20 rounded-full border-2 flex items-center justify-center mb-6 transition-all duration-300 group-hover:scale-110"
                   >
                     <Icon className="w-8 h-8" style={{ color: accent }} strokeWidth={2} />
                   </div>
-                  <h3 className="text-2xl font-semibold tracking-wide" style={{ color: accent }}>
+                  <h3 className="text-2xl font-semibold tracking-wide" style={{ color: isDark ? '#e5b83b' : accent }}>
                     {mod.label}
                   </h3>
                 </div>
@@ -135,11 +135,11 @@ function CashierDashboardInner({ tenantSlug }: { tenantSlug: string }) {
           <button
             onClick={toggleFullscreen}
             style={{
-              borderColor: isDark ? '#27272a' : '#bbf7d0',
-              color: isDark ? '#a1a1aa' : '#15803d',
-              backgroundColor: isDark ? 'transparent' : '#f0fdf4',
+              borderColor: isDark ? '#27272a' : 'rgba(255,255,255,0.25)',
+              color: isDark ? '#a1a1aa' : '#ffffff',
+              backgroundColor: isDark ? 'transparent' : 'rgba(255,255,255,0.12)',
             }}
-            className="flex items-center gap-2 border px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150 shadow-sm hover:opacity-80"
+            className="flex items-center gap-2 border px-4 py-2 rounded-xl text-sm font-medium backdrop-blur-sm transition-all duration-150 shadow-sm hover:bg-white/20"
           >
             {isFullscreen
               ? <><Minimize2 className="w-4 h-4" strokeWidth={2} /> Exit Full</>
@@ -160,11 +160,11 @@ function CashierDashboardInner({ tenantSlug }: { tenantSlug: string }) {
               }
             }}
             style={{
-              borderColor: isDark ? '#27272a' : '#fecaca',
-              color: isDark ? '#a1a1aa' : '#ef4444',
-              backgroundColor: isDark ? 'transparent' : '#fff5f5',
+              borderColor: isDark ? '#27272a' : 'rgba(255,255,255,0.25)',
+              color: isDark ? '#a1a1aa' : '#ffffff',
+              backgroundColor: isDark ? 'transparent' : 'rgba(220,38,38,0.25)',
             }}
-            className="flex items-center gap-2 border px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150 shadow-sm hover:opacity-80"
+            className="flex items-center gap-2 border px-4 py-2 rounded-xl text-sm font-medium backdrop-blur-sm transition-all duration-150 shadow-sm hover:bg-red-500/30"
           >
             <LogOut className="w-4 h-4" strokeWidth={2} />
             Logout
