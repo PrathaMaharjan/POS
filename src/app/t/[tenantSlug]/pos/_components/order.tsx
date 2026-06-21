@@ -63,10 +63,12 @@ interface OrderProps {
   tableId?: string | null;
   orderType?: 'TAKEAWAY' | 'DINE_IN';
   showHeader?: boolean;
+  role?: 'cashier' | 'waiter'; // ← add this
   onOrderCreated?: (order: CreatedOrder) => void;
 }
 
 export default function Order({
+  role ={role},
   tenantSlug,
   tableId = null,
   orderType = 'TAKEAWAY',
@@ -131,7 +133,6 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
     async function fetchProducts() {
       try {
         setIsLoadingProducts(true);
-        // const res = await api.get(`/categories/${activeCategory}/products`);
         const res = await api.get(`/product?categoryId=${activeCategory}`)
         setProducts(res.data.products ?? []);
         console.log(products)
