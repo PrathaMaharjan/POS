@@ -41,9 +41,7 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      // Single call to our custom register route.
-      // Slug is auto-generated server-side from organizationName,
-      // so no client-side slugify is needed.
+  
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -58,7 +56,7 @@ export default function SignupPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        // Our route returns { error: "..." } for 409s, or { error: <zod flatten> } for 400s
+    
         const message =
           typeof data.error === "string"
             ? data.error
@@ -68,14 +66,10 @@ export default function SignupPage() {
         return;
       }
 
-      // Registration does NOT create a session (JWT login is a separate step),
-      // so send the user to the login page to sign in.
+ 
       router.push("/login");
 
-      // --- Alternative: auto-login right after registering ---
-      // Instead of redirecting to /login, you could immediately call
-      // /api/auth/login with the same email/password, store the returned
-      // accessToken, and then router.push(`/t/${data.organization.slug}/dashboard`).
+      
     } catch (err) {
       setError("Something went wrong. Please try again.");
       setLoading(false);

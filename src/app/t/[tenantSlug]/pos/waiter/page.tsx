@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import React, { use } from "react";
 import { Utensils, FileText, LogOut } from "lucide-react";
-import api from "@/lib/api"; // 👈 Imported your api utility
+import api from "@/lib/api"; 
 
 interface WaiterDashboardProps {
   params: Promise<{ tenantSlug: string }>;

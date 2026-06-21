@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import api from "@/lib/api";
 import {
   ShoppingBag, Clock, CheckCircle2, XCircle,
   TrendingUp, Utensils, Armchair, Search,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, Loader2,
 } from "lucide-react";
 
-type OrderStatus = "PENDING" | "COMPLETED" | "CANCELLED";
+type OrderStatus = "pending" | "completed" | "cancelled";
 
 interface OrderItem {
   name: string;
@@ -18,63 +19,102 @@ interface OrderItem {
 interface Order {
   id: string;
   orderNumber: number;
-  type: "DINE_IN" | "TAKEAWAY";
+  type: "dine_in" | "takeaway";
+  tableName: string | null;
+  customerName: string | null;
   items: OrderItem[];
   paymentMethod: string;
   status: OrderStatus;
+  subtotal: number;
+  tax: number;
   total: number;
   createdAt: string;
 }
 
-const SEED_ORDERS: Order[] = [
-  { id: "1", orderNumber: 1001, type: "DINE_IN",  items: [{ name: "Espresso", quantity: 2, subtotal: 300 }, { name: "Latte", quantity: 1, subtotal: 240 }], paymentMethod: "Cash",  status: "COMPLETED", total: 540,  createdAt: "2026-06-19T12:30:00" },
-  { id: "2", orderNumber: 1002, type: "TAKEAWAY", items: [{ name: "Cappuccino", quantity: 1, subtotal: 220 }],                                                paymentMethod: "eSewa", status: "PENDING",   total: 220,  createdAt: "2026-06-19T12:45:00" },
-  { id: "3", orderNumber: 1003, type: "DINE_IN",  items: [{ name: "Mocha", quantity: 2, subtotal: 560 }, { name: "Momo", quantity: 1, subtotal: 180 }],       paymentMethod: "Card",  status: "COMPLETED", total: 740,  createdAt: "2026-06-19T13:00:00" },
-  { id: "4", orderNumber: 1004, type: "DINE_IN",  items: [{ name: "Flat White", quantity: 3, subtotal: 780 }],                                                paymentMethod: "Cash",  status: "CANCELLED", total: 780,  createdAt: "2026-06-19T13:15:00" },
-  { id: "5", orderNumber: 1005, type: "TAKEAWAY", items: [{ name: "Green Tea", quantity: 2, subtotal: 240 }, { name: "Cake", quantity: 1, subtotal: 350 }],   paymentMethod: "eSewa", status: "COMPLETED", total: 590,  createdAt: "2026-06-19T13:30:00" },
-  { id: "6", orderNumber: 1006, type: "DINE_IN",  items: [{ name: "Americano", quantity: 1, subtotal: 180 }],                                                 paymentMethod: "Cash",  status: "PENDING",   total: 180,  createdAt: "2026-06-19T13:45:00" },
-];
-
 const STATUS_STYLE: Record<OrderStatus, { bg: string; text: string; dot: string; label: string }> = {
-  PENDING:   { bg: "bg-amber-50",   text: "text-amber-700",   dot: "bg-amber-500",   label: "Pending"   },
-  COMPLETED: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", label: "Completed" },
-  CANCELLED: { bg: "bg-red-50",     text: "text-red-600",     dot: "bg-red-500",     label: "Cancelled" },
+  pending:   { bg: "bg-amber-50",   text: "text-amber-700",   dot: "bg-amber-500",   label: "Pending"   },
+  completed: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", label: "Completed" },
+  cancelled: { bg: "bg-red-50",     text: "text-red-600",     dot: "bg-red-500",     label: "Cancelled" },
 };
 
-export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>(SEED_ORDERS);
+export default function ManagerOrdersPage() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | OrderStatus>("ALL");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
-  const filtered = orders.filter((o) => {
-    const q = search.toLowerCase();
-    const matchSearch =
-      o.orderNumber.toString().includes(q) ||
-      o.type.toLowerCase().includes(q) ||
-      o.paymentMethod.toLowerCase().includes(q);
-    const matchStatus = statusFilter === "ALL" || o.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
 
-  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
-  const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  useEffect(() => {
+    async function fetchOrders() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const res = await api.get("/orders");
+        const raw = res.data.orders ?? [];
+
+        const mapped: Order[] = raw.map((o: any) => ({
+          id: o.id,
+          orderNumber: o.orderNumber,
+          type: o.orderType,                                       
+          tableName: o.table?.tableNumber ?? o.table?.name ?? null,
+          customerName: o.customerName ?? null,
+          status: o.status as OrderStatus,                           
+          paymentMethod: o.payments?.[0]?.method ?? "Unpaid",
+          subtotal: parseFloat(o.subtotal ?? "0"),
+          tax: parseFloat(o.tax ?? "0"),
+          total: parseFloat(o.total ?? "0"),
+          createdAt: o.createdAt,
+          items: (o.items ?? []).map((item: any) => ({
+            name: item.product?.name ?? "Unknown",
+            quantity: item.quantity,
+            subtotal: parseFloat(item.subtotal ?? "0"),
+          })),
+        }));
+
+        setOrders(mapped);
+      } catch (err: any) {
+        console.error("Failed to fetch orders:", err);
+        setError("Failed to load orders. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchOrders();
+  }, []);
+
 
   const total     = orders.length;
-  const completed = orders.filter(o => o.status === "COMPLETED").length;
-  const pending   = orders.filter(o => o.status === "PENDING").length;
-  const cancelled = orders.filter(o => o.status === "CANCELLED").length;
-  const revenue   = orders.filter(o => o.status === "COMPLETED").reduce((s, o) => s + o.total, 0);
+  const completed = orders.filter(o => o.status === "completed").length;
+  const pending   = orders.filter(o => o.status === "pending").length;
+  const cancelled = orders.filter(o => o.status === "cancelled").length;
+  const revenue   = orders
+    .filter(o => o.status === "completed")
+    .reduce((s, o) => s + o.total, 0);
 
-  function markComplete(id: string) {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: "COMPLETED" } : o));
-  }
 
-  function cancelOrder(id: string) {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: "CANCELLED" } : o));
-  }
+  const filtered = useMemo(() => {
+    return orders.filter((o) => {
+      const q = search.toLowerCase();
+      const matchSearch =
+        o.orderNumber.toString().includes(q) ||
+        o.type.toLowerCase().includes(q) ||
+        o.paymentMethod.toLowerCase().includes(q) ||
+        (o.customerName ?? "").toLowerCase().includes(q) ||
+        o.items.some(i => i.name.toLowerCase().includes(q));
+      const matchStatus = statusFilter === "ALL" || o.status === statusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [orders, search, statusFilter]);
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginated = filtered.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   return (
     <div className="flex flex-col gap-8">
@@ -82,28 +122,32 @@ export default function OrdersPage() {
       {/* Header */}
       <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Orders</h1>
-        <p className="text-sm text-emerald-100/80 mt-1">View and manage all outlet orders</p>
+
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: "Total Orders", value: total,     icon: <ShoppingBag className="h-5 w-5" />, iconBg: "bg-slate-50 text-slate-600"    },
-          { label: "Completed",    value: completed, icon: <CheckCircle2 className="h-5 w-5" />, iconBg: "bg-emerald-50 text-emerald-600" },
-          { label: "In Progress",  value: pending,   icon: <Clock className="h-5 w-5" />,        iconBg: "bg-amber-50 text-amber-600"    },
-          { label: "Cancelled",    value: cancelled, icon: <XCircle className="h-5 w-5" />,      iconBg: "bg-red-50 text-red-500"        },
-        ].map((s) => (
-          <div key={s.label} className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${s.iconBg}`}>{s.icon}</div>
-            <div>
-              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{s.label}</p>
-              <p className="text-xl font-bold text-slate-800">{s.value}</p>
-            </div>
-          </div>
-        ))}
+<div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+  {[
+    { label: "Total Orders", value: total,                          border: "border-l-slate-400",   iconBg: "bg-slate-50 text-slate-600",     icon: <ShoppingBag className="h-6 w-6" /> },
+    { label: "Revenue",      value: `Rs. ${revenue.toLocaleString()}`, border: "border-l-emerald-500", iconBg: "bg-emerald-50 text-emerald-600", icon: <TrendingUp className="h-6 w-6" /> },
+    { label: "Completed",    value: completed,                      border: "border-l-emerald-500", iconBg: "bg-emerald-50 text-emerald-600", icon: <CheckCircle2 className="h-6 w-6" /> },
+    { label: "In Progress",  value: pending,                        border: "border-l-amber-500",   iconBg: "bg-amber-50 text-amber-600",     icon: <Clock className="h-6 w-6" /> },
+    { label: "Cancelled",    value: cancelled,                      border: "border-l-red-500",     iconBg: "bg-red-50 text-red-500",         icon: <XCircle className="h-6 w-6" /> },
+  ].map((s) => (
+    <div
+      key={s.label}
+      className={`rounded-xl border-l-4 ${s.border} border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between`}
+    >
+      <div>
+        <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{s.label}</p>
+        <p className="text-3xl font-bold text-slate-800 mt-1">{s.value}</p>
       </div>
-
-     
+      <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${s.iconBg}`}>
+        {s.icon}
+      </div>
+    </div>
+  ))}
+</div>
 
       {/* Search + Filter */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
@@ -111,14 +155,14 @@ export default function OrdersPage() {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search order #, type, method..."
+            placeholder="Search order #, type, item, customer..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
         </div>
         <div className="flex gap-2 flex-wrap">
-          {(["ALL", "PENDING", "COMPLETED", "CANCELLED"] as const).map((s) => (
+          {(["ALL", "pending", "completed", "cancelled"] as const).map((s) => (
             <button
               key={s}
               onClick={() => { setStatusFilter(s); setCurrentPage(1); }}
@@ -128,7 +172,7 @@ export default function OrdersPage() {
                   : "bg-white text-slate-500 border-slate-200 hover:text-slate-700 hover:bg-slate-50"
               }`}
             >
-              {s === "ALL" ? "All" : s.charAt(0) + s.slice(1).toLowerCase()}
+              {s === "ALL" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
             </button>
           ))}
         </div>
@@ -147,13 +191,25 @@ export default function OrdersPage() {
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4">Date</th>
                 <th className="py-3 px-4 text-right">Total</th>
-
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {paginated.length === 0 ? (
+              {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="py-16 text-center text-sm text-slate-400">
+                  <td colSpan={7} className="py-16 text-center">
+                    <div className="flex items-center justify-center gap-3 text-slate-400">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span className="text-sm">Loading orders...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={7} className="py-16 text-center text-sm text-red-500">{error}</td>
+                </tr>
+              ) : paginated.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-16 text-center text-sm text-slate-400">
                     {orders.length === 0 ? "No orders recorded yet." : "No orders match your search."}
                   </td>
                 </tr>
@@ -164,7 +220,7 @@ export default function OrdersPage() {
                   return (
                     <React.Fragment key={order.id}>
                       <tr
-                        className="hover:bg-slate-50/50 transition-colors cursor-pointer group"
+                        className="hover:bg-slate-50/50 transition-colors cursor-pointer"
                         onClick={() => setExpanded(isExpanded ? null : order.id)}
                       >
                         <td className="py-3 px-4 font-bold text-emerald-600 font-mono text-xs">
@@ -172,10 +228,12 @@ export default function OrdersPage() {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-1.5 text-slate-600">
-                            {order.type === "DINE_IN"
+                            {order.type === "dine_in"
                               ? <Armchair className="w-3.5 h-3.5 text-slate-400" />
                               : <Utensils className="w-3.5 h-3.5 text-slate-400" />}
-                            {order.type === "DINE_IN" ? "Dine In" : "Takeaway"}
+                            {order.type === "dine_in"
+                              ? `Dine In${order.tableName ? ` · ${order.tableName}` : ""}`
+                              : `Takeaway${order.customerName ? ` · ${order.customerName}` : ""}`}
                           </div>
                         </td>
                         <td className="py-3 px-4 text-slate-500">
@@ -193,31 +251,55 @@ export default function OrdersPage() {
                           </span>
                         </td>
                         <td className="py-3 px-4 text-slate-500 text-xs">
-                          {new Date(order.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          {new Date(order.createdAt).toLocaleDateString("en-US", {
+                            month: "short", day: "numeric", year: "numeric",
+                          })}
                         </td>
                         <td className="py-3 px-4 text-right font-semibold text-slate-800">
                           Rs. {order.total.toLocaleString()}
                         </td>
-                      
                       </tr>
 
-                      {/* Expanded row */}
+                 
                       {isExpanded && (
                         <tr className="bg-slate-50/60">
-                          <td colSpan={8} className="px-6 py-4">
-                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Order Items</p>
-                            <div className="space-y-2">
-                              {order.items.map((item, i) => (
-                                <div key={i} className="flex items-center justify-between text-xs py-2 border-b border-slate-100 last:border-0">
-                                  <div className="flex items-center gap-3">
-                                    <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[10px] font-bold text-emerald-700">
-                                      {item.quantity}
-                                    </span>
-                                    <span className="text-slate-700 font-medium">{item.name}</span>
-                                  </div>
-                                  <span className="text-slate-500 font-mono">Rs. {item.subtotal.toLocaleString()}</span>
+                          <td colSpan={7} className="px-6 py-4">
+                            <div className="flex gap-8 flex-wrap md:flex-nowrap">
+                              <div className="flex-1">
+                                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Order Items</p>
+                                <div className="space-y-2">
+                                  {order.items.map((item, i) => (
+                                    <div key={i} className="flex items-center justify-between text-xs py-2 border-b border-slate-100 last:border-0">
+                                      <div className="flex items-center gap-3">
+                                        <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[10px] font-bold text-emerald-700">
+                                          {item.quantity}
+                                        </span>
+                                        <span className="text-slate-700 font-medium">{item.name}</span>
+                                      </div>
+                                      <span className="text-slate-500 font-mono">Rs. {item.subtotal.toLocaleString()}</span>
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
+                              </div>
+
+                              {/* Summary */}
+                              <div className="w-48 ml-auto">
+                                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Summary</p>
+                                <div className="flex flex-col gap-1.5 text-xs">
+                                  <div className="flex justify-between text-slate-500">
+                                    <span>Subtotal</span>
+                                    <span>Rs. {order.subtotal.toFixed(2)}</span>
+                                  </div>
+                                  <div className="flex justify-between text-slate-500">
+                                    <span>Tax (8%)</span>
+                                    <span>Rs. {order.tax.toFixed(2)}</span>
+                                  </div>
+                                  <div className="flex justify-between font-bold text-slate-800 border-t border-slate-200 pt-1.5 mt-1">
+                                    <span>Total</span>
+                                    <span className="text-emerald-600">Rs. {order.total.toFixed(2)}</span>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           </td>
                         </tr>
@@ -230,7 +312,7 @@ export default function OrdersPage() {
           </table>
         </div>
 
-        {/* Footer */}
+   
         {filtered.length > 0 && (
           <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100">
             <span className="text-xs text-slate-400">
