@@ -15,6 +15,7 @@ import {
   Loader2,
   UtensilsCrossed,
   Layers,
+  Package,
 } from "lucide-react";
 
 interface NavbarProps {
@@ -39,6 +40,7 @@ export default function AdminNavbar({ role }: NavbarProps) {
   navItems.push({ label: "Tables",   href: `${baseUrl}/tables`,   icon: Layers          });
   navItems.push({ label: "Orders",   href: `${baseUrl}/orders`,   icon: ShoppingBag     });
   navItems.push({ label: "Payments", href: `${baseUrl}/payments`, icon: CreditCard      });
+  navItems.push({ label: "Inventory", href: `${baseUrl}/inventory`, icon: Package      });
 }
 
   if (role === "org") {

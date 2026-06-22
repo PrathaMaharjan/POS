@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Image from "next/image"; // ── Imported Next.js Image Component ──
 import {
   Plus, Search, Pencil, Trash2, X,
   UtensilsCrossed, Loader2, Settings2, ImagePlus
@@ -113,32 +114,32 @@ export default function MenuManagement() {
       return;
     }
 
- async function fetchProducts() {
-  setIsLoadingProducts(true);
-  try {
-    const res = await api.get(`/product?categoryId=${activeCategoryId}`);
+    async function fetchProducts() {
+      setIsLoadingProducts(true);
+      try {
+        const res = await api.get(`/product?categoryId=${activeCategoryId}`);
 
-    console.log("PRODUCT RESPONSE:", res.data);
+        console.log("PRODUCT RESPONSE:", res.data);
 
-    const cat = categories.find((c) => c.id === activeCategoryId);
-    const products = res.data.products ?? [];
+        const cat = categories.find((c) => c.id === activeCategoryId);
+        const products = res.data.products ?? [];
 
-    setMenuItems(
-      products.map((p: any) => ({
-        ...p,
-        category: cat?.name ?? "",
-        categoryId: activeCategoryId,
-        imageUrl: p.imageUrl ?? null,
-      }))
-    );
-  } catch (err: any) {
-    setErrorMsg(err?.response?.data?.error ?? "Failed to load products.");
-  } finally {
-    setIsLoadingProducts(false);
-  }
-}
+        setMenuItems(
+          products.map((p: any) => ({
+            ...p,
+            category: cat?.name ?? "",
+            categoryId: activeCategoryId,
+            imageUrl: p.imageUrl ?? null,
+          }))
+        );
+      } catch (err: any) {
+        setErrorMsg(err?.response?.data?.error ?? "Failed to load products.");
+      } finally {
+        setIsLoadingProducts(false);
+      }
+    }
     fetchProducts();
-  }, [activeCategoryId, categories,refreshKey]);
+  }, [activeCategoryId, categories, refreshKey]);
 
   const filteredItems = menuItems.filter((item) =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -230,9 +231,8 @@ export default function MenuManagement() {
         });
       }
 
-      
       setActiveCategoryId((prev) => prev); // trigger re-fetch
-       setRefreshKey(prev => prev + 1);
+      setRefreshKey(prev => prev + 1);
       closeModal();
 
     } catch (err: any) {
@@ -422,15 +422,23 @@ export default function MenuManagement() {
 
             {filteredItems.map((item) => (
               <div key={item.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow">
+                {/* Image Wrap Container */}
                 <div className="relative h-40 w-full shrink-0 bg-slate-100">
                   {item.imageUrl ? (
-                    <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                    <Image 
+                      src={item.imageUrl} 
+                      alt={item.name} 
+                      fill 
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      className="object-cover"
+                      priority={filteredItems.indexOf(item) < 4} // Priorities optimization for the first few rows
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-slate-50">
                       <UtensilsCrossed className="h-8 w-8 text-slate-300" />
                     </div>
                   )}
-                  <span className="absolute left-3 bottom-3 bg-white text-emerald-700 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md border border-emerald-100 shadow-sm">
+                  <span className="absolute left-3 bottom-3 bg-white text-emerald-700 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md border border-emerald-100 shadow-sm z-10">
                     {item.category}
                   </span>
                 </div>
@@ -552,20 +560,27 @@ export default function MenuManagement() {
                   />
                 </div>
 
-                {/* ── Image Upload ── */}
+                {/* ── Image Upload Preview ── */}
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
                     Product Image
                   </label>
 
                   {modalImageSrc ? (
-                    // Show preview with remove button
+                    // Next.js optimized preview inside modal
                     <div className="relative w-full h-40 rounded-lg overflow-hidden border border-slate-200">
-                      <img src={modalImageSrc} alt="Preview" className="w-full h-full object-cover" />
+                      <Image 
+                        src={modalImageSrc} 
+                        alt="Preview" 
+                        fill 
+                        sizes="(max-width: 500px) 100vw, 500px"
+                        className="object-cover" 
+                        unoptimized={modalImageSrc.startsWith('blob:')} // Skips local blob optimization step
+                      />
                       <button
                         type="button"
                         onClick={clearImage}
-                        className="absolute top-2 right-2 bg-white rounded-full p-1 shadow hover:bg-red-50 transition-colors"
+                        className="absolute top-2 right-2 bg-white rounded-full p-1 shadow hover:bg-red-50 transition-colors z-10"
                       >
                         <X className="w-4 h-4 text-red-500" />
                       </button>

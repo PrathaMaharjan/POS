@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import api from '@/lib/api';
 import { Loader2 } from 'lucide-react';
 
@@ -67,8 +67,10 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-export default function History({ tenantSlug, role = 'cashier' }: HistoryProps) {
+export default function History({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryProps) {
   const router = useRouter();
+  const params = useParams<{ tenantSlug: string }>();
+  const tenantSlug = propTenantSlug || params?.tenantSlug;
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

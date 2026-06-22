@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
+import Image from 'next/image';
 import api from '@/lib/api';
 import PaymentModal from './PaymentModal';
 import { useTheme } from '@/app/t/[tenantSlug]/pos/context/ThemeContext';
@@ -68,17 +69,18 @@ interface OrderProps {
 }
 
 export default function Order({
-  tenantSlug,
+  tenantSlug: propTenantSlug,
   tableId = null,
   orderType = 'TAKEAWAY',
+  role = 'cashier',
   showHeader = true,
   onOrderCreated,
 }: OrderProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
-  const accent        = isDark ? '#e5b83b' : '#16a34a';
-  const accentText    = isDark ? '#0c0c0d' : '#ffffff';
+  const accent       = isDark ? '#e5b83b' : '#16a34a';
+  const accentText   = isDark ? '#0c0c0d' : '#ffffff';
   const pageBg     = isDark ? '#0c0c0d' : '#f6fdf7';
   const surfaceBg  = isDark ? '#141416' : '#edfaf0';
   const surfaceBg2 = isDark ? '#1c1c1e' : '#d9f5df';
@@ -96,7 +98,6 @@ export default function Order({
   const cartLineBg    = isDark ? '#0c0c0d' : '#f0fdf4';
 
   const [categories, setCategories] = useState<Category[]>([]);
-  // Initialize to 'ALL' by default so everything displays immediately
   const [activeCategory, setActiveCategory] = useState<string | null>('ALL');
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -109,6 +110,16 @@ export default function Order({
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [createdTakeawayOrderId, setCreatedTakeawayOrderId] = useState<string | null>(null);
   const router = useRouter();
+  const params = useParams<{ tenantSlug: string }>();
+  const tenantSlug = propTenantSlug || params?.tenantSlug;
+
+  const handleGoBack = () => {
+    if (role === 'waiter') {
+      router.push(`/t/${tenantSlug}/pos/waiter`);
+    } else {
+      router.push(`/t/${tenantSlug}/pos/cashier`);
+    }
+  };
 
   useEffect(() => {
     async function fetchCategories() {
@@ -131,11 +142,8 @@ export default function Order({
     async function fetchProducts() {
       try {
         setIsLoadingProducts(true);
-        
-        // If 'ALL' is selected, omit the categoryId query parameter to fetch all menu items
         const endpoint = activeCategory === 'ALL' ? '/product' : `/product?categoryId=${activeCategory}`;
         const res = await api.get(endpoint);
-        
         setProducts(res.data.products ?? []);
       } catch (err) {
         console.error('Failed to fetch products:', err);
@@ -193,7 +201,6 @@ export default function Order({
     if (orderType === 'DINE_IN') {
       try {
         setIsPlacingOrder(true);
-
         const res = await api.post('/orders/dine-in', {
           tableId,
           items: cart.map(item => ({
@@ -227,7 +234,6 @@ export default function Order({
       } finally {
         setIsPlacingOrder(false);
       }
-
       return;
     }
 
@@ -292,26 +298,28 @@ export default function Order({
                 onBlur={e => (e.currentTarget.style.borderColor = borderCol)}
               />
             </div>
-            <button
-              onClick={() => router.back()}
-              style={{
-                backgroundColor: surfaceBg,
-                borderColor: borderCol,
-                color: textMuted,
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.borderColor = borderHover;
-                (e.currentTarget as HTMLElement).style.color = textPrim;
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.borderColor = borderCol;
-                (e.currentTarget as HTMLElement).style.color = textMuted;
-              }}
-              className="flex items-center gap-2 border px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 shrink-0"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Go Back
-            </button>
+            {showHeader && (
+              <button
+                onClick={handleGoBack}
+                style={{
+                  backgroundColor: surfaceBg,
+                  borderColor: borderCol,
+                  color: textMuted,
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = borderHover;
+                  (e.currentTarget as HTMLElement).style.color = textPrim;
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = borderCol;
+                  (e.currentTarget as HTMLElement).style.color = textMuted;
+                }}
+                className="flex items-center gap-2 border px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 shrink-0"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Go Back
+              </button>
+            )}
           </div>
 
           {/* Category tabs */}
@@ -324,7 +332,6 @@ export default function Order({
               </div>
             ) : (
               <>
-                {/* 1. Static All Items Button */}
                 <button
                   onClick={() => setActiveCategory('ALL')}
                   style={
@@ -337,7 +344,6 @@ export default function Order({
                   All Items
                 </button>
 
-                {/* 2. Dynamic Categories */}
                 {categories.map(category => (
                   <button
                     key={category.id}
@@ -387,9 +393,17 @@ export default function Order({
                       }}
                       className="relative border rounded-2xl p-3 flex flex-col gap-2 cursor-pointer overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:brightness-[1.03]"
                     >
+                      {/* Image Wrapper Container */}
                       <div style={{ backgroundColor: skeletonBg }} className="relative w-full aspect-[4/3] rounded-xl overflow-hidden flex items-center justify-center">
                         {product.imageUrl ? (
-                          <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                          <Image 
+                            src={product.imageUrl} 
+                            alt={product.name}
+                            fill
+                            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                            className="object-cover"
+                            priority={false}
+                          />
                         ) : (
                           <ImageOff className="w-8 h-8" style={{ color: textFaint }} strokeWidth={1.5} />
                         )}

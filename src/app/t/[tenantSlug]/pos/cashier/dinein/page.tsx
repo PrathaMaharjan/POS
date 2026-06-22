@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import TableModal from '../../_components/TableModal';
 import api from '@/lib/api';
 
@@ -131,8 +131,10 @@ function TableCard({
   );
 }
 
-export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
+export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesProps) {
   const router = useRouter();
+  const params = useParams<{ tenantSlug: string }>();
+  const tenantSlug = propTenantSlug || params?.tenantSlug;
   const [tables, setTables] = useState<Table[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeOrders, setActiveOrders] = useState<ActiveFoodStatus[]>([]);
@@ -264,7 +266,7 @@ export default function Tables({ tenantSlug, role = 'cashier' }: TablesProps) {
               if (role === 'cashier') {
                 router.push(`/t/${safeSlug}/pos/cashier`);
               } else {
-                router.push(`/t/${safeSlug}/pos`);
+                router.push(`/t/${safeSlug}/pos/waiter`);
               }
             }}
             className="flex items-center gap-2 bg-[#141416] border border-neutral-800 hover:border-[#e5b83b]/60 text-neutral-400 hover:text-white px-4 py-2 rounded-xl text-xs font-semibold tracking-wide uppercase transition-all duration-150 shrink-0"
