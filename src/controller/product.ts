@@ -194,18 +194,30 @@ export async function updateProductStatus(
 // --------------------list of active product ---------------------------------
 export async function listProducts(
   outletId: string,
-  categoryId: string,
+  categoryId: string | null | undefined,
   limit: number,
   offset: number
 ) {
+  const conditions = [
+    eq(products.outletId, outletId),
+    eq(products.isActive, true)
+  ];
+  if (categoryId) {
+    conditions.push(eq(products.categoryId, categoryId));
+  }
+
   const [rows, totalResult] = await Promise.all([
     db.query.products.findMany({
-      where: (p, { eq, and }) =>
-        and(
+      where: (p, { eq, and }) => {
+        const conds = [
           eq(p.outletId, outletId),
-          eq(p.categoryId, categoryId),
           eq(p.isActive, true)
-        ),
+        ];
+        if (categoryId) {
+          conds.push(eq(p.categoryId, categoryId));
+        }
+        return and(...conds);
+      },
       columns: {
         id: true,
         name: true,
@@ -222,13 +234,7 @@ export async function listProducts(
     db
       .select({ count: sql<number>`count(*)` })
       .from(products)
-      .where(
-        and(
-          eq(products.outletId, outletId),
-          eq(products.categoryId, categoryId),
-          eq(products.isActive, true)
-        )
-      ),
+      .where(and(...conditions)),
   ]);
 
   return {

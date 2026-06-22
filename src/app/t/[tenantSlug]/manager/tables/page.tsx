@@ -100,19 +100,33 @@ export default function ManagerTablePage() {
 
     try {
       if (editingTable) {
-       
+        // 1. Update basic table properties
         await api.patch(`/tables/${editingTable.id}`, {
           tableNumber: form.name.trim().toUpperCase(),
           capacity: form.seats,
           shape: form.shape,
         });
+
+        // 2. Update status if it has changed
+        if (editingTable.status !== form.status) {
+          await api.patch(`/tables/${editingTable.id}/status`, {
+            status: form.status,
+          });
+        }
       } else {
-      
-        await api.post("/tables", {
+        // 1. Create the new table
+        const res = await api.post("/tables", {
           tableNumber: form.name.trim().toUpperCase(),
           capacity: form.seats,
           shape: form.shape,
         });
+
+        // 2. Set the status if not available
+        if (res.data?.id && form.status !== "available") {
+          await api.patch(`/tables/${res.data.id}/status`, {
+            status: form.status,
+          });
+        }
       }
 
       await fetchTables(); 

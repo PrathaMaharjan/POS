@@ -68,11 +68,11 @@ interface OrderProps {
 }
 
 export default function Order({
-  role ={role},
   tenantSlug,
   tableId = null,
   orderType = 'TAKEAWAY',
   showHeader = true,
+  role,
   onOrderCreated,
 }: OrderProps) {
   const { theme } = useTheme();
@@ -135,7 +135,6 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
         setIsLoadingProducts(true);
         const res = await api.get(`/product?categoryId=${activeCategory}`)
         setProducts(res.data.products ?? []);
-        console.log(products)
       } catch (err) {
         console.error('Failed to fetch products:', err);
         setProducts([]);
