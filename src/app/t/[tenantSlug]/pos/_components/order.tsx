@@ -16,6 +16,7 @@ import {
   CreditCard,
   SearchX,
   Plus,
+  MessageSquare,
 } from 'lucide-react';
 
 interface Category {
@@ -82,7 +83,7 @@ export default function Order({
   const accent        = isDark ? '#e5b83b' : '#059669'; 
   const accentText    = isDark ? '#0c0c0d' : '#ffffff';
   const pageBg     = isDark ? '#0c0c0d' : '#ffffff'; 
-  const sidebarBg  = isDark ? '#0c0c0d' : '#059669'; // emerald-600, dark green for Active Order sidebar
+  const sidebarBg  = isDark ? '#0c0c0d' : '#059669'; 
   const surfaceBg  = isDark ? '#141416' : '#ffffff'; 
   const surfaceBg2 = isDark ? '#1c1c1e' : '#d1fae5'; 
   const skeletonBg = isDark ? '#1c1c1e' : '#e2e8f0'; 
@@ -96,9 +97,7 @@ export default function Order({
   const accentRing    = isDark ? 'rgba(229,184,59,0.2)' : 'rgba(5,150,105,0.2)';
   const accentGlow    = isDark ? '0 4px 20px rgba(229,184,59,0.15)' : '0 4px 20px rgba(5,150,105,0.15)';
 
-  const cartLineBg    = isDark ? '#0c0c0d' : '#f0fdf4';
-
-  // Sidebar-specific colors (Active Order panel now has a solid dark-green bg in light mode)
+  // Sidebar-specific colors
   const sidebarTextPrim   = isDark ? textPrim : '#ffffff';
   const sidebarTextMuted  = isDark ? textMuted : 'rgba(255,255,255,0.75)';
   const sidebarTextFaint  = isDark ? textFaint : 'rgba(255,255,255,0.55)';
@@ -109,7 +108,6 @@ export default function Order({
   const sidebarAccentText = isDark ? accentText : '#059669';
 
   const [categories, setCategories] = useState<Category[]>([]);
-  // Defaulting activeCategory to 'ALL' to view all items initially
   const [activeCategory, setActiveCategory] = useState<string | null>('ALL');
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -121,6 +119,10 @@ export default function Order({
   const [customerPhone, setCustomerPhone] = useState('');
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [createdTakeawayOrderId, setCreatedTakeawayOrderId] = useState<string | null>(null);
+  
+  // Tracks which cart item layout is open for custom notes
+  const [activeNoteProductId, setActiveNoteProductId] = useState<string | null>(null);
+
   const router = useRouter();
   const params = useParams<{ tenantSlug: string }>();
   const tenantSlug = propTenantSlug || params?.tenantSlug;
@@ -154,7 +156,6 @@ export default function Order({
     async function fetchProducts() {
       try {
         setIsLoadingProducts(true);
-        // Request base product endpoint if 'ALL', otherwise attach query string
         const endpoint = activeCategory === 'ALL' ? '/product' : `/product?categoryId=${activeCategory}`;
         const res = await api.get(endpoint);
         setProducts(res.data.products ?? []);
@@ -184,7 +185,10 @@ export default function Order({
   const handleDecreaseQuantity = (productId: string) => {
     setCart(prev => {
       const existing = prev.find(item => item.product.id === productId);
-      if (existing?.quantity === 1) return prev.filter(item => item.product.id !== productId);
+      if (existing?.quantity === 1) {
+        if (activeNoteProductId === productId) setActiveNoteProductId(null);
+        return prev.filter(item => item.product.id !== productId);
+      }
       return prev.map(item =>
         item.product.id === productId ? { ...item, quantity: item.quantity - 1 } : item
       );
@@ -199,7 +203,18 @@ export default function Order({
     );
   };
 
-  const handleClearCart = () => setCart([]);
+  const handleUpdateItemNote = (productId: string, noteText: string) => {
+    setCart(prev =>
+      prev.map(item =>
+        item.product.id === productId ? { ...item, note: noteText } : item
+      )
+    );
+  };
+
+  const handleClearCart = () => {
+    setCart([]);
+    setActiveNoteProductId(null);
+  };
 
   const subtotal = useMemo(() =>
     cart.reduce((sum, item) => sum + parseFloat(item.product.price) * item.quantity, 0),
@@ -219,11 +234,9 @@ export default function Order({
           items: cart.map(item => ({
             productId: item.product.id,
             quantity: item.quantity,
-            notes: item.note || undefined,
+            notes: item.note.trim() || undefined,
           })),
         });
-
-        console.log("Dine-in order saved:", res.data);
 
         const newOrder: CreatedOrder = {
           id: res.data.order.id,
@@ -258,7 +271,7 @@ export default function Order({
         items: cart.map(item => ({
           productId: item.product.id,
           quantity: item.quantity,
-          notes: item.note || undefined,
+          notes: item.note.trim() || undefined,
         })),
       });
       setCreatedTakeawayOrderId(res.data.order.id);
@@ -287,10 +300,8 @@ export default function Order({
     >
       <div className="flex-1 flex overflow-hidden">
 
-        {/* Main content */}
+        {/* Main Content Menu Grid */}
         <main className="flex-1 px-10 py-6 flex flex-col gap-4 overflow-hidden">
-
-          {/* Search + Back */}
           <div className="flex items-center justify-between gap-3">
             <div className="relative flex-1">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none" style={{ color: textMuted }}>
@@ -335,7 +346,6 @@ export default function Order({
             )}
           </div>
 
-          {/* Category tabs */}
           <div className="flex gap-2 overflow-x-auto pb-1">
             {isLoadingCategories ? (
               <div className="flex gap-2">
@@ -345,7 +355,6 @@ export default function Order({
               </div>
             ) : (
               <>
-                {/* Fixed explicitly styled "All Items" tab */}
                 <button
                   onClick={() => setActiveCategory('ALL')}
                   style={
@@ -376,7 +385,6 @@ export default function Order({
             )}
           </div>
 
-          {/* Product grid */}
           <div className="flex-1 overflow-y-auto">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pt-1 pb-4">
               {isLoadingProducts ? (
@@ -407,7 +415,6 @@ export default function Order({
                       }}
                       className="relative border rounded-2xl p-3 flex flex-col gap-2 cursor-pointer overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:brightness-[1.03]"
                     >
-                      {/* Image Wrapper Container */}
                       <div style={{ backgroundColor: skeletonBg }} className="relative w-full aspect-[4/3] rounded-xl overflow-hidden flex items-center justify-center">
                         {product.imageUrl ? (
                           <Image 
@@ -447,7 +454,7 @@ export default function Order({
             backgroundColor: sidebarBg,
             borderColor: sidebarBorderCol,
           }}
-          className="w-[300px] xl:w-[340px] border-l p-5 flex flex-col gap-4 overflow-hidden shrink-0"
+          className="w-[300px] xl:w-[350px] border-l p-5 flex flex-col gap-4 overflow-hidden shrink-0"
         >
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold tracking-wide" style={{ color: sidebarTextPrim }}>Active Order</h2>
@@ -462,7 +469,7 @@ export default function Order({
             )}
           </div>
 
-          {/* Cart items */}
+          {/* Cart items list with customized notes section */}
           <div className="flex-1 flex flex-col gap-2 overflow-y-auto min-h-0">
             {cart.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-2" style={{ color: sidebarTextFaint }}>
@@ -473,50 +480,79 @@ export default function Order({
               cart.map(item => {
                 const priceNum = parseFloat(item.product.price);
                 const totalItemPrice = priceNum * item.quantity;
+                const isNoteSectionOpen = activeNoteProductId === item.product.id;
+
                 return (
                   <div
                     key={item.product.id}
                     style={{ backgroundColor: sidebarSurfaceBg, borderColor: sidebarBorderCol }}
-                    className="group relative flex items-center justify-between p-3 rounded-xl border transition-all duration-150"
-                    onMouseEnter={e => (e.currentTarget.style.borderColor = isDark ? `${accent}50` : 'rgba(255,255,255,0.4)')}
-                    onMouseLeave={e => (e.currentTarget.style.borderColor = sidebarBorderCol)}
+                    className="group relative flex flex-col p-3 rounded-xl border transition-all duration-150 gap-2 cursor-pointer"
+                    onClick={() => setActiveNoteProductId(isNoteSectionOpen ? null : item.product.id)}
                   >
                     <div
                       className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-md opacity-0 group-hover:opacity-100 transition-opacity"
                       style={{ backgroundColor: sidebarAccent }}
                     />
-                    <div className="flex items-center gap-3">
-                      <div
-                        style={{ backgroundColor: sidebarSurfaceBg2, borderColor: sidebarBorderCol }}
-                        className="flex items-center rounded-lg border p-0.5 gap-1"
-                      >
-                        <button
-                          onClick={e => { e.stopPropagation(); handleDecreaseQuantity(item.product.id); }}
-                          style={{ color: sidebarTextMuted }}
-                          className="w-6 h-6 flex items-center justify-center rounded-md hover:text-red-300 transition-colors text-sm font-bold"
-                        >-</button>
-                        <span className="text-xs font-bold w-4 text-center" style={{ color: sidebarTextPrim }}>{item.quantity}</span>
-                        <button
-                          onClick={e => { e.stopPropagation(); handleIncreaseQuantity(item.product.id); }}
-                          style={{ color: sidebarTextMuted }}
-                          className="w-6 h-6 flex items-center justify-center rounded-md hover:text-emerald-200 transition-colors text-sm font-bold"
-                        >+</button>
+                    
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          style={{ backgroundColor: sidebarSurfaceBg2, borderColor: sidebarBorderCol }}
+                          className="flex items-center rounded-lg border p-0.5 gap-1 shrink-0"
+                          onClick={e => e.stopPropagation()} // Stop note block drop down toggling on count edit
+                        >
+                          <button
+                            onClick={() => handleDecreaseQuantity(item.product.id)}
+                            style={{ color: sidebarTextMuted }}
+                            className="w-6 h-6 flex items-center justify-center rounded-md hover:text-red-300 transition-colors text-sm font-bold"
+                          >-</button>
+                          <span className="text-xs font-bold w-4 text-center" style={{ color: sidebarTextPrim }}>{item.quantity}</span>
+                          <button
+                            onClick={() => handleIncreaseQuantity(item.product.id)}
+                            style={{ color: sidebarTextMuted }}
+                            className="w-6 h-6 flex items-center justify-center rounded-md hover:text-emerald-200 transition-colors text-sm font-bold"
+                          >+</button>
+                        </div>
+                        <div className="flex flex-col overflow-hidden max-w-[120px] xl:max-w-[150px]">
+                          <span className="text-[13px] font-semibold truncate" style={{ color: sidebarTextPrim }}>{item.product.name}</span>
+                          {item.note && !isNoteSectionOpen && (
+                            <span className="text-[11px] truncate italic opacity-90 flex items-center gap-1 mt-0.5" style={{ color: sidebarTextMuted }}>
+                              <MessageSquare className="w-2.5 h-2.5 shrink-0" /> {item.note}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-[13px] font-semibold" style={{ color: sidebarTextPrim }}>{item.product.name}</span>
-                        {item.note && <span className="text-[11px]" style={{ color: sidebarTextMuted }}>{item.note}</span>}
-                      </div>
+                      <span className="text-sm font-bold shrink-0" style={{ color: sidebarTextPrim }}>Rs.{totalItemPrice.toFixed(2)}</span>
                     </div>
-                    <span className="text-sm font-bold" style={{ color: sidebarTextPrim }}>Rs.{totalItemPrice.toFixed(2)}</span>
+
+                    {/* Expandable note text input layout */}
+                    {isNoteSectionOpen && (
+                      <div className="w-full mt-1 pt-1 border-t" style={{ borderColor: sidebarBorderCol }} onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-1.5 text-[11px] mb-1 font-semibold" style={{ color: sidebarTextMuted }}>
+                          <MessageSquare className="w-3 h-3" /> Item Instructions
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="No spicy, extra cheese, etc..."
+                          value={item.note}
+                          onChange={e => handleUpdateItemNote(item.product.id, e.target.value)}
+                          style={{ 
+                            backgroundColor: sidebarSurfaceBg2, 
+                            borderColor: sidebarBorderCol, 
+                            color: sidebarTextPrim 
+                          }}
+                          className="w-full border rounded-lg py-1.5 px-2.5 text-xs outline-none placeholder-white/40 focus:ring-1 focus:ring-white/20"
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })
             )}
           </div>
 
-          {/* Totals + CTA */}
+          {/* Totals + Actions Footer */}
           <div style={{ borderColor: sidebarBorderCol }} className="border-t pt-4 flex flex-col gap-3">
-
             {orderType === 'TAKEAWAY' && (
               <div className="flex flex-col gap-2">
                 <input

@@ -14,10 +14,20 @@ import {
   CheckCircle2,
   TrendingUp,
   Loader2,
+  ChevronDown,
+  ChevronUp,
+  MessageSquare,
 } from 'lucide-react';
 
 type TableStatus = 'available' | 'occupied' | 'reserved' | 'dirty';
 type TableShape = 'square' | 'round';
+
+interface ActiveFoodItem {
+  id: string;
+  name: string;
+  quantity: number;
+  notes?: string;
+}
 
 interface ActiveFoodStatus {
   id: string;
@@ -25,6 +35,7 @@ interface ActiveFoodStatus {
   tableName: string;
   type: 'DINE_IN' | 'TAKEAWAY';
   ticketState: 'PENDING' | 'PREPARING' | 'DONE';
+  items: ActiveFoodItem[];
 }
 
 interface Table {
@@ -135,11 +146,13 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
   const router = useRouter();
   const params = useParams<{ tenantSlug: string }>();
   const tenantSlug = propTenantSlug || params?.tenantSlug;
+  
   const [tables, setTables] = useState<Table[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeOrders, setActiveOrders] = useState<ActiveFoodStatus[]>([]);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [confirmingTakeawayId, setConfirmingTakeawayId] = useState<string | null>(null);
+  const [expandedTakeawayId, setExpandedTakeawayId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchTables(silent = false) {
@@ -176,12 +189,25 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
         .filter((ticket: any) => ticket.status !== 'served')
         .map((ticket: any) => {
           const dbOrder = ticket.order ?? {};
+          
+          // Fallback cascades safely to target nested array fields
+          const rawItems = ticket.items ?? dbOrder.items ?? [];
+          const mappedItems: ActiveFoodItem[] = rawItems.map((item: any) => ({
+            id: item.id,
+            // FIXED: Added additional fallbacks for missing nested structures
+            name: item.product?.name ?? item.name ?? item.productName ?? 'Unknown Product',
+            quantity: item.quantity ?? 1,
+            // FIXED: Extended note field fallback checking mechanism
+            notes: item.notes ?? item.note ?? item.instruction ?? '',
+          }));
+
           return {
             id: ticket.id,
             orderNumber: dbOrder.orderNumber ?? 0,
-            tableName: dbOrder.table?.tableNumber ?? dbOrder.customerName ?? 'Table',
-            type: dbOrder.orderType === 'takeaway' ? 'TAKEAWAY' : 'DINE_IN',
+            tableName: dbOrder.customerName ?? dbOrder.table?.tableNumber ?? 'Takeaway Order',
+            type: dbOrder.orderType?.toUpperCase() === 'TAKEAWAY' || ticket.orderType?.toUpperCase() === 'TAKEAWAY' ? 'TAKEAWAY' : 'DINE_IN',
             ticketState: (ticket.status === 'ready' ? 'DONE' : (ticket.status?.toUpperCase() ?? 'PENDING')) as ActiveFoodStatus['ticketState'],
+            items: mappedItems,
           };
         });
       setActiveOrders(mapped);
@@ -221,6 +247,7 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
     try {
       await api.patch(`/kot/${id}`, { status: 'served' });
       setActiveOrders(prev => prev.filter(order => order.id !== id));
+      if (expandedTakeawayId === id) setExpandedTakeawayId(null);
     } catch (err) {
       console.error("Failed to dismiss takeaway ticket:", err);
     }
@@ -251,7 +278,7 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
     <div className="min-h-screen bg-[#0c0c0d] text-[#e4e4e7] flex flex-col font-sans select-none antialiased">
       <main className="flex-1 flex flex-col px-8 py-6 gap-6 max-w-[1400px] mx-auto w-full">
 
-        {/* Filters and Controls */}
+        {/* Top Status Indicators & Navigation */}
         <div className="flex items-center justify-between flex-wrap gap-4 bg-[#141416]/40 border border-neutral-900/60 rounded-2xl px-5 py-3.5">
           <div className="flex items-center flex-wrap gap-3">
             {(Object.keys(STATUS_CONFIG) as TableStatus[]).map((s) => (
@@ -276,46 +303,97 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
           </button>
         </div>
 
-        {/* Takeaway pickup panel */}
+        {/* Cashier Takeaway Pickup Queue Panel */}
         {role === 'cashier' && readyTakeaways.length > 0 && (
-          <div className="bg-[#141416] border border-neutral-900 rounded-2xl p-4 flex flex-col gap-3">
+          <div className="bg-[#141416] border border-neutral-900 rounded-2xl p-5 flex flex-col gap-4">
             <div className="flex items-center gap-2 text-xs font-black tracking-wider text-neutral-400 uppercase">
-              <span>Takeaway Pickup Queue</span>
+              <span>Takeaway Pickup Queue ({readyTakeaways.length})</span>
             </div>
-            <div className="flex flex-wrap gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {readyTakeaways.map((order) => {
                 const isConfirming = confirmingTakeawayId === order.id;
+                const isExpanded = expandedTakeawayId === order.id;
+                
                 return (
                   <div
                     key={order.id}
-                    className={`flex items-center gap-3 border px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 ${isConfirming
-                        ? 'bg-[#3b1c1c] border-red-500/40 text-red-400'
-                        : 'bg-[#162e1a] border-[#22c55e]/30 text-green-400'
-                      }`}
+                    onClick={() => setExpandedTakeawayId(isExpanded ? null : order.id)}
+                    className={`flex flex-col border rounded-xl transition-all duration-200 cursor-pointer overflow-hidden ${
+                      isConfirming
+                        ? 'bg-[#291414] border-red-500/30'
+                        : isExpanded 
+                          ? 'bg-[#18181b] border-[#e5b83b]/40 shadow-md shadow-black/40' 
+                          : 'bg-[#112414] border-[#22c55e]/20 hover:border-[#22c55e]/40'
+                    }`}
                   >
-                    <span>Order #{order.orderNumber}</span>
-                    {isConfirming ? (
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => handleDismissTakeaway(order.id)}
-                          className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded-md font-black text-[10px] uppercase transition-colors"
-                        >
-                          Confirm Handout
-                        </button>
-                        <button
-                          onClick={() => setConfirmingTakeawayId(null)}
-                          className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-2 py-1 rounded-md font-bold text-[10px] uppercase transition-colors"
-                        >
-                          Cancel
-                        </button>
+                    {/* Header Summary Row */}
+                    <div className="flex items-center justify-between px-4 py-3 gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`text-sm font-black ${isConfirming ? 'text-red-400' : 'text-green-400'}`}>
+                          #{order.orderNumber}
+                        </span>
+                        <span className="text-xs text-neutral-300 font-medium truncate">
+                          {order.tableName}
+                        </span>
                       </div>
-                    ) : (
-                      <button
-                        onClick={() => setConfirmingTakeawayId(order.id)}
-                        className="bg-[#22c55e] hover:bg-[#16a34a] text-[#0a1a0f] px-2 py-1 rounded-md font-black text-[10px] uppercase transition-colors"
-                      >
-                        Handout Complete
-                      </button>
+                      
+                      <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                        {isConfirming ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleDismissTakeaway(order.id)}
+                              className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded-md font-black text-[10px] uppercase transition-colors"
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              onClick={() => setConfirmingTakeawayId(null)}
+                              className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-2 py-1 rounded-md font-bold text-[10px] uppercase transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmingTakeawayId(order.id)}
+                            className="bg-[#22c55e] hover:bg-[#16a34a] text-[#0a1a0f] px-2.5 py-1 rounded-md font-black text-[10px] uppercase tracking-wider transition-colors"
+                          >
+                            Handout
+                          </button>
+                        )}
+                        <div className="text-neutral-400 pl-1">
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expandable Order Details Panel */}
+                    {isExpanded && (
+                      <div className="border-t border-neutral-800/60 bg-black/20 px-4 py-3 flex flex-col gap-2">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                          Order Items
+                        </div>
+                        <div className="flex flex-col gap-1.5 max-h-[160px] overflow-y-auto">
+                          {order.items.length === 0 ? (
+                            <span className="text-xs text-neutral-500 italic">No item summary available</span>
+                          ) : (
+                            order.items.map((item, idx) => (
+                              <div key={idx} className="flex flex-col gap-0.5 text-xs text-neutral-200">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-semibold">{item.name}</span>
+                                  <span className="text-neutral-400 font-mono">x{item.quantity}</span>
+                                </div>
+                                {item.notes && (
+                                  <div className="flex items-start gap-1 text-[11px] text-[#e5b83b]/80 bg-[#e5b83b]/5 px-1.5 py-0.5 rounded mt-0.5 border border-[#e5b83b]/10">
+                                    <MessageSquare className="w-3 h-3 mt-0.5 shrink-0" />
+                                    <span className="italic">{item.notes}</span>
+                                  </div>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 );
@@ -324,7 +402,7 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
           </div>
         )}
 
-        {/* Main Grid display area */}
+        {/* Loading States */}
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center text-neutral-600 gap-3">
             <Loader2 className="w-6 h-6 animate-spin" />
@@ -348,7 +426,7 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
           </div>
         )}
 
-        {/* Metric footer banner */}
+        {/* Live Capacity Footer */}
         <div className="w-full mt-auto pt-4 border-t border-neutral-900">
           <div className="bg-[#141416] border border-neutral-900/80 rounded-2xl p-5 flex flex-col justify-between">
             <div>
@@ -373,7 +451,7 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
         </div>
       </main>
 
-      {/* Table Detail Dialog Overlay */}
+      {/* Detail Table Management Modal */}
       {selectedTable && (
         <TableModal
           table={selectedTable}

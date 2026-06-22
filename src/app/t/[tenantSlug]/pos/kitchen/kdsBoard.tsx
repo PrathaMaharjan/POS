@@ -87,14 +87,14 @@ function OrderModal({ order, onClose, onPreparing, onDone }: {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#1c1c1f] rounded-2xl border border-[#3f3f46] w-full max-w-sm mx-4 overflow-hidden shadow-2xl"
+        className="bg-[#1c1c1f] rounded-2xl border border-[#3f3f46] w-full max-w-md overflow-hidden shadow-2xl max-h-[90vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        <div className={`px-5 pt-4 pb-3.5 border-b border-[#27272a] ${order.ticketState === 'DONE'
+        <div className={`px-5 pt-4 pb-3.5 border-b border-[#27272a] shrink-0 ${order.ticketState === 'DONE'
           ? 'bg-[#22c55e]/15'
           : order.ticketState === 'PREPARING'
             ? 'bg-blue-500/15'
@@ -126,15 +126,17 @@ function OrderModal({ order, onClose, onPreparing, onDone }: {
           </div>
         </div>
 
-        <div className="px-5 py-3 flex flex-col">
+        <div className="px-5 py-2 flex flex-col overflow-y-auto custom-scrollbar flex-1">
           {order.items.map((item, idx, arr) => (
             <React.Fragment key={idx}>
-              <div className="flex items-center justify-between gap-2 py-2">
-                <span className="text-[13px] font-semibold text-[#d4d4d8] flex-1">{item.name}</span>
-                {item.notes && (
-                  <span className="text-[11px] text-red-400 italic">{item.notes}</span>
-                )}
-                <span className="text-[12px] font-bold text-[#a1a1aa] bg-[#27272a] border border-[#3f3f46] rounded px-2 py-0.5 ml-2 flex-shrink-0">
+              <div className="flex items-center justify-between gap-4 py-2.5">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-[#d4d4d8] break-words">{item.name}</p>
+                  {item.notes && (
+                    <p className="text-[11px] text-red-400 italic mt-0.5">{item.notes}</p>
+                  )}
+                </div>
+                <span className="text-[12px] font-bold text-[#a1a1aa] bg-[#27272a] border border-[#3f3f46] rounded px-2 py-0.5 flex-shrink-0 self-start">
                   x{item.quantity}
                 </span>
               </div>
@@ -145,15 +147,15 @@ function OrderModal({ order, onClose, onPreparing, onDone }: {
           ))}
         </div>
 
-        <div className="px-5 pb-5 pt-2 flex gap-2">
+        <div className="px-5 pb-5 pt-3 flex gap-2 shrink-0 border-t border-[#27272a]">
           {order.ticketState === 'DONE' ? (
             <button
               onClick={() => { onDone(order.id); onClose(); }}
-              className="flex-1 py-2.5 rounded-xl bg-[#22c55e]/10 hover:bg-red-500/10 border border-[#22c55e]/30 hover:border-red-500/30 text-[#4ade80] hover:text-red-400 text-[12px] font-bold text-center transition-all group flex items-center justify-center gap-1"
+              className="flex-1 py-3 rounded-xl bg-[#22c55e]/10 hover:bg-red-500/10 border border-[#22c55e]/30 hover:border-red-500/30 text-[#4ade80] hover:text-red-400 text-[12px] font-bold text-center transition-all group flex items-center justify-center gap-1"
             >
               <span className="group-hover:hidden">✓ Done</span>
               <span className="hidden group-hover:inline flex items-center gap-1">
-                <svg className="w-3.5 h-3.5 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
                 </svg>
                 Undo Move
@@ -163,7 +165,7 @@ function OrderModal({ order, onClose, onPreparing, onDone }: {
             <>
               <button
                 onClick={() => { onPreparing(order.id); onClose(); }}
-                className={`flex-1 py-2.5 rounded-xl text-[12px] font-bold transition-all active:scale-[0.97] ${order.ticketState === 'PREPARING'
+                className={`flex-1 py-3 rounded-xl text-[12px] font-bold transition-all active:scale-[0.97] ${order.ticketState === 'PREPARING'
                   ? 'bg-blue-500 text-white'
                   : 'bg-[#27272a] border border-[#3f3f46] text-[#a1a1aa] hover:bg-[#3f3f46]'
                   }`}
@@ -172,7 +174,7 @@ function OrderModal({ order, onClose, onPreparing, onDone }: {
               </button>
               <button
                 onClick={() => { onDone(order.id); onClose(); }}
-                className="flex-1 py-2.5 rounded-xl bg-[#22c55e] hover:bg-[#16a34a] text-[#0a1a0f] text-[12px] font-bold transition-all active:scale-[0.97]"
+                className="flex-1 py-3 rounded-xl bg-[#22c55e] hover:bg-[#16a34a] text-[#0a1a0f] text-[12px] font-bold transition-all active:scale-[0.97]"
               >
                 Done
               </button>
@@ -219,13 +221,11 @@ function TicketCard({
 
   return (
     <div
-      className={`${stickyBg} ${rotation} rounded-sm shadow-[2px_4px_16px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden transition-transform hover:scale-[1.02] hover:rotate-0 cursor-pointer h-full`}
+      className={`${stickyBg} ${rotation} rounded-sm shadow-[2px_4px_16px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden transition-transform hover:scale-[1.02] sm:hover:rotate-0 cursor-pointer h-full`}
       onClick={onOpen}
     >
-      {/* Tape strip */}
       <div className={`h-2 w-full ${tapeBg}`} />
 
-      {/* Shimmer for preparing */}
       {order.ticketState === 'PREPARING' && (
         <div className="h-0.5 w-full bg-[#1e2a3a] overflow-hidden relative">
           <div
@@ -235,7 +235,6 @@ function TicketCard({
         </div>
       )}
 
-      {/* Header */}
       <div className="px-3.5 pt-3 pb-2.5 border-b border-white/5">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
@@ -253,12 +252,11 @@ function TicketCard({
         </div>
       </div>
 
-      {/* Items */}
       <div className="px-3.5 py-2 flex flex-col flex-1 overflow-hidden">
         {order.items.slice(0, 3).map((item, idx, arr) => (
           <React.Fragment key={idx}>
             <div className="flex items-center justify-between gap-2 py-1.5">
-              <span className="text-[11px] font-semibold text-[#c4c4c8] flex-1 leading-tight">{item.name}</span>
+              <span className="text-[11px] font-semibold text-[#c4c4c8] flex-1 leading-tight break-all truncate">{item.name}</span>
               {item.notes && (
                 <span className="text-[9px] text-red-400 italic truncate max-w-[70px]">{item.notes}</span>
               )}
@@ -272,11 +270,10 @@ function TicketCard({
           </React.Fragment>
         ))}
         {order.items.length > 3 && (
-          <p className="text-[10px] text-[#52525b] mt-auto pt-1">+{order.items.length - 3} more — tap to view</p>
+          <p className="text-[10px] text-[#52525b] mt-auto pt-2">+{order.items.length - 3} more — tap to view</p>
         )}
       </div>
 
-      {/* Buttons */}
       <div
         className="px-3 pb-3 pt-1 mt-auto flex gap-2"
         onClick={e => e.stopPropagation()}
@@ -284,7 +281,7 @@ function TicketCard({
         {order.ticketState === 'DONE' ? (
           <button
             onClick={() => onDone(order.id)}
-            className="flex-1 py-1.5 rounded-lg bg-[#22c55e]/10 hover:bg-red-500/10 border border-[#22c55e]/30 hover:border-red-500/30 text-[#4ade80] hover:text-red-400 text-[10px] font-bold text-center transition-all group flex items-center justify-center gap-1"
+            className="flex-1 py-2 rounded-lg bg-[#22c55e]/10 hover:bg-red-500/10 border border-[#22c55e]/30 hover:border-red-500/30 text-[#4ade80] hover:text-red-400 text-[10px] font-bold text-center transition-all group flex items-center justify-center gap-1"
           >
             <span className="group-hover:hidden">✓ Done</span>
             <span className="hidden group-hover:inline flex items-center gap-1">
@@ -298,7 +295,7 @@ function TicketCard({
           <>
             <button
               onClick={() => onPreparing(order.id)}
-              className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all active:scale-[0.97] ${order.ticketState === 'PREPARING'
+              className={`flex-1 py-2 rounded-lg text-[10px] font-bold transition-all active:scale-[0.97] ${order.ticketState === 'PREPARING'
                 ? 'bg-blue-500 text-white'
                 : 'bg-black/20 border border-white/10 text-[#a1a1aa] hover:bg-black/40'
                 }`}
@@ -313,7 +310,7 @@ function TicketCard({
             </button>
             <button
               onClick={() => onDone(order.id)}
-              className="flex-1 py-1.5 rounded-lg bg-[#22c55e] hover:bg-[#16a34a] text-[#0a1a0f] text-[10px] font-bold transition-all active:scale-[0.97]"
+              className="flex-1 py-2 rounded-lg bg-[#22c55e] hover:bg-[#16a34a] text-[#0a1a0f] text-[10px] font-bold transition-all active:scale-[0.97]"
             >
               Done
             </button>
@@ -331,8 +328,10 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Mobile active tab view toggle status
+  const [activeTab, setActiveTab] = useState<TicketState>('PENDING');
 
-  // Shared, deduped polling — 10s interval, only one active poll across all consumers
   const { tickets: rawTickets, refetch } = useKotTickets(10000);
 
   useEffect(() => {
@@ -463,16 +462,16 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
       <div className="fixed inset-0 h-screen w-screen bg-[#111113] text-[#e4e4e7] font-sans select-none antialiased flex flex-col overflow-hidden">
 
         {/* Header */}
-        <header className="bg-[#18181b] border-b border-[#27272a] px-6 py-3.5 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <p className="text-[16px] font-bold text-white">Kitchen Display System</p>
-            <span className="text-[12px] text-[#52525b] tabular-nums"><LiveClock /></span>
+        <header className="bg-[#18181b] border-b border-[#27272a] px-4 sm:px-6 py-3 flex items-center justify-between flex-shrink-0 gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <p className="text-[14px] sm:text-[16px] font-bold text-white truncate">Kitchen Display</p>
+            <span className="text-[11px] sm:text-[12px] text-[#52525b] tabular-nums shrink-0"><LiveClock /></span>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={toggleFullscreen}
-              className="flex items-center gap-1.5 bg-[#27272a] hover:bg-[#3f3f46] border border-[#3f3f46] text-[#a1a1aa] hover:text-white px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all"
+              className="flex items-center gap-1.5 bg-[#27272a] hover:bg-[#3f3f46] border border-[#3f3f46] text-[#a1a1aa] hover:text-white px-2.5 py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold transition-all"
               title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
             >
               {isFullscreen ? (
@@ -480,19 +479,18 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
                   </svg>
-                  Exit Full
+                  <span className="hidden sm:inline">Exit Full</span>
                 </>
               ) : (
                 <>
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
                   </svg>
-                  Fullscreen
+                  <span className="hidden sm:inline">Fullscreen</span>
                 </>
               )}
             </button>
 
-            {/* Asynchronous Logout Handler */}
             <button
               onClick={async () => {
                 try {
@@ -503,18 +501,42 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
                   router.push("/login");
                 }
               }}
-              className="flex items-center gap-1.5 bg-[#27272a] hover:bg-red-950/40 border border-[#3f3f46] hover:border-red-900/50 text-[#a1a1aa] hover:text-red-400 px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all"
+              className="flex items-center gap-1.5 bg-[#27272a] hover:bg-red-950/40 border border-[#3f3f46] hover:border-red-900/50 text-[#a1a1aa] hover:text-red-400 px-2.5 py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold transition-all"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              Logout
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </header>
 
+        {/* Mobile Navigation Tabs (visible only on viewports below 'md') */}
+        <div className="flex md:hidden bg-[#141416] border-b border-[#27272a] p-2 gap-1 shrink-0">
+          {COLUMNS.map(col => {
+            const count = orders.filter(o => o.ticketState === col.state).length;
+            const isActive = activeTab === col.state;
+            return (
+              <button
+                key={col.state}
+                onClick={() => setActiveTab(col.state)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-1 rounded-xl text-[12px] font-bold border transition-all ${
+                  isActive 
+                    ? 'bg-[#27272a] text-white border-[#3f3f46]' 
+                    : 'bg-transparent text-[#71717a] border-transparent'
+                }`}
+              >
+                <span>{col.label.split(' ')[0]}</span>
+                <span className="px-1.5 py-0.2 text-[10px] rounded-md bg-white/5 border border-white/10 text-[#a1a1aa]">
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Kanban columns */}
-        <main className="flex-1 flex gap-5 p-6 overflow-hidden w-full">
+        <main className="flex-1 flex flex-col md:flex-row gap-4 lg:gap-5 p-4 sm:p-6 overflow-hidden w-full">
           {isLoading ? (
             <div className="flex-1 flex items-center justify-center text-neutral-600 gap-3">
               <svg className="w-6 h-6 animate-spin text-[#e5b83b]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
@@ -530,28 +552,33 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
           ) : (
             COLUMNS.map(col => {
               const colOrders = orders.filter(o => o.ticketState === col.state);
+              
               return (
-                <div key={col.state} className="flex flex-col flex-1 min-w-[280px] h-full overflow-hidden">
-
+                <div 
+                  key={col.state} 
+                  className={`flex-col flex-1 md:min-w-[240px] lg:min-w-[280px] h-full overflow-hidden ${
+                    activeTab === col.state ? 'flex' : 'hidden md:flex'
+                  }`}
+                >
                   {/* Column header */}
-                  <div className={`flex items-center justify-between px-4 py-3 rounded-xl border mb-4 flex-shrink-0 ${col.headerBg}`}>
-                    <span className="text-[13px] font-bold text-white">{col.label}</span>
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${col.countBg}`}>
+                  <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border mb-3 sm:mb-4 flex-shrink-0 ${col.headerBg}`}>
+                    <span className="text-[12px] sm:text-[13px] font-bold text-white">{col.label}</span>
+                    <span className={`text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-full border ${col.countBg}`}>
                       {colOrders.length}
                     </span>
                   </div>
 
                   {/* Scrollable grid area */}
-                  <div className="flex-1 overflow-y-auto overflow-x-hidden pb-6 pr-1 custom-scrollbar">
+                  <div className="flex-1 overflow-y-auto overflow-x-hidden pb-4 pr-1 custom-scrollbar">
                     {colOrders.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-20 text-[#3f3f46]">
+                      <div className="flex flex-col items-center justify-center py-16 text-[#3f3f46]">
                         <svg className="w-8 h-8 mb-2 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
                         </svg>
-                        <p className="text-[12px] font-medium opacity-70">Nothing here</p>
+                        <p className="text-[11px] font-medium opacity-70">Nothing here</p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 gap-5 pt-1 px-1">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-4 sm:gap-5 pt-1 px-1">
                         {colOrders.map(order => (
                           <TicketCard
                             key={order.id}

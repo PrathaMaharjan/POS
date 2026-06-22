@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import api from '@/lib/api';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MessageSquare } from 'lucide-react';
 
 type OrderStatus = 'COMPLETED' | 'CANCELLED' | 'PENDING';
 type PaymentMethod = 'CASH' | 'CARD' | 'FONEPAY' | 'QR' | 'UNPAID';
@@ -13,6 +13,7 @@ interface OrderItem {
   name: string;
   quantity: number;
   price: number;
+  notes?: string; // Captures item level kitchen instructions
 }
 
 interface Order {
@@ -34,8 +35,6 @@ interface HistoryProps {
   tenantSlug: string;
   role?: 'cashier' | 'waiter';
 }
-
-
 
 const STATUS_STYLES: Record<OrderStatus, { label: string; dot: string; text: string; bg: string }> = {
   COMPLETED: { label: 'Completed', dot: 'bg-[#22c55e]', text: 'text-[#22c55e]', bg: 'bg-[#22c55e]/10 border-[#22c55e]/20' },
@@ -92,9 +91,10 @@ export default function History({ tenantSlug: propTenantSlug, role = 'cashier' }
           const paymentMethod = firstPayment?.method?.toUpperCase() ?? 'UNPAID';
 
           const mappedItems: OrderItem[] = (o.items ?? []).map((item: any) => ({
-            name: item.product?.name ?? 'Unknown Item',
+            name: item.product?.name ?? item.name ?? 'Unknown Item',
             quantity: item.quantity,
             price: Number(item.unitPrice),
+            notes: item.notes ?? item.note ?? '',
           }));
 
           return {
@@ -123,15 +123,14 @@ export default function History({ tenantSlug: propTenantSlug, role = 'cashier' }
     fetchOrders();
   }, []);
 
-
-
   const filtered = useMemo(() => {
     return orders.filter(o => {
       const matchesStatus = statusFilter === 'ALL' || o.status === statusFilter;
       const orderNum = String(o.orderNumber || o.id);
       const matchesSearch =
         orderNum.includes(search) ||
-        o.items.some(i => i.name.toLowerCase().includes(search.toLowerCase()));
+        o.items.some(i => i.name.toLowerCase().includes(search.toLowerCase())) ||
+        o.items.some(i => i.notes?.toLowerCase().includes(search.toLowerCase()));
       return matchesStatus && matchesSearch;
     });
   }, [orders, search, statusFilter]);
@@ -157,7 +156,6 @@ export default function History({ tenantSlug: propTenantSlug, role = 'cashier' }
     };
   }, [orders]);
 
-  // FIXED: Explicitly routing back to /pos/cashier when the role is cashier
   const handleGoBack = () => {
     if (role === 'waiter') {
       router.push(`/t/${tenantSlug}/pos/waiter`);
@@ -210,7 +208,7 @@ export default function History({ tenantSlug: propTenantSlug, role = 'cashier' }
             </div>
             <input
               type="text"
-              placeholder="Search order # or item..."
+              placeholder="Search order #, item, or notes..."
               value={search}
               onChange={e => handleSearch(e.target.value)}
               className="w-full bg-[#141416] border border-neutral-800 focus:border-[#e5b83b]/60 rounded-xl py-2.5 pl-9 pr-4 text-sm text-white placeholder-neutral-500 outline-none transition-all"
@@ -311,11 +309,19 @@ export default function History({ tenantSlug: propTenantSlug, role = 'cashier' }
                       <div className="flex gap-8 flex-wrap md:flex-nowrap">
                         <div className="flex-1 min-w-[250px]">
                           <p className="text-[10px] font-bold tracking-widest text-neutral-500 uppercase mb-3">Items</p>
-                          <div className="flex flex-col gap-2">
+                          <div className="flex flex-col gap-3">
                             {order.items.map((item, idx) => (
-                              <div key={idx} className="flex justify-between text-sm">
-                                <span className="text-neutral-300">{item.quantity}x {item.name}</span>
-                                <span className="text-neutral-400">Rs.{(item.price * item.quantity).toFixed(2)}</span>
+                              <div key={idx} className="flex flex-col gap-1 text-sm border-b border-neutral-900/40 pb-2 last:border-0 last:pb-0">
+                                <div className="flex justify-between">
+                                  <span className="text-neutral-300 font-medium">{item.quantity}x {item.name}</span>
+                                  <span className="text-neutral-400">Rs.{(item.price * item.quantity).toFixed(2)}</span>
+                                </div>
+                                {item.notes && (
+                                  <div className="flex items-start gap-1.5 text-xs text-[#e5b83b]/90 bg-[#e5b83b]/5 px-2.5 py-1 rounded-lg mt-1 border border-[#e5b83b]/10 self-start max-w-full">
+                                    <MessageSquare className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[#e5b83b]/70" />
+                                    <span className="italic">{item.notes}</span>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
