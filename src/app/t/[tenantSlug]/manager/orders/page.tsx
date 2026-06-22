@@ -5,7 +5,7 @@ import api from "@/lib/api";
 import {
   ShoppingBag, Clock, CheckCircle2, XCircle,
   TrendingUp, Utensils, Armchair, Search,
-  ChevronDown, ChevronUp, Loader2,
+  Loader2, ChevronLeft, ChevronRight,
 } from "lucide-react";
 
 type OrderStatus = "pending" | "completed" | "cancelled";
@@ -32,9 +32,9 @@ interface Order {
 }
 
 const STATUS_STYLE: Record<OrderStatus, { bg: string; text: string; dot: string; label: string }> = {
-  pending:   { bg: "bg-amber-50",   text: "text-amber-700",   dot: "bg-amber-500",   label: "Pending"   },
-  completed: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", label: "Completed" },
-  cancelled: { bg: "bg-red-50",     text: "text-red-600",     dot: "bg-red-500",     label: "Cancelled" },
+  pending:   { bg: "bg-amber-50",   text: "text-amber-700",  dot: "bg-amber-500",  label: "Pending"   },
+  completed: { bg: "bg-[#f0fdf4]",  text: "text-[#0f6b4a]", dot: "bg-[#18a172]",  label: "Completed" },
+  cancelled: { bg: "bg-red-50",     text: "text-red-600",    dot: "bg-red-500",    label: "Cancelled" },
 };
 
 export default function ManagerOrdersPage() {
@@ -47,7 +47,6 @@ export default function ManagerOrdersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
-
   useEffect(() => {
     async function fetchOrders() {
       try {
@@ -59,10 +58,10 @@ export default function ManagerOrdersPage() {
         const mapped: Order[] = raw.map((o: any) => ({
           id: o.id,
           orderNumber: o.orderNumber,
-          type: o.orderType,                                       
+          type: o.orderType,
           tableName: o.table?.tableNumber ?? o.table?.name ?? null,
           customerName: o.customerName ?? null,
-          status: o.status as OrderStatus,                           
+          status: o.status as OrderStatus,
           paymentMethod: o.payments?.[0]?.method ?? "Unpaid",
           subtotal: parseFloat(o.subtotal ?? "0"),
           tax: parseFloat(o.tax ?? "0"),
@@ -86,7 +85,6 @@ export default function ManagerOrdersPage() {
     fetchOrders();
   }, []);
 
-
   const total     = orders.length;
   const completed = orders.filter(o => o.status === "completed").length;
   const pending   = orders.filter(o => o.status === "pending").length;
@@ -94,7 +92,6 @@ export default function ManagerOrdersPage() {
   const revenue   = orders
     .filter(o => o.status === "completed")
     .reduce((s, o) => s + o.total, 0);
-
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {
@@ -120,34 +117,33 @@ export default function ManagerOrdersPage() {
     <div className="flex flex-col gap-8">
 
       {/* Header */}
-      <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm">
+      <div className="rounded-xl bg-[#0f6b4a] px-6 py-5 text-white shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Orders</h1>
-
       </div>
 
       {/* Stat Cards */}
-<div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-  {[
-    { label: "Total Orders", value: total,                          border: "border-l-slate-400",   iconBg: "bg-slate-50 text-slate-600",     icon: <ShoppingBag className="h-6 w-6" /> },
-    { label: "Revenue",      value: `Rs. ${revenue.toLocaleString()}`, border: "border-l-emerald-500", iconBg: "bg-emerald-50 text-emerald-600", icon: <TrendingUp className="h-6 w-6" /> },
-    { label: "Completed",    value: completed,                      border: "border-l-emerald-500", iconBg: "bg-emerald-50 text-emerald-600", icon: <CheckCircle2 className="h-6 w-6" /> },
-    { label: "In Progress",  value: pending,                        border: "border-l-amber-500",   iconBg: "bg-amber-50 text-amber-600",     icon: <Clock className="h-6 w-6" /> },
-    { label: "Cancelled",    value: cancelled,                      border: "border-l-red-500",     iconBg: "bg-red-50 text-red-500",         icon: <XCircle className="h-6 w-6" /> },
-  ].map((s) => (
-    <div
-      key={s.label}
-      className={`rounded-xl border-l-4 ${s.border} border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between`}
-    >
-      <div>
-        <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{s.label}</p>
-        <p className="text-3xl font-bold text-slate-800 mt-1">{s.value}</p>
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {[
+          { label: "Total Orders", value: total,                             border: "border-l-slate-400",  iconBg: "bg-slate-50 text-slate-600",    icon: <ShoppingBag className="h-6 w-6" /> },
+          { label: "Revenue",      value: `Rs. ${revenue.toLocaleString()}`, border: "border-l-[#18a172]",  iconBg: "bg-[#f0fdf4] text-[#0f6b4a]",  icon: <TrendingUp className="h-6 w-6" /> },
+          { label: "Completed",    value: completed,                         border: "border-l-[#18a172]",  iconBg: "bg-[#f0fdf4] text-[#0f6b4a]",  icon: <CheckCircle2 className="h-6 w-6" /> },
+          { label: "In Progress",  value: pending,                           border: "border-l-amber-500",  iconBg: "bg-amber-50 text-amber-600",    icon: <Clock className="h-6 w-6" /> },
+          { label: "Cancelled",    value: cancelled,                         border: "border-l-red-500",    iconBg: "bg-red-50 text-red-500",        icon: <XCircle className="h-6 w-6" /> },
+        ].map((s) => (
+          <div
+            key={s.label}
+            className={`rounded-xl border-l-4 ${s.border} border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between`}
+          >
+            <div>
+              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{s.label}</p>
+              <p className="text-3xl font-bold text-slate-800 mt-1">{s.value}</p>
+            </div>
+            <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${s.iconBg}`}>
+              {s.icon}
+            </div>
+          </div>
+        ))}
       </div>
-      <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${s.iconBg}`}>
-        {s.icon}
-      </div>
-    </div>
-  ))}
-</div>
 
       {/* Search + Filter */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
@@ -158,7 +154,7 @@ export default function ManagerOrdersPage() {
             placeholder="Search order #, type, item, customer..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-            className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 placeholder:text-slate-400 focus:border-[#18a172] focus:outline-none focus:ring-1 focus:ring-[#18a172]"
           />
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -168,7 +164,7 @@ export default function ManagerOrdersPage() {
               onClick={() => { setStatusFilter(s); setCurrentPage(1); }}
               className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-colors ${
                 statusFilter === s
-                  ? "bg-emerald-600 text-white border-emerald-600"
+                  ? "bg-[#0f6b4a] text-white border-[#0f6b4a]"
                   : "bg-white text-slate-500 border-slate-200 hover:text-slate-700 hover:bg-slate-50"
               }`}
             >
@@ -223,7 +219,7 @@ export default function ManagerOrdersPage() {
                         className="hover:bg-slate-50/50 transition-colors cursor-pointer"
                         onClick={() => setExpanded(isExpanded ? null : order.id)}
                       >
-                        <td className="py-3 px-4 font-bold text-emerald-600 font-mono text-xs">
+                        <td className="py-3 px-4 font-bold text-[#0f6b4a] font-mono text-xs">
                           #{order.orderNumber}
                         </td>
                         <td className="py-3 px-4">
@@ -260,7 +256,6 @@ export default function ManagerOrdersPage() {
                         </td>
                       </tr>
 
-                 
                       {isExpanded && (
                         <tr className="bg-slate-50/60">
                           <td colSpan={7} className="px-6 py-4">
@@ -271,7 +266,7 @@ export default function ManagerOrdersPage() {
                                   {order.items.map((item, i) => (
                                     <div key={i} className="flex items-center justify-between text-xs py-2 border-b border-slate-100 last:border-0">
                                       <div className="flex items-center gap-3">
-                                        <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[10px] font-bold text-emerald-700">
+                                        <span className="w-5 h-5 rounded-full bg-[#dcfce7] flex items-center justify-center text-[10px] font-bold text-[#0f6b4a]">
                                           {item.quantity}
                                         </span>
                                         <span className="text-slate-700 font-medium">{item.name}</span>
@@ -296,7 +291,7 @@ export default function ManagerOrdersPage() {
                                   </div>
                                   <div className="flex justify-between font-bold text-slate-800 border-t border-slate-200 pt-1.5 mt-1">
                                     <span>Total</span>
-                                    <span className="text-emerald-600">Rs. {order.total.toFixed(2)}</span>
+                                    <span className="text-[#0f6b4a]">Rs. {order.total.toFixed(2)}</span>
                                   </div>
                                 </div>
                               </div>
@@ -312,56 +307,33 @@ export default function ManagerOrdersPage() {
           </table>
         </div>
 
-   
-        {filtered.length > 0 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100">
-            <span className="text-xs text-slate-400">
-              Showing {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, filtered.length)}–{Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} of {filtered.length} order{filtered.length !== 1 ? "s" : ""}
+        {/* Staff-style pagination */}
+        <div className="flex items-center justify-between border-t border-slate-100 bg-white px-6 py-4">
+          <div className="text-sm text-slate-500" />
+          <div className="flex items-center gap-6">
+            <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
+              Page {currentPage} of {totalPages || 1}
             </span>
-            {totalPages > 1 && (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                >
-                  <ChevronDown className="w-4 h-4 rotate-90" />
-                </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
-                  .reduce<(number | string)[]>((acc, p, idx, arr) => {
-                    if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) acc.push("...");
-                    acc.push(p);
-                    return acc;
-                  }, [])
-                  .map((p, idx) =>
-                    p === "..." ? (
-                      <span key={`e-${idx}`} className="w-8 h-8 flex items-center justify-center text-slate-400 text-xs">...</span>
-                    ) : (
-                      <button
-                        key={p}
-                        onClick={() => setCurrentPage(p as number)}
-                        className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-semibold transition-colors ${
-                          currentPage === p
-                            ? "bg-emerald-600 text-white"
-                            : "border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    )
-                  )}
-                <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                >
-                  <ChevronDown className="w-4 h-4 -rotate-90" />
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                disabled={currentPage === 1}
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                title="Previous Page"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                title="Next Page"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

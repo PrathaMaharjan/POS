@@ -64,7 +64,7 @@ interface OrderProps {
   tableId?: string | null;
   orderType?: 'TAKEAWAY' | 'DINE_IN';
   showHeader?: boolean;
-  role?: 'cashier' | 'waiter'; // ← add this
+  role?: 'cashier' | 'waiter'; 
   onOrderCreated?: (order: CreatedOrder) => void;
 }
 
@@ -74,47 +74,43 @@ export default function Order({
   orderType = 'TAKEAWAY',
   role = 'cashier',
   showHeader = true,
-  role,
   onOrderCreated,
 }: OrderProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
-<<<<<<< HEAD
-  const accent       = isDark ? '#e5b83b' : '#16a34a';
-  const accentText   = isDark ? '#0c0c0d' : '#ffffff';
-  const pageBg     = isDark ? '#0c0c0d' : '#f6fdf7';
-  const surfaceBg  = isDark ? '#141416' : '#edfaf0';
-  const surfaceBg2 = isDark ? '#1c1c1e' : '#d9f5df';
-  const skeletonBg = isDark ? '#1c1c1e' : '#d9f5df';
-  const borderCol  = isDark ? '#27272a' : '#a8e6b3';
-=======
-  const accent        = isDark ? '#e5b83b' : '#16a34a';
+  const accent        = isDark ? '#e5b83b' : '#059669'; 
   const accentText    = isDark ? '#0c0c0d' : '#ffffff';
-const pageBg     = isDark ? '#0c0c0d' : '#f6fdf7';
-const surfaceBg  = isDark ? '#141416' : '#edfaf0';
-const surfaceBg2 = isDark ? '#1c1c1e' : '#d9f5df';
-const skeletonBg = isDark ? '#1c1c1e' : '#d9f5df';
-const borderCol  = isDark ? '#27272a' : '#a8e6b3';
->>>>>>> d8edc6b912bf197c5579d6374c4d46cee4fe2020
+  const pageBg     = isDark ? '#0c0c0d' : '#ffffff'; 
+  const sidebarBg  = isDark ? '#0c0c0d' : '#059669'; // emerald-600, dark green for Active Order sidebar
+  const surfaceBg  = isDark ? '#141416' : '#ffffff'; 
+  const surfaceBg2 = isDark ? '#1c1c1e' : '#d1fae5'; 
+  const skeletonBg = isDark ? '#1c1c1e' : '#e2e8f0'; 
+  const borderCol  = isDark ? '#27272a' : '#e2e8f0'; 
 
-  const borderHover   = isDark ? 'rgba(229,184,59,0.6)' : 'rgba(22,163,74,0.6)';
-  const textPrim      = isDark ? '#ffffff' : '#14532d';
-  const textMuted     = isDark ? '#a1a1aa' : '#4b7a58';
-  const textFaint     = isDark ? '#52525b' : '#86efac';
-  const inputBg       = isDark ? '#141416' : '#f0fdf4';
-  const accentRing    = isDark ? 'rgba(229,184,59,0.2)' : 'rgba(22,163,74,0.2)';
-  const accentGlow    = isDark ? '0 4px 20px rgba(229,184,59,0.15)' : '0 4px 20px rgba(22,163,74,0.15)';
+  const borderHover   = isDark ? 'rgba(229,184,59,0.6)' : 'rgba(5,150,105,0.6)';
+  const textPrim      = isDark ? '#ffffff' : '#1e293b'; 
+  const textMuted     = isDark ? '#a1a1aa' : '#64748b'; 
+  const textFaint     = isDark ? '#52525b' : '#94a3b8'; 
+  const inputBg       = isDark ? '#141416' : '#ffffff';
+  const accentRing    = isDark ? 'rgba(229,184,59,0.2)' : 'rgba(5,150,105,0.2)';
+  const accentGlow    = isDark ? '0 4px 20px rgba(229,184,59,0.15)' : '0 4px 20px rgba(5,150,105,0.15)';
 
   const cartLineBg    = isDark ? '#0c0c0d' : '#f0fdf4';
-  // ─────────────────────────────────────────────────────────────
+
+  // Sidebar-specific colors (Active Order panel now has a solid dark-green bg in light mode)
+  const sidebarTextPrim   = isDark ? textPrim : '#ffffff';
+  const sidebarTextMuted  = isDark ? textMuted : 'rgba(255,255,255,0.75)';
+  const sidebarTextFaint  = isDark ? textFaint : 'rgba(255,255,255,0.55)';
+  const sidebarBorderCol  = isDark ? borderCol : 'rgba(255,255,255,0.18)';
+  const sidebarSurfaceBg  = isDark ? surfaceBg : 'rgba(255,255,255,0.12)';
+  const sidebarSurfaceBg2 = isDark ? surfaceBg2 : 'rgba(255,255,255,0.18)';
+  const sidebarAccent     = isDark ? accent : '#ffffff';
+  const sidebarAccentText = isDark ? accentText : '#059669';
 
   const [categories, setCategories] = useState<Category[]>([]);
-<<<<<<< HEAD
+  // Defaulting activeCategory to 'ALL' to view all items initially
   const [activeCategory, setActiveCategory] = useState<string | null>('ALL');
-=======
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
->>>>>>> d8edc6b912bf197c5579d6374c4d46cee4fe2020
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -144,7 +140,6 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
         const res = await api.get('/categories');
         const cats: Category[] = res.data.categories ?? [];
         setCategories(cats);
-        if (cats.length > 0) setActiveCategory(cats[0].id);
       } catch (err) {
         console.error('Failed to fetch categories:', err);
       } finally {
@@ -159,12 +154,9 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
     async function fetchProducts() {
       try {
         setIsLoadingProducts(true);
-<<<<<<< HEAD
+        // Request base product endpoint if 'ALL', otherwise attach query string
         const endpoint = activeCategory === 'ALL' ? '/product' : `/product?categoryId=${activeCategory}`;
         const res = await api.get(endpoint);
-=======
-        const res = await api.get(`/product?categoryId=${activeCategory}`)
->>>>>>> d8edc6b912bf197c5579d6374c4d46cee4fe2020
         setProducts(res.data.products ?? []);
       } catch (err) {
         console.error('Failed to fetch products:', err);
@@ -220,7 +212,6 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
     if (cart.length === 0) return;
 
     if (orderType === 'DINE_IN') {
-<<<<<<< HEAD
       try {
         setIsPlacingOrder(true);
         const res = await api.post('/orders/dine-in', {
@@ -231,38 +222,24 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
             notes: item.note || undefined,
           })),
         });
-=======
-  try {
-    setIsPlacingOrder(true);
 
-    const res = await api.post('/orders/dine-in', {
-      tableId,
-      items: cart.map(item => ({
-        productId: item.product.id,
-        quantity: item.quantity,
-        notes: item.note || undefined,
-      })),
-    });
->>>>>>> d8edc6b912bf197c5579d6374c4d46cee4fe2020
+        console.log("Dine-in order saved:", res.data);
 
-    console.log("Dine-in order saved:", res.data);
+        const newOrder: CreatedOrder = {
+          id: res.data.order.id,
+          orderNumber: res.data.order.orderNumber,
+          tableId,
+          status: 'PENDING',
+          subtotal,
+          total,
+          createdAt: new Date().toISOString(),
+          items: cart.map(item => ({
+            quantity: item.quantity,
+            name: item.product.name,
+            subtotal: parseFloat(item.product.price) * item.quantity,
+          })),
+        };
 
-    const newOrder: CreatedOrder = {
-      id: res.data.order.id,
-      orderNumber: res.data.order.orderNumber,
-      tableId,
-      status: 'PENDING',
-      subtotal,
-      total,
-      createdAt: new Date().toISOString(),
-      items: cart.map(item => ({
-        quantity: item.quantity,
-        name: item.product.name,
-        subtotal: parseFloat(item.product.price) * item.quantity,
-      })),
-    };
-
-<<<<<<< HEAD
         onOrderCreated?.(newOrder);
         handleClearCart();
       } catch (err) {
@@ -272,18 +249,6 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
       }
       return;
     }
-=======
-    onOrderCreated?.(newOrder);
-    handleClearCart();
-  } catch (err) {
-    console.error("Failed to create dine-in order", err);
-  } finally {
-    setIsPlacingOrder(false);
-  }
-
-  return;
-}
->>>>>>> d8edc6b912bf197c5579d6374c4d46cee4fe2020
 
     setIsPlacingOrder(true);
     try {
@@ -314,24 +279,6 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
     setCustomerPhone('');
     setCreatedTakeawayOrderId(null);
   };
-
-  const handleCancelOrder = async (id: string) => {
-  if (!window.confirm('Are you sure you want to cancel this order?')) return;
-
-  try {
-    await api.patch(`/orders/${id}/cancel`);
-    // Order is cancelled on the backend - clear out any local state tied to it
-    if (id === createdTakeawayOrderId) {
-      setCreatedTakeawayOrderId(null);
-      setIsPaymentOpen(false);
-      handleClearCart();
-    }
-  } catch (err: any) {
-    console.error('Failed to cancel order:', err);
-    const message = err.response?.data?.error;
-    alert(typeof message === 'string' ? message : 'Failed to cancel order. Please try again.');
-  }
-};
 
   return (
     <div
@@ -396,27 +343,20 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
                   <div key={i} style={{ backgroundColor: skeletonBg }} className="h-9 w-24 rounded-lg animate-pulse" />
                 ))}
               </div>
-            ) : categories.length === 0 ? (
-              <span className="text-sm" style={{ color: textMuted }}>No categories found</span>
             ) : (
-<<<<<<< HEAD
               <>
-=======
-              categories.map(category => (
->>>>>>> d8edc6b912bf197c5579d6374c4d46cee4fe2020
+                {/* Fixed explicitly styled "All Items" tab */}
                 <button
-                  key={category.id}
-                  onClick={() => setActiveCategory(category.id)}
+                  onClick={() => setActiveCategory('ALL')}
                   style={
-                    activeCategory === category.id
+                    activeCategory === 'ALL'
                       ? { backgroundColor: accent, color: accentText, borderColor: accent }
                       : { backgroundColor: surfaceBg2, color: textMuted, borderColor: borderCol }
                   }
                   className="px-5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap border transition-all duration-150"
                 >
-                  {category.name}
+                  All Items
                 </button>
-<<<<<<< HEAD
 
                 {categories.map(category => (
                   <button
@@ -433,9 +373,6 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
                   </button>
                 ))}
               </>
-=======
-              ))
->>>>>>> d8edc6b912bf197c5579d6374c4d46cee4fe2020
             )}
           </div>
 
@@ -485,7 +422,7 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
                           <ImageOff className="w-8 h-8" style={{ color: textFaint }} strokeWidth={1.5} />
                         )}
                         {isInCart && (
-                          <div className="absolute inset-0 flex items-center justify-center backdrop-blur-[1px]" style={{ backgroundColor: isDark ? 'rgba(12,12,13,0.65)' : 'rgba(240,253,244,0.75)' }}>
+                          <div className="absolute inset-0 flex items-center justify-center backdrop-blur-[1px]" style={{ backgroundColor: isDark ? 'rgba(12,12,13,0.65)' : 'rgba(5,150,105,0.12)' }}>
                             <div className="w-9 h-9 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: accent, color: accentText }}>
                               <Check className="w-4 h-4" strokeWidth={3} />
                             </div>
@@ -507,18 +444,18 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
         {/* Sidebar Cart */}
         <aside
           style={{
-            backgroundColor: pageBg,
-            borderColor: borderCol,
+            backgroundColor: sidebarBg,
+            borderColor: sidebarBorderCol,
           }}
           className="w-[300px] xl:w-[340px] border-l p-5 flex flex-col gap-4 overflow-hidden shrink-0"
         >
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold tracking-wide" style={{ color: textPrim }}>Active Order</h2>
+            <h2 className="text-lg font-bold tracking-wide" style={{ color: sidebarTextPrim }}>Active Order</h2>
             {cart.length > 0 && (
               <button
                 onClick={handleClearCart}
-                style={{ color: textMuted }}
-                className="p-1.5 rounded-lg transition-colors hover:text-red-500"
+                style={{ color: sidebarTextMuted }}
+                className="p-1.5 rounded-lg transition-colors hover:text-red-300"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -528,7 +465,7 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
           {/* Cart items */}
           <div className="flex-1 flex flex-col gap-2 overflow-y-auto min-h-0">
             {cart.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-2" style={{ color: textFaint }}>
+              <div className="flex-1 flex flex-col items-center justify-center gap-2" style={{ color: sidebarTextFaint }}>
                 <ShoppingCart className="w-10 h-10" strokeWidth={1.5} />
                 <span className="text-sm font-medium">Cart is empty</span>
               </div>
@@ -539,38 +476,38 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
                 return (
                   <div
                     key={item.product.id}
-                    style={{ backgroundColor: surfaceBg, borderColor: borderCol }}
+                    style={{ backgroundColor: sidebarSurfaceBg, borderColor: sidebarBorderCol }}
                     className="group relative flex items-center justify-between p-3 rounded-xl border transition-all duration-150"
-                    onMouseEnter={e => (e.currentTarget.style.borderColor = `${accent}50`)}
-                    onMouseLeave={e => (e.currentTarget.style.borderColor = borderCol)}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = isDark ? `${accent}50` : 'rgba(255,255,255,0.4)')}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = sidebarBorderCol)}
                   >
                     <div
                       className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-md opacity-0 group-hover:opacity-100 transition-opacity"
-                      style={{ backgroundColor: accent }}
+                      style={{ backgroundColor: sidebarAccent }}
                     />
                     <div className="flex items-center gap-3">
                       <div
-                        style={{ backgroundColor: surfaceBg2, borderColor: borderCol }}
+                        style={{ backgroundColor: sidebarSurfaceBg2, borderColor: sidebarBorderCol }}
                         className="flex items-center rounded-lg border p-0.5 gap-1"
                       >
                         <button
                           onClick={e => { e.stopPropagation(); handleDecreaseQuantity(item.product.id); }}
-                          style={{ color: textMuted }}
-                          className="w-6 h-6 flex items-center justify-center rounded-md hover:text-red-500 transition-colors text-sm font-bold"
+                          style={{ color: sidebarTextMuted }}
+                          className="w-6 h-6 flex items-center justify-center rounded-md hover:text-red-300 transition-colors text-sm font-bold"
                         >-</button>
-                        <span className="text-xs font-bold w-4 text-center" style={{ color: accent }}>{item.quantity}</span>
+                        <span className="text-xs font-bold w-4 text-center" style={{ color: sidebarTextPrim }}>{item.quantity}</span>
                         <button
                           onClick={e => { e.stopPropagation(); handleIncreaseQuantity(item.product.id); }}
-                          style={{ color: textMuted }}
-                          className="w-6 h-6 flex items-center justify-center rounded-md hover:text-green-500 transition-colors text-sm font-bold"
+                          style={{ color: sidebarTextMuted }}
+                          className="w-6 h-6 flex items-center justify-center rounded-md hover:text-emerald-200 transition-colors text-sm font-bold"
                         >+</button>
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-[13px] font-semibold" style={{ color: textPrim }}>{item.product.name}</span>
-                        {item.note && <span className="text-[11px]" style={{ color: textMuted }}>{item.note}</span>}
+                        <span className="text-[13px] font-semibold" style={{ color: sidebarTextPrim }}>{item.product.name}</span>
+                        {item.note && <span className="text-[11px]" style={{ color: sidebarTextMuted }}>{item.note}</span>}
                       </div>
                     </div>
-                    <span className="text-sm font-bold" style={{ color: textPrim }}>Rs.{totalItemPrice.toFixed(2)}</span>
+                    <span className="text-sm font-bold" style={{ color: sidebarTextPrim }}>Rs.{totalItemPrice.toFixed(2)}</span>
                   </div>
                 );
               })
@@ -578,7 +515,7 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
           </div>
 
           {/* Totals + CTA */}
-          <div style={{ borderColor: borderCol }} className="border-t pt-4 flex flex-col gap-3">
+          <div style={{ borderColor: sidebarBorderCol }} className="border-t pt-4 flex flex-col gap-3">
 
             {orderType === 'TAKEAWAY' && (
               <div className="flex flex-col gap-2">
@@ -587,36 +524,36 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
                   placeholder="Customer name (optional)"
                   value={customerName}
                   onChange={e => setCustomerName(e.target.value)}
-                  style={{ backgroundColor: inputBg, borderColor: borderCol, color: textPrim }}
-                  className="w-full border rounded-xl py-2 px-3 text-sm outline-none transition-all duration-150 placeholder-neutral-400"
-                  onFocus={e => (e.currentTarget.style.borderColor = accent)}
-                  onBlur={e => (e.currentTarget.style.borderColor = borderCol)}
+                  style={{ backgroundColor: sidebarSurfaceBg, borderColor: sidebarBorderCol, color: sidebarTextPrim }}
+                  className="w-full border rounded-xl py-2 px-3 text-sm outline-none transition-all duration-150 placeholder-white/50"
+                  onFocus={e => (e.currentTarget.style.borderColor = sidebarAccent)}
+                  onBlur={e => (e.currentTarget.style.borderColor = sidebarBorderCol)}
                 />
                 <input
                   type="text"
                   placeholder="Phone number (optional)"
                   value={customerPhone}
                   onChange={e => setCustomerPhone(e.target.value)}
-                  style={{ backgroundColor: inputBg, borderColor: borderCol, color: textPrim }}
-                  className="w-full border rounded-xl py-2 px-3 text-sm outline-none transition-all duration-150 placeholder-neutral-400"
-                  onFocus={e => (e.currentTarget.style.borderColor = accent)}
-                  onBlur={e => (e.currentTarget.style.borderColor = borderCol)}
+                  style={{ backgroundColor: sidebarSurfaceBg, borderColor: sidebarBorderCol, color: sidebarTextPrim }}
+                  className="w-full border rounded-xl py-2 px-3 text-sm outline-none transition-all duration-150 placeholder-white/50"
+                  onFocus={e => (e.currentTarget.style.borderColor = sidebarAccent)}
+                  onBlur={e => (e.currentTarget.style.borderColor = sidebarBorderCol)}
                 />
               </div>
             )}
 
             <div className="space-y-1.5">
               <div className="flex justify-between text-sm">
-                <span style={{ color: textMuted }}>Subtotal</span>
-                <span className="font-semibold" style={{ color: textPrim }}>Rs.{subtotal.toFixed(2)}</span>
+                <span style={{ color: sidebarTextMuted }}>Subtotal</span>
+                <span className="font-semibold" style={{ color: sidebarTextPrim }}>Rs.{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span style={{ color: textMuted }}>Tax (8%)</span>
-                <span className="font-semibold" style={{ color: textPrim }}>Rs.{tax.toFixed(2)}</span>
+                <span style={{ color: sidebarTextMuted }}>Tax (8%)</span>
+                <span className="font-semibold" style={{ color: sidebarTextPrim }}>Rs.{tax.toFixed(2)}</span>
               </div>
-              <div style={{ borderColor: borderCol }} className="flex justify-between font-bold border-t pt-2 mt-1">
-                <span style={{ color: textPrim }}>Total</span>
-                <span className="text-xl" style={{ color: accent }}>Rs.{total.toFixed(2)}</span>
+              <div style={{ borderColor: sidebarBorderCol }} className="flex justify-between font-bold border-t pt-2 mt-1">
+                <span style={{ color: sidebarTextPrim }}>Total</span>
+                <span className="text-xl" style={{ color: sidebarTextPrim }}>Rs.{total.toFixed(2)}</span>
               </div>
             </div>
 
@@ -624,9 +561,9 @@ const borderCol  = isDark ? '#27272a' : '#a8e6b3';
               onClick={handleAction}
               disabled={cart.length === 0 || isPlacingOrder}
               style={{
-                backgroundColor: accent,
-                color: accentText,
-                boxShadow: accentGlow,
+                backgroundColor: sidebarAccent,
+                color: sidebarAccentText,
+                boxShadow: isDark ? accentGlow : '0 4px 20px rgba(0,0,0,0.15)',
               }}
               className="w-full font-bold text-[14px] py-3 rounded-xl flex items-center justify-center gap-2 transition-all duration-150 hover:opacity-90 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
             >

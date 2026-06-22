@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import {
   CreditCard, Banknote, Smartphone, TrendingUp,
-  CheckCircle2, Clock, Search, ChevronDown, Loader2,
+  CheckCircle2, Clock, Search, Loader2,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import api from "@/lib/api";
 
@@ -27,15 +28,17 @@ interface Pagination {
 }
 
 const METHOD_LABEL: Record<string, string> = {
-  cash: "Cash",
-  card: "Card",
-  qr:   "QR / eSewa",
+  cash:  "Cash",
+  card:  "Card",
+  qr:    "QR",
+ 
 };
 
 const METHOD_STYLE: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-  cash: { bg: "bg-emerald-50", text: "text-emerald-700", icon: <Banknote className="w-3.5 h-3.5" />  },
-  card: { bg: "bg-blue-50",    text: "text-blue-700",    icon: <CreditCard className="w-3.5 h-3.5" /> },
-  qr:   { bg: "bg-purple-50",  text: "text-purple-700",  icon: <Smartphone className="w-3.5 h-3.5" /> },
+  cash:  { bg: "bg-[#f0fdf4]", text: "text-[#0f6b4a]", icon: <Banknote className="w-3.5 h-3.5" />  },
+  card:  { bg: "bg-blue-50",   text: "text-blue-700",   icon: <CreditCard className="w-3.5 h-3.5" /> },
+  qr:    { bg: "bg-purple-50", text: "text-purple-700", icon: <Smartphone className="w-3.5 h-3.5" /> },
+
 };
 
 const ITEMS_PER_PAGE = 10;
@@ -48,7 +51,6 @@ export default function PaymentsPage() {
   const [search, setSearch]           = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
-  // ── fetch paginated payment history ──
   useEffect(() => {
     async function fetchPayments() {
       setIsLoading(true);
@@ -68,8 +70,8 @@ export default function PaymentsPage() {
     fetchPayments();
   }, [currentPage]);
 
-  const totalReceived  = payments.reduce((s, p) => s + p.amount, 0);
-  const totalCount     = pagination?.total ?? payments.length;
+  const totalReceived = payments.reduce((s, p) => s + p.amount, 0);
+  const totalCount    = pagination?.total ?? payments.length;
 
   const filtered = payments.filter((p) => {
     const q = search.toLowerCase();
@@ -85,20 +87,20 @@ export default function PaymentsPage() {
     <div className="flex flex-col gap-8">
 
       {/* Header */}
-      <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm">
+      <div className="rounded-xl bg-[#0f6b4a] px-6 py-5 text-white shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Payment Ledger</h1>
       </div>
 
-      {/* Summary Cards — unchanged from original */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="rounded-xl border-l-4 border-l-emerald-500 border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between">
+        <div className="rounded-xl border-l-4 border-l-[#18a172] border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Net Revenue</p>
             <p className="text-3xl font-bold text-slate-800 mt-1">
               Rs. {totalReceived.toLocaleString()}
             </p>
           </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#f0fdf4] text-[#0f6b4a]">
             <CheckCircle2 className="h-6 w-6" />
           </div>
         </div>
@@ -131,8 +133,8 @@ export default function PaymentsPage() {
           type="text"
           placeholder="Search by order, table, method..."
           value={search}
-          onChange={(e) => { setSearch(e.target.value); }}
-          className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 placeholder:text-slate-400 focus:border-[#18a172] focus:outline-none focus:ring-1 focus:ring-[#18a172]"
         />
       </div>
 
@@ -175,10 +177,9 @@ export default function PaymentsPage() {
                 filtered.map((pay) => {
                   const ms = METHOD_STYLE[pay.method] ?? METHOD_STYLE.cash;
                   const tableLabel = pay.tableNumber ?? "Takeaway";
-
                   return (
                     <tr key={pay.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3 px-4 font-bold text-emerald-600 font-mono text-xs">
+                      <td className="py-3 px-4 font-bold text-[#0f6b4a] font-mono text-xs">
                         #{pay.orderNumber}
                       </td>
                       <td className="py-3 px-4 text-slate-500 text-xs">
@@ -209,57 +210,33 @@ export default function PaymentsPage() {
           </table>
         </div>
 
-        {/* Pagination */}
-        {pagination && pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100">
-            <span className="text-xs text-slate-400">
-              Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
-              {Math.min(currentPage * ITEMS_PER_PAGE, pagination.total)} of {pagination.total}
+        {/* Staff-style pagination */}
+        <div className="flex items-center justify-between border-t border-slate-100 bg-white px-6 py-4">
+          <div className="text-sm text-slate-500" />
+          <div className="flex items-center gap-6">
+            <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
+              Page {currentPage} of {pagination?.totalPages ?? 1}
             </span>
             <div className="flex items-center gap-1">
               <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                 disabled={currentPage === 1}
-                className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                title="Previous Page"
               >
-                <ChevronDown className="w-4 h-4 rotate-90" />
+                <ChevronLeft className="h-5 w-5" />
               </button>
-
-              {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
-                .filter((p) => p === 1 || p === pagination.totalPages || Math.abs(p - currentPage) <= 1)
-                .reduce<(number | string)[]>((acc, p, idx, arr) => {
-                  if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) acc.push("...");
-                  acc.push(p);
-                  return acc;
-                }, [])
-                .map((p, idx) =>
-                  p === "..." ? (
-                    <span key={`e-${idx}`} className="w-8 h-8 flex items-center justify-center text-slate-400 text-xs">...</span>
-                  ) : (
-                    <button
-                      key={p}
-                      onClick={() => setCurrentPage(p as number)}
-                      className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-semibold transition-colors ${
-                        currentPage === p
-                          ? "bg-emerald-600 text-white"
-                          : "border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  )
-                )}
-
               <button
-                onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
-                disabled={currentPage === pagination.totalPages}
-                className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                onClick={() => setCurrentPage((p) => Math.min(p + 1, pagination?.totalPages ?? 1))}
+                disabled={currentPage === (pagination?.totalPages ?? 1)}
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                title="Next Page"
               >
-                <ChevronDown className="w-4 h-4 -rotate-90" />
+                <ChevronRight className="h-5 w-5" />
               </button>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
