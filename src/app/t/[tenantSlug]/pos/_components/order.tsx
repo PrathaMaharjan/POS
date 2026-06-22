@@ -63,8 +63,8 @@ interface OrderProps {
   tenantSlug: string;
   tableId?: string | null;
   orderType?: 'TAKEAWAY' | 'DINE_IN';
-  role?: 'cashier' | 'waiter';
   showHeader?: boolean;
+  role?: 'cashier' | 'waiter'; // ← add this
   onOrderCreated?: (order: CreatedOrder) => void;
 }
 
@@ -74,11 +74,13 @@ export default function Order({
   orderType = 'TAKEAWAY',
   role = 'cashier',
   showHeader = true,
+  role,
   onOrderCreated,
 }: OrderProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
+<<<<<<< HEAD
   const accent       = isDark ? '#e5b83b' : '#16a34a';
   const accentText   = isDark ? '#0c0c0d' : '#ffffff';
   const pageBg     = isDark ? '#0c0c0d' : '#f6fdf7';
@@ -86,6 +88,15 @@ export default function Order({
   const surfaceBg2 = isDark ? '#1c1c1e' : '#d9f5df';
   const skeletonBg = isDark ? '#1c1c1e' : '#d9f5df';
   const borderCol  = isDark ? '#27272a' : '#a8e6b3';
+=======
+  const accent        = isDark ? '#e5b83b' : '#16a34a';
+  const accentText    = isDark ? '#0c0c0d' : '#ffffff';
+const pageBg     = isDark ? '#0c0c0d' : '#f6fdf7';
+const surfaceBg  = isDark ? '#141416' : '#edfaf0';
+const surfaceBg2 = isDark ? '#1c1c1e' : '#d9f5df';
+const skeletonBg = isDark ? '#1c1c1e' : '#d9f5df';
+const borderCol  = isDark ? '#27272a' : '#a8e6b3';
+>>>>>>> d8edc6b912bf197c5579d6374c4d46cee4fe2020
 
   const borderHover   = isDark ? 'rgba(229,184,59,0.6)' : 'rgba(22,163,74,0.6)';
   const textPrim      = isDark ? '#ffffff' : '#14532d';
@@ -96,9 +107,14 @@ export default function Order({
   const accentGlow    = isDark ? '0 4px 20px rgba(229,184,59,0.15)' : '0 4px 20px rgba(22,163,74,0.15)';
 
   const cartLineBg    = isDark ? '#0c0c0d' : '#f0fdf4';
+  // ─────────────────────────────────────────────────────────────
 
   const [categories, setCategories] = useState<Category[]>([]);
+<<<<<<< HEAD
   const [activeCategory, setActiveCategory] = useState<string | null>('ALL');
+=======
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+>>>>>>> d8edc6b912bf197c5579d6374c4d46cee4fe2020
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -128,6 +144,7 @@ export default function Order({
         const res = await api.get('/categories');
         const cats: Category[] = res.data.categories ?? [];
         setCategories(cats);
+        if (cats.length > 0) setActiveCategory(cats[0].id);
       } catch (err) {
         console.error('Failed to fetch categories:', err);
       } finally {
@@ -142,8 +159,12 @@ export default function Order({
     async function fetchProducts() {
       try {
         setIsLoadingProducts(true);
+<<<<<<< HEAD
         const endpoint = activeCategory === 'ALL' ? '/product' : `/product?categoryId=${activeCategory}`;
         const res = await api.get(endpoint);
+=======
+        const res = await api.get(`/product?categoryId=${activeCategory}`)
+>>>>>>> d8edc6b912bf197c5579d6374c4d46cee4fe2020
         setProducts(res.data.products ?? []);
       } catch (err) {
         console.error('Failed to fetch products:', err);
@@ -199,6 +220,7 @@ export default function Order({
     if (cart.length === 0) return;
 
     if (orderType === 'DINE_IN') {
+<<<<<<< HEAD
       try {
         setIsPlacingOrder(true);
         const res = await api.post('/orders/dine-in', {
@@ -209,24 +231,38 @@ export default function Order({
             notes: item.note || undefined,
           })),
         });
+=======
+  try {
+    setIsPlacingOrder(true);
 
-        console.log("Dine-in order saved:", res.data);
+    const res = await api.post('/orders/dine-in', {
+      tableId,
+      items: cart.map(item => ({
+        productId: item.product.id,
+        quantity: item.quantity,
+        notes: item.note || undefined,
+      })),
+    });
+>>>>>>> d8edc6b912bf197c5579d6374c4d46cee4fe2020
 
-        const newOrder: CreatedOrder = {
-          id: res.data.order.id,
-          orderNumber: res.data.order.orderNumber,
-          tableId,
-          status: 'PENDING',
-          subtotal,
-          total,
-          createdAt: new Date().toISOString(),
-          items: cart.map(item => ({
-            quantity: item.quantity,
-            name: item.product.name,
-            subtotal: parseFloat(item.product.price) * item.quantity,
-          })),
-        };
+    console.log("Dine-in order saved:", res.data);
 
+    const newOrder: CreatedOrder = {
+      id: res.data.order.id,
+      orderNumber: res.data.order.orderNumber,
+      tableId,
+      status: 'PENDING',
+      subtotal,
+      total,
+      createdAt: new Date().toISOString(),
+      items: cart.map(item => ({
+        quantity: item.quantity,
+        name: item.product.name,
+        subtotal: parseFloat(item.product.price) * item.quantity,
+      })),
+    };
+
+<<<<<<< HEAD
         onOrderCreated?.(newOrder);
         handleClearCart();
       } catch (err) {
@@ -236,6 +272,18 @@ export default function Order({
       }
       return;
     }
+=======
+    onOrderCreated?.(newOrder);
+    handleClearCart();
+  } catch (err) {
+    console.error("Failed to create dine-in order", err);
+  } finally {
+    setIsPlacingOrder(false);
+  }
+
+  return;
+}
+>>>>>>> d8edc6b912bf197c5579d6374c4d46cee4fe2020
 
     setIsPlacingOrder(true);
     try {
@@ -266,6 +314,24 @@ export default function Order({
     setCustomerPhone('');
     setCreatedTakeawayOrderId(null);
   };
+
+  const handleCancelOrder = async (id: string) => {
+  if (!window.confirm('Are you sure you want to cancel this order?')) return;
+
+  try {
+    await api.patch(`/orders/${id}/cancel`);
+    // Order is cancelled on the backend - clear out any local state tied to it
+    if (id === createdTakeawayOrderId) {
+      setCreatedTakeawayOrderId(null);
+      setIsPaymentOpen(false);
+      handleClearCart();
+    }
+  } catch (err: any) {
+    console.error('Failed to cancel order:', err);
+    const message = err.response?.data?.error;
+    alert(typeof message === 'string' ? message : 'Failed to cancel order. Please try again.');
+  }
+};
 
   return (
     <div
@@ -330,19 +396,27 @@ export default function Order({
                   <div key={i} style={{ backgroundColor: skeletonBg }} className="h-9 w-24 rounded-lg animate-pulse" />
                 ))}
               </div>
+            ) : categories.length === 0 ? (
+              <span className="text-sm" style={{ color: textMuted }}>No categories found</span>
             ) : (
+<<<<<<< HEAD
               <>
+=======
+              categories.map(category => (
+>>>>>>> d8edc6b912bf197c5579d6374c4d46cee4fe2020
                 <button
-                  onClick={() => setActiveCategory('ALL')}
+                  key={category.id}
+                  onClick={() => setActiveCategory(category.id)}
                   style={
-                    activeCategory === 'ALL'
+                    activeCategory === category.id
                       ? { backgroundColor: accent, color: accentText, borderColor: accent }
                       : { backgroundColor: surfaceBg2, color: textMuted, borderColor: borderCol }
                   }
                   className="px-5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap border transition-all duration-150"
                 >
-                  All Items
+                  {category.name}
                 </button>
+<<<<<<< HEAD
 
                 {categories.map(category => (
                   <button
@@ -359,6 +433,9 @@ export default function Order({
                   </button>
                 ))}
               </>
+=======
+              ))
+>>>>>>> d8edc6b912bf197c5579d6374c4d46cee4fe2020
             )}
           </div>
 

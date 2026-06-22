@@ -1,7 +1,7 @@
 import { ControllerResult } from "@/controller/orderController";
 import { db } from "@/db";
 import { diningTables, orders, payments } from "@/db/schema";
-import { eq, ne, notInArray } from "drizzle-orm";
+import { and, desc, eq, gte, lte, ne, notInArray, sql } from "drizzle-orm";
 
 export type PaymentMethod = "cash" | "card" | "qr";
 export async function createPayment(
@@ -16,7 +16,7 @@ export async function createPayment(
     order: typeof orders.$inferSelect;
     totalPaid: number;
     balanceDue: number;
-    changeDue: number; // 🆕 Added to return structure to track change handed back to customer
+    changeDue: number; 
   }>
 > {
   // 1. Query the 'orders' table to find a single row matching this orderId and outletId
@@ -56,24 +56,21 @@ export async function createPayment(
   });
 
   // 7. Calculate total money already received by converting and summing up all previous payments
-  const paidSoFar = Number(
-    existingPayments.reduce((sum, p) => sum + Number(p.amount), 0).toFixed(2)
+  const paidSoFar = existingPayments.reduce(
+    (sum, p) => sum + Number(p.amount),
+    0,
   );
 
   // 8. Determine what the customer still owes right *before* this new transaction is applied (minimum 0)
-  const owedBeforeThisPayment = Number(
-    Math.max(orderTotal - paidSoFar, 0).toFixed(2)
-  );
+  const owedBeforeThisPayment = Math.max(orderTotal - paidSoFar, 0);
 
   // 9. NEW (Cash Capping): If cash, don't record overpayments in the DB (e.g., if $20 is handed for a $15 bill, only record $15)
-  const amountToRecord = Number(
-    (method === "cash" ? Math.min(amount, owedBeforeThisPayment) : amount).toFixed(2)
-  );
+  const amountToRecord =
+    method === "cash" ? Math.min(amount, owedBeforeThisPayment) : amount;
 
   // 10. NEW (Change Calculation): If cash, compute the change due to the customer (e.g., $20 cash - $15 bill = $5 change)
-  const changeDue = Number(
-    (method === "cash" ? Math.max(amount - owedBeforeThisPayment, 0) : 0).toFixed(2)
-  );
+  const changeDue =
+    method === "cash" ? Math.max(amount - owedBeforeThisPayment, 0) : 0;
 
   // 11. Wrap database operations in a try/catch block to securely isolate database or connection faults
   try {
@@ -90,13 +87,13 @@ export async function createPayment(
       .returning(); // Instructs the database engine to return the fully generated row
 
     // 13. Derive the new absolute total paid by combining past history with the capped value we just wrote
-    const totalPaid = Number((paidSoFar + amountToRecord).toFixed(2));
+    const totalPaid = paidSoFar + amountToRecord;
 
     // 14. Redundant assignment (already declared on line 5): Re-casting order total to a number
     const orderTotal = Number(order.total);
 
     // 15. Compute the final remaining balance due on this order (forces 0 if fully or over-paid)
-    const balanceDue = Number(Math.max(orderTotal - totalPaid, 0).toFixed(2));
+    const balanceDue = Math.max(orderTotal - totalPaid, 0);
 
     // 16. Initialize a tracking variable holding the original order data to dynamically alter if closed
     let updatedOrder = order;
@@ -172,4 +169,175 @@ export async function listPaymentsForOrder(outletId: string, orderId: string) {
       orderTotal: Number(order.total),
     },
   } as const;
+}
+
+// NEPAL TIMEZONE HELPER (UTC+5:45) 
+const NEPAL_OFFSET_MS = 345 * 60 * 1000;
+
+function getNepalDayBounds(dateStr?: string): { start: Date; end: Date; date: string } {
+  let nepalNow: Date;
+
+  if (dateStr) {
+    nepalNow = new Date(`${dateStr}T00:00:00.000Z`);
+  } else {
+    const now = new Date();
+    nepalNow = new Date(now.getTime() + NEPAL_OFFSET_MS);
+  }
+
+  const nepalStart = new Date(nepalNow);
+  nepalStart.setUTCHours(0, 0, 0, 0);
+
+  const nepalEnd = new Date(nepalNow);
+  nepalEnd.setUTCHours(23, 59, 59, 999);
+
+  // extract YYYY-MM-DD from nepalNow (already shifted to Nepal time)
+  const date = nepalNow.toISOString().split("T")[0];
+
+  return {
+    start: new Date(nepalStart.getTime() - NEPAL_OFFSET_MS),
+    end: new Date(nepalEnd.getTime() - NEPAL_OFFSET_MS),
+    date, // "2026-04-17"
+  };
+}
+
+
+export async function getPaymentHistory(
+  outletId: string,
+  limit: number,
+  offset: number,
+  dateStr?: string
+) {
+  const dateFilter = dateStr ? getNepalDayBounds(dateStr) : null;
+
+  const whereConditions = [
+    eq(payments.outletId, outletId),
+    ...(dateFilter
+      ? [
+          gte(payments.createdAt, dateFilter.start),
+          lte(payments.createdAt, dateFilter.end),
+        ]
+      : []),
+  ];
+
+  const [rows, totalResult] = await Promise.all([
+    db
+      .select({
+        id: payments.id,
+        method: payments.method,
+        amount: payments.amount,
+        createdAt: payments.createdAt,
+        orderId: payments.orderId,
+        orderNumber: orders.orderNumber,
+        orderType: orders.orderType,
+        tableNumber: diningTables.tableNumber, // ← added
+      })
+      .from(payments)
+      .innerJoin(orders, eq(payments.orderId, orders.id))
+      .leftJoin(diningTables, eq(orders.tableId, diningTables.id)) // ← LEFT JOIN so takeaway orders still appear
+      .where(and(...whereConditions))
+      .orderBy(desc(payments.createdAt))
+      .limit(limit)
+      .offset(offset),
+
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(payments)
+      .where(and(...whereConditions)),
+  ]);
+
+  return {
+    payments: rows.map((p) => ({
+    ...p,
+    amount: Number(p.amount),
+    tableNumber: p.tableNumber ?? null,
+
+    // ── ADD THESE TWO ──
+
+    // 1. Nepal date only "2026-04-17"
+    date: new Date(
+      new Date(p.createdAt).getTime() + NEPAL_OFFSET_MS
+    ).toISOString().split("T")[0],
+
+    // 2. Nepal full datetime "2026-04-17 14:30:25"
+    createdAtNepal: new Date(
+      new Date(p.createdAt).getTime() + NEPAL_OFFSET_MS
+    ).toISOString().replace("T", " ").split(".")[0],
+  })),
+    total: Number(totalResult[0]?.count ?? 0),
+  };
+}
+
+
+// --------------------------------- TODAY'S REVENUE + PAYMENT BREAKDOWN BY METHOD -----------------------------------------------
+export async function getDailyReport(outletId: string, dateStr?: string) {
+  const { start, end } = getNepalDayBounds(dateStr);
+
+  const [revenueResult, breakdownResult, orderCountResult] = await Promise.all([
+    // total revenue for the day
+    db
+      .select({ total: sql<string>`COALESCE(SUM(${payments.amount}), 0)` })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.outletId, outletId),
+          gte(payments.createdAt, start),
+          lte(payments.createdAt, end)
+        )
+      ),
+
+    // breakdown by payment method
+    db
+      .select({
+        method: payments.method,
+        total: sql<string>`COALESCE(SUM(${payments.amount}), 0)`,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.outletId, outletId),
+          gte(payments.createdAt, start),
+          lte(payments.createdAt, end)
+        )
+      )
+      .groupBy(payments.method),
+
+    // total order count for the day
+    db
+      .select({ count: sql<number>`COUNT(DISTINCT ${orders.id})` })
+      .from(orders)
+      .innerJoin(payments, eq(payments.orderId, orders.id))
+      .where(
+        and(
+          eq(orders.outletId, outletId),
+          gte(payments.createdAt, start),
+          lte(payments.createdAt, end)
+        )
+      ),
+  ]);
+
+  // build breakdown with all three methods always present
+  const methodMap: Record<string, { total: number; count: number }> = {
+    cash: { total: 0, count: 0 },
+    card: { total: 0, count: 0 },
+    qr: { total: 0, count: 0 },
+  };
+
+  breakdownResult.forEach((row) => {
+    methodMap[row.method] = {
+      total: Number(row.total),
+      count: Number(row.count),
+    };
+  });
+
+  return {
+    date: dateStr ?? new Date(Date.now() + NEPAL_OFFSET_MS).toISOString().split("T")[0],
+    totalRevenue: Number(revenueResult[0]?.total ?? 0),
+    totalOrders: Number(orderCountResult[0]?.count ?? 0),
+    breakdown: {
+      cash: methodMap.cash,
+      card: methodMap.card,
+      qr: methodMap.qr,
+    },
+  };
 }
