@@ -3,7 +3,12 @@ import { orderItems, orders, payments, products } from "@/db/schema";
 import { and, desc, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 
 const NEPAL_OFFSET_MS = 345 * 60 * 1000;
-
+export interface TrendPoint {
+  label: string;
+  total: number;
+  count: number;
+}
+// their existing function — correct ✅
 function getNepalDayBounds(): { start: Date; end: Date } {
   const now = new Date();
   const nepalNow = new Date(now.getTime() + NEPAL_OFFSET_MS);
@@ -13,6 +18,40 @@ function getNepalDayBounds(): { start: Date; end: Date } {
 
   const nepalEnd = new Date(nepalNow);
   nepalEnd.setUTCHours(23, 59, 59, 999);
+
+  return {
+    start: new Date(nepalStart.getTime() - NEPAL_OFFSET_MS),
+    end: new Date(nepalEnd.getTime() - NEPAL_OFFSET_MS),
+  };
+}
+
+function getNepalWeekBounds(): { start: Date; end: Date } {
+  const now = new Date();
+  const nepalNow = new Date(now.getTime() + NEPAL_OFFSET_MS);
+
+  const nepalEnd = new Date(nepalNow);
+  nepalEnd.setUTCHours(23, 59, 59, 999);
+
+  const nepalStart = new Date(nepalNow);
+  nepalStart.setUTCDate(nepalStart.getUTCDate() - 6); // last 7 days
+  nepalStart.setUTCHours(0, 0, 0, 0);
+
+  return {
+    start: new Date(nepalStart.getTime() - NEPAL_OFFSET_MS),
+    end: new Date(nepalEnd.getTime() - NEPAL_OFFSET_MS),
+  };
+}
+
+function getNepalMonthBounds(): { start: Date; end: Date } {
+  const now = new Date();
+  const nepalNow = new Date(now.getTime() + NEPAL_OFFSET_MS);
+
+  const nepalEnd = new Date(nepalNow);
+  nepalEnd.setUTCHours(23, 59, 59, 999);
+
+  const nepalStart = new Date(nepalNow);
+  nepalStart.setUTCDate(nepalStart.getUTCDate() - 27); // last 4 weeks
+  nepalStart.setUTCHours(0, 0, 0, 0);
 
   return {
     start: new Date(nepalStart.getTime() - NEPAL_OFFSET_MS),
@@ -63,97 +102,132 @@ export async function getTopProducts(outletId: string, limit = 3) {
 // ----------------------------------sale trends -----------------------------------------------
 export type TrendPeriod = "hourly" | "weekly" | "monthly";
 
-export async function getSalesTrend(
-  outletId: string,
-  period: TrendPeriod = "hourly",
-) {
-  let now = new Date();
-  const nepalNow = new Date(now.getTime() + NEPAL_OFFSET_MS);
 
-  let start: Date;
-  let end: Date;
-  let groupExpr: ReturnType<typeof sql>;
-  let labelExpr: ReturnType<typeof sql>;
 
-  if (period === "hourly") {
-    const dayStart = new Date(nepalNow);
-    dayStart.setUTCHours(0, 0, 0, 0);
-    const dayEnd = new Date(nepalNow);
-    dayEnd.setUTCHours(23, 59, 59, 999);
-
-    start = new Date(dayStart.getTime() - NEPAL_OFFSET_MS);
-    end = new Date(dayEnd.getTime() - NEPAL_OFFSET_MS);
-
-    groupExpr = sql`EXTRACT(HOUR FROM (${payments.createdAt} + INTERVAL '5 hours 45 minutes'))::int`;
-    labelExpr = sql`LPAD(EXTRACT(HOUR FROM (${payments.createdAt} + INTERVAL '5 hours 45 minutes'))::text, 2, '0') || ':00'`;
-  } else if (period == "weekly") {
-    const weekAgo = new Date(nepalNow);
-    weekAgo.setUTCDate(weekAgo.getUTCDate() - 6);
-    weekAgo.setUTCHours(0, 0, 0, 0);
-
-    const dayEnd = new Date(nepalNow);
-    dayEnd.setUTCHours(23, 59, 59, 999);
-
-    start = new Date(weekAgo.getTime() - NEPAL_OFFSET_MS);
-    end = new Date(dayEnd.getTime() - NEPAL_OFFSET_MS);
-
-    // DATE in Nepal time
-    groupExpr = sql`DATE((${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC')`;
-    labelExpr = sql`TO_CHAR((${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC', 'Mon DD')`;
-  } else {
-    // monthly — last 4 weeks — group by week number (Nepal time)
-    const monthAgo = new Date(nepalNow);
-    monthAgo.setUTCDate(monthAgo.getUTCDate() - 27); // 4 weeks = 28 days
-    monthAgo.setUTCHours(0, 0, 0, 0);
-
-    const dayEnd = new Date(nepalNow);
-    dayEnd.setUTCHours(23, 59, 59, 999);
-
-    start = new Date(monthAgo.getTime() - NEPAL_OFFSET_MS);
-    end = new Date(dayEnd.getTime() - NEPAL_OFFSET_MS);
-
-    // week start date (Monday) in Nepal time
-    groupExpr = sql`DATE_TRUNC('week', (${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC')`;
-    labelExpr = sql`'Week of ' || TO_CHAR(DATE_TRUNC('week', (${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC'), 'Mon DD')`;
-  }
+// ------------------------------get ALl ------------------------
+async function getHourlyTrend(outletId: string): Promise<TrendPoint[]> {
+  const { start, end } = getNepalDayBounds();
 
   const rows = await db
     .select({
-      label: labelExpr,
-      groupKey: groupExpr,
+      hour: sql<number>`EXTRACT(HOUR FROM (${payments.createdAt} + INTERVAL '5 hours 45 minutes'))::int`,
       total: sql<string>`COALESCE(SUM(${payments.amount}), 0)`,
-      count: sql<number>`COUNT(*)`,
+      count: sql<number>`COUNT(*)::int`,
     })
     .from(payments)
     .where(
       and(
         eq(payments.outletId, outletId),
         gte(payments.createdAt, start),
-        lte(payments.createdAt, end),
-      ),
+        lte(payments.createdAt, end)
+      )
     )
-    .groupBy(groupExpr, labelExpr)
-    .orderBy(groupExpr);
+    .groupBy(
+      sql`EXTRACT(HOUR FROM (${payments.createdAt} + INTERVAL '5 hours 45 minutes'))::int`
+    )
+    .orderBy(
+      sql`EXTRACT(HOUR FROM (${payments.createdAt} + INTERVAL '5 hours 45 minutes'))::int`
+    );
 
   return rows.map((r) => ({
-    label: String(r.label),
+    label: `${String(r.hour).padStart(2, "0")}:00`, // "08:00", "14:00"
     total: Number(r.total),
     count: Number(r.count),
   }));
 }
 
-// ------------------------------get ALl ------------------------
+async function getWeeklyTrend(outletId: string): Promise<TrendPoint[]> {
+  const { start, end } = getNepalWeekBounds();
+
+  const rows = await db
+    .select({
+      dayName: sql<string>`TRIM(TO_CHAR((${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC', 'Day'))`,
+      dayDate: sql<string>`DATE((${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC')`,
+      total:   sql<string>`COALESCE(SUM(${payments.amount}), 0)`,
+      count:   sql<number>`COUNT(*)::int`,
+    })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.outletId, outletId),
+        gte(payments.createdAt, start),
+        lte(payments.createdAt, end)
+      )
+    )
+    .groupBy(
+      sql`DATE((${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC')`,
+      sql`TRIM(TO_CHAR((${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC', 'Day'))`
+    )
+    .orderBy(
+      sql`DATE((${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC')`
+    );
+
+  return rows.map((r) => ({
+    label: r.dayName, // "Monday", "Tuesday" etc.
+    total: Number(r.total),
+    count: Number(r.count),
+  }));
+}
+
+async function getMonthlyTrend(outletId: string): Promise<TrendPoint[]> {
+  const { start, end } = getNepalMonthBounds();
+
+  const rows = await db
+    .select({
+      weekStart: sql<string>`DATE_TRUNC('week', (${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC')`,
+      total:     sql<string>`COALESCE(SUM(${payments.amount}), 0)`,
+      count:     sql<number>`COUNT(*)::int`,
+    })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.outletId, outletId),
+        gte(payments.createdAt, start),
+        lte(payments.createdAt, end)
+      )
+    )
+    .groupBy(
+      sql`DATE_TRUNC('week', (${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC')`
+    )
+    .orderBy(
+      sql`DATE_TRUNC('week', (${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC')`
+    );
+
+  // label as "Week 1", "Week 2" etc.
+  return rows.map((r, index) => ({
+    label: `Week ${index + 1}`,
+    total: Number(r.total),
+    count: Number(r.count),
+  }));
+
+}
+
+export async function getSalesTrend(
+  outletId: string,
+  period: TrendPeriod
+): Promise<TrendPoint[]> {
+  switch (period) {
+    case "hourly":  return getHourlyTrend(outletId);
+    case "weekly":  return getWeeklyTrend(outletId);
+    case "monthly": return getMonthlyTrend(outletId);
+  }
+}
+
+
+
 export async function getDashboardData(
   outletId: string,
   organizationId: string,
-  period: TrendPeriod = "hourly",
+  period: TrendPeriod = "hourly"
 ) {
-  const [totalRevenue, topProducts, salesTrend] = await Promise.all([
-    getTotalRevenue(outletId),
-    getTopProducts(outletId, 3),
-    getSalesTrend(outletId, period),
-  ]);
-    return {
+  const [totalRevenue, topProducts, salesTrend] =
+    await Promise.all([
+      getTotalRevenue(outletId),
+      getTopProducts(outletId, 3),
+      getSalesTrend(outletId, period),
+    ]);
+
+  return {
     totalRevenue,
     topProducts,
     salesTrend,
