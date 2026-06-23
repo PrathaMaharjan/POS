@@ -91,12 +91,16 @@ export async function updateTable(
     tableNumber?: string;
     capacity?: number;
     shape?: "square" | "round" | "rectangle";
+    positionX?: number;
+    positionY?: number;
   }
 ): Promise<ControllerResult<{ id: string }>> {
   const updateValues: Record<string, unknown> = { updatedAt: new Date() };
   if (input.tableNumber !== undefined) updateValues.tableNumber = input.tableNumber;
   if (input.capacity !== undefined) updateValues.capacity = input.capacity;
   if (input.shape !== undefined) updateValues.shape = input.shape;
+  if (input.positionX !== undefined) updateValues.positionX = input.positionX.toString();
+  if (input.positionY !== undefined) updateValues.positionY = input.positionY.toString();
 
   try {
     const [updated] = await db

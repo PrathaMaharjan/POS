@@ -45,6 +45,8 @@ interface Table {
   status: TableStatus;
   shape: TableShape;
   seats: number;
+  positionX?: string | number;
+  positionY?: string | number;
 }
 
 interface TablesProps {
@@ -204,34 +206,36 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
   const hasDragged = useRef(false);
   const canvasRef = useRef<HTMLDivElement>(null);
 
-  const storageKey = `table-layout-${tenantSlug ?? 'default'}`;
-
-  // Load saved positions from localStorage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) setPositions(JSON.parse(saved));
-    } catch { /* ignore */ }
-  }, [storageKey]);
-
-  // Once tables arrive, fill in any missing positions
+  // Once tables arrive, sync coordinates from DB
   useEffect(() => {
     if (tables.length === 0) return;
     setPositions(prev => {
-      const missing = tables.filter(t => !prev[t.id]);
-      if (missing.length === 0) return prev;
+      const next = { ...prev };
       const defaults = defaultLayout(tables);
-      const merged = { ...prev };
-      missing.forEach(t => { merged[t.id] = defaults[t.id]; });
-      return merged;
-    });
-  }, [tables]);
+      let changed = false;
 
-  // Persist positions whenever they change
-  useEffect(() => {
-    if (Object.keys(positions).length === 0) return;
-    try { localStorage.setItem(storageKey, JSON.stringify(positions)); } catch { /* ignore */ }
-  }, [positions, storageKey]);
+      tables.forEach(t => {
+        const dbX = t.positionX !== undefined ? Number(t.positionX) : 0;
+        const dbY = t.positionY !== undefined ? Number(t.positionY) : 0;
+
+        if (draggingId === t.id) return;
+
+        let targetX = defaults[t.id].x;
+        let targetY = defaults[t.id].y;
+        if (dbX !== 0 || dbY !== 0) {
+          targetX = dbX;
+          targetY = dbY;
+        }
+
+        if (!prev[t.id] || prev[t.id].x !== targetX || prev[t.id].y !== targetY) {
+          next[t.id] = { x: targetX, y: targetY };
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [tables, draggingId]);
 
   // Canvas height: enough to fit all cards plus padding
   const canvasHeight = Math.max(
@@ -271,10 +275,23 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
     }));
   }, [draggingId]);
 
-  const stopDrag = useCallback(() => {
+  const stopDrag = useCallback(async () => {
+    if (draggingId && hasDragged.current) {
+      const pos = positions[draggingId];
+      if (pos) {
+        try {
+          await api.patch(`/tables/${draggingId}`, {
+            positionX: Math.round(pos.x),
+            positionY: Math.round(pos.y),
+          });
+        } catch (err) {
+          console.error("Failed to save table position to DB:", err);
+        }
+      }
+    }
     setDraggingId(null);
     dragOrigin.current = null;
-  }, []);
+  }, [draggingId, positions]);
 
   // Escape key drops the card immediately
   useEffect(() => {
@@ -283,9 +300,22 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
     return () => window.removeEventListener('keydown', onKey);
   }, [stopDrag]);
 
-  const resetLayout = () => {
+  const resetLayout = async () => {
     const layout = defaultLayout(tables);
     setPositions(layout);
+    try {
+      await Promise.all(
+        tables.map(t => {
+          const pos = layout[t.id];
+          return api.patch(`/tables/${t.id}`, {
+            positionX: Math.round(pos.x),
+            positionY: Math.round(pos.y),
+          });
+        })
+      );
+    } catch (err) {
+      console.error("Failed to reset layout positions in DB:", err);
+    }
   };
 
   // ── Data fetching (unchanged) ───────────────────────────────────────────────
@@ -301,6 +331,8 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
           status: (t.status as TableStatus) ?? 'available',
           shape: t.shape ?? 'square',
           seats: t.capacity ?? t.seats ?? 2,
+          positionX: t.positionX,
+          positionY: t.positionY,
         }));
         setTables(mapped);
       } catch (err) {

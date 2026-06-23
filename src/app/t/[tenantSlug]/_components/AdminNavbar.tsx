@@ -18,6 +18,7 @@ import {
   Package,
   Menu,
   X,
+  BarChart3,
 } from "lucide-react";
 
 interface NavbarProps {
@@ -57,6 +58,7 @@ export default function AdminNavbar({ role }: NavbarProps) {
     navItems.push({ label: "Orders", href: `${baseUrl}/orders`, icon: ShoppingBag });
     navItems.push({ label: "Menu", href: `${baseUrl}/menu`, icon: UtensilsCrossed });
     navItems.push({ label: "Payments", href: `${baseUrl}/payments`, icon: CreditCard });
+    navItems.push({ label: "Reports", href: `${baseUrl}/reports`, icon: BarChart3 });
   }
 
   navItems.push({ label: "Settings", href: `${baseUrl}/settings`, icon: Settings });

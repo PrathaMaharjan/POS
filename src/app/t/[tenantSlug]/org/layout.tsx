@@ -29,16 +29,11 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
   if (!checked) return null;
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 antialiased flex">
-      <aside className="fixed inset-y-0 left-0 z-20 w-64 border-r border-slate-200 bg-white">
-        <AdminNavbar role="org" />
-      </aside>
-
-      <div className="flex-1 pl-64">
-        <main className="mx-auto max-w-7xl px-6 py-8 sm:px-8 lg:px-10">
-          {children}
-        </main>
-      </div>
+    <div className="flex min-h-screen bg-white text-slate-900">
+      <AdminNavbar role="org" />
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8 bg-white">
+        {children}
+      </main>
     </div>
   );
 }

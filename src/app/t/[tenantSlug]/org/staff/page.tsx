@@ -210,33 +210,33 @@ export default function OrgStaffPage() {
 
       {/* Top Status Dashboards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-50 text-slate-600">
-            <Users className="h-5 w-5" />
-          </div>
+        <div className="rounded-xl border-l-4 border-l-slate-400 border border-slate-200 bg-white p-4 sm:p-5 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Directory</p>
-            <p className="text-xl font-semibold text-slate-800">{totalStaff}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1 break-all">{totalStaff}</p>
+          </div>
+          <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
+            <Users className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
         </div>
 
-        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-            <Building className="h-5 w-5" />
-          </div>
+        <div className="rounded-xl border-l-4 border-l-indigo-500 border border-slate-200 bg-white p-4 sm:p-5 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Branch Managers</p>
-            <p className="text-xl font-semibold text-slate-800">{totalManagers}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1 break-all">{totalManagers}</p>
+          </div>
+          <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+            <Building className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
         </div>
 
-        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-            <CheckCircle className="h-5 w-5" />
-          </div>
+        <div className="rounded-xl border-l-4 border-l-[#18a172] border border-slate-200 bg-white p-4 sm:p-5 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Active Operators</p>
-            <p className="text-xl font-semibold text-slate-800">{activeStaff}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1 break-all">{activeStaff}</p>
+          </div>
+          <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-[#f0fdf4] text-[#0f6b4a]">
+            <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
         </div>
       </div>
@@ -406,34 +406,32 @@ export default function OrgStaffPage() {
   
       {isModalOpen && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" 
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 p-0 sm:p-4 backdrop-blur-sm" 
           onClick={() => setIsModalOpen(false)}
         >
           <div 
             onClick={(e) => e.stopPropagation()} 
-            className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-slate-100 overflow-hidden"
+            className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl border border-slate-100 overflow-y-auto max-h-[92vh] sm:max-h-[90vh] flex flex-col"
           >
-
-            <div className="relative bg-emerald-600 px-8 py-6 text-white flex items-center justify-center">
-              <div className="flex h-10 w-10 items-center justify-center  text-white">
-                  <UserPlus className="h-6 w-6" />
-                </div>
+            {/* Modal Header */}
+            <div className="relative bg-emerald-600 px-6 py-5 text-white flex flex-col items-center justify-center shrink-0">
+              <div className="flex h-10 w-10 items-center justify-center text-white mb-1">
+                <UserPlus className="h-6 w-6" />
+              </div>
               <h2 className="text-xl font-bold tracking-tight text-center">
                 {editingMember ? "Edit Staff Member" : "Add New Staff Member"}
               </h2>
               <button 
                 onClick={() => setIsModalOpen(false)} 
-                className="absolute right-6 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-white/80 hover:bg-white/10 hover:text-white transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-
-            <div className="p-8">
-           
-              <div className="flex flex-col gap-5">
-          
+            {/* Modal Body */}
+            <div className="p-5 md:p-6 overflow-y-auto">
+              <div className="flex flex-col gap-4">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-500">Full Name</label>
                   <input
@@ -444,8 +442,7 @@ export default function OrgStaffPage() {
                   />
                 </div>
 
-              
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-slate-500">Role Classification</label>
                     <div className="relative">
@@ -479,7 +476,6 @@ export default function OrgStaffPage() {
                   </div>
                 </div>
 
-                {/* Row 4 */}
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-500">Email Address</label>
                   <div className="relative">
@@ -487,13 +483,12 @@ export default function OrgStaffPage() {
                     <input
                       value={form.email}
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      placeholder="Enter you email"
+                      placeholder="Enter your email"
                       className="w-full rounded-xl border border-slate-200/80 py-3 pl-10 pr-4 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
                     />
                   </div>
                 </div>
 
-                {/* Row 5 */}
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-500">Phone Number</label>
                   <div className="relative">
@@ -507,7 +502,6 @@ export default function OrgStaffPage() {
                   </div>
                 </div>
 
-                {/* Row 6 (Conditional) */}
                 {!editingMember && (
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-slate-500">Password</label>
@@ -532,14 +526,22 @@ export default function OrgStaffPage() {
                 )}
               </div>
 
-             
-              <button
-                type="button"
-                onClick={handleSaveStaff}
-                className="mt-8 w-full rounded-xl bg-emerald-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/10 transition-all hover:bg-emerald-700 active:scale-[0.99]"
-              >
-                Add Staff
-              </button>
+              <div className="flex gap-3 pt-6 border-t border-slate-100 mt-6 shrink-0 pb-6 sm:pb-0">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 rounded-xl border border-slate-200 bg-slate-50 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveStaff}
+                  className="flex-1 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/10 transition-all hover:bg-emerald-700 active:scale-[0.99]"
+                >
+                  {editingMember ? "Save Changes" : "Add Staff"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
