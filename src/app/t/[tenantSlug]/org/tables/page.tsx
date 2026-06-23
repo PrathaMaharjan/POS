@@ -176,6 +176,13 @@ export default function ManagerTablePage() {
   const dragOrigin = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
   const hasDragged = useRef(false);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const draggingElementRef = useRef<HTMLElement | null>(null);
+  const draggedPositionRef = useRef<{ x: number; y: number } | null>(null);
+  const positionsRef = useRef<Record<string, { x: number; y: number }>>({});
+
+  useEffect(() => {
+    positionsRef.current = positions;
+  }, [positions]);
 
   // Once tables arrive, sync coordinates from DB
   useEffect(() => {
@@ -216,16 +223,22 @@ export default function ManagerTablePage() {
   // ── Pointer handlers ────────────────────────────────────────────────────────
   const handlePointerDown = useCallback((tableId: string, e: React.PointerEvent) => {
     e.preventDefault();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const el = e.currentTarget as HTMLElement;
+    el.setPointerCapture(e.pointerId);
+    draggingElementRef.current = el;
     hasDragged.current = false;
     setDraggingId(tableId);
+    
+    const ox = positionsRef.current[tableId]?.x ?? 0;
+    const oy = positionsRef.current[tableId]?.y ?? 0;
     dragOrigin.current = {
       px: e.clientX,
       py: e.clientY,
-      ox: positions[tableId]?.x ?? 0,
-      oy: positions[tableId]?.y ?? 0,
+      ox,
+      oy,
     };
-  }, [positions]);
+    draggedPositionRef.current = { x: ox, y: oy };
+  }, []);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!draggingId || !dragOrigin.current || !canvasRef.current) return;
@@ -238,13 +251,19 @@ export default function ManagerTablePage() {
     const newX = Math.max(0, Math.min(dragOrigin.current.ox + dx, rect.width - CARD_W));
     const newY = Math.max(0, dragOrigin.current.oy + dy);
 
-    setPositions(prev => ({ ...prev, [draggingId]: { x: newX, y: newY } }));
+    draggedPositionRef.current = { x: newX, y: newY };
+
+    if (draggingElementRef.current) {
+      draggingElementRef.current.style.left = `${newX}px`;
+      draggingElementRef.current.style.top = `${newY}px`;
+    }
   }, [draggingId]);
 
   const stopDrag = useCallback(async () => {
     if (draggingId && hasDragged.current) {
-      const pos = positions[draggingId];
+      const pos = draggedPositionRef.current;
       if (pos) {
+        setPositions(prev => ({ ...prev, [draggingId]: pos }));
         try {
           await api.patch(`/tables/${draggingId}`, {
             positionX: Math.round(pos.x),
@@ -257,7 +276,9 @@ export default function ManagerTablePage() {
     }
     setDraggingId(null);
     dragOrigin.current = null;
-  }, [draggingId, positions]);
+    draggingElementRef.current = null;
+    draggedPositionRef.current = null;
+  }, [draggingId]);
 
   // Escape key drops card
   useEffect(() => {
@@ -501,13 +522,16 @@ export default function ManagerTablePage() {
           />
 
           {tables.map(table => {
-            const pos = positions[table.id] ?? { x: 0, y: 0 };
+            const isCurrentDragging = draggingId === table.id;
+            const pos = isCurrentDragging
+              ? (draggedPositionRef.current ?? positions[table.id] ?? { x: 0, y: 0 })
+              : (positions[table.id] ?? { x: 0, y: 0 });
             return (
               <TableCard
                 key={table.id}
                 table={table}
                 position={pos}
-                isDragging={draggingId === table.id}
+                isDragging={isCurrentDragging}
                 onPointerDown={e => handlePointerDown(table.id, e)}
                 onEdit={() => { if (!hasDragged.current) openEdit(table); }}
                 onDelete={() => { if (!hasDragged.current) setDeleteConfirmId(table.id); }}

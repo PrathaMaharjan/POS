@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import api from "@/lib/api";
 import {
   Store,
   MapPin,
@@ -14,6 +15,7 @@ import {
   Phone,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 
 interface Outlet {
@@ -24,36 +26,16 @@ interface Outlet {
   status: "active" | "inactive";
 }
 
-const SEED_OUTLETS: Outlet[] = [
-  {
-    id: "1",
-    name: "Kathmandu Main Branch",
-    phone: "9801234567",
-    address: "Durbar Marg, Kathmandu",
-    status: "active",
-  },
-  {
-    id: "2",
-    name: "Lalitpur Hub",
-    phone: "9807654321",
-    address: "Jhamsikhel, Lalitpur",
-    status: "active",
-  },
-  {
-    id: "3",
-    name: "Pokhara Lakeside",
-    phone: "9809876543",
-    address: "Lakeside Street No. 4, Pokhara",
-    status: "inactive",
-  },
-];
-
 const ITEMS_PER_PAGE = 8;
 
 export default function OutletsPage() {
-  const [outlets, setOutlets] = useState<Outlet[]>(SEED_OUTLETS);
+  const [outlets, setOutlets] = useState<Outlet[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOutlet, setEditingOutlet] = useState<Outlet | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -62,6 +44,31 @@ export default function OutletsPage() {
     phone: "",
     address: "",
   });
+
+  async function fetchOutlets() {
+    try {
+      setIsLoading(true);
+      const res = await api.get("/outlets");
+      const raw = res.data.outlets ?? [];
+      const mapped: Outlet[] = raw.map((o: any) => ({
+        id: o.id,
+        name: o.name,
+        phone: o.phone || "",
+        address: o.address || "",
+        status: o.isActive ? "active" : "inactive",
+      }));
+      setOutlets(mapped);
+    } catch (err: any) {
+      console.error("Failed to fetch outlets:", err);
+      alert(err.response?.data?.error ?? "Failed to load outlets");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchOutlets();
+  }, []);
 
   const totalOutlets = outlets.length;
   const activeOutlets = outlets.filter((o) => o.status === "active").length;
@@ -90,45 +97,64 @@ export default function OutletsPage() {
     setIsModalOpen(true);
   }
 
-  function handleSaveOutlet() {
+  async function handleSaveOutlet() {
     if (!form.name || !form.address) return;
+    setIsSaving(true);
 
-    if (editingOutlet) {
-      setOutlets((prev) =>
-        prev.map((o) =>
-          o.id === editingOutlet.id
-            ? { ...o, name: form.name, phone: form.phone, address: form.address }
-            : o
-        )
-      );
-    } else {
-      const newOutlet: Outlet = {
-        id: crypto.randomUUID(),
-        name: form.name,
-        phone: form.phone,
-        address: form.address,
-        status: "active",
-      };
-      setOutlets((prev) => [newOutlet, ...prev]);
-      setCurrentPage(1);
-    }
-
-    resetForm();
-    setIsModalOpen(false);
-  }
-
-  function handleDeleteOutlet(id: string) {
-    if (confirm("Are you sure you want to remove this outlet branch?")) {
-      setOutlets((prev) => prev.filter((o) => o.id !== id));
+    try {
+      if (editingOutlet) {
+        await api.patch(`/outlets/${editingOutlet.id}`, {
+          name: form.name,
+          phone: form.phone,
+          address: form.address,
+        });
+      } else {
+        await api.post("/outlets", {
+          name: form.name,
+          phone: form.phone,
+          address: form.address,
+        });
+        setCurrentPage(1);
+      }
+      await fetchOutlets();
+      resetForm();
+      setIsModalOpen(false);
+    } catch (err: any) {
+      console.error("Failed to save outlet:", err);
+      const message = err.response?.data?.error;
+      alert(typeof message === "string" ? message : "Failed to save outlet. Please try again.");
+    } finally {
+      setIsSaving(false);
     }
   }
 
-  function toggleStatus(id: string) {
-    setOutlets((prev) =>
-      prev.map((o) =>
-        o.id === id ? { ...o, status: o.status === "active" ? "inactive" : "active" } : o
-      )
-    );
+  async function handleDeleteOutlet(id: string) {
+    setIsDeleting(true);
+    try {
+      await api.delete(`/outlets/${id}`);
+      await fetchOutlets();
+      setDeleteConfirmId(null);
+    } catch (err: any) {
+      console.error("Failed to delete outlet:", err);
+      const message = err.response?.data?.error;
+      alert(typeof message === "string" ? message : "Failed to delete outlet. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  async function toggleStatus(id: string) {
+    const target = outlets.find((o) => o.id === id);
+    if (!target) return;
+    const newIsActive = target.status !== "active";
+    try {
+      await api.patch(`/outlets/${id}/status`, { isActive: newIsActive });
+      await fetchOutlets();
+    } catch (err: any) {
+      console.error("Failed to toggle status:", err);
+      const message = err.response?.data?.error;
+      alert(typeof message === "string" ? message : "Failed to update status. Please try again.");
+    }
   }
 
   return (
@@ -146,7 +172,7 @@ export default function OutletsPage() {
             <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1 break-all">{totalOutlets}</p>
           </div>
           <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
-            <Building2 className="h-5 w-5 sm:h-6 sm:w-6" />
+            <Building2 className="h-5 w-5 sm:h-6 w-6" />
           </div>
         </div>
 
@@ -156,7 +182,7 @@ export default function OutletsPage() {
             <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1 break-all">{activeOutlets}</p>
           </div>
           <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-[#f0fdf4] text-[#0f6b4a]">
-            <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6" />
+            <CheckCircle className="h-5 w-5 sm:h-6 w-6" />
           </div>
         </div>
 
@@ -166,7 +192,7 @@ export default function OutletsPage() {
             <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1 break-all">{inactiveOutlets}</p>
           </div>
           <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-            <XCircle className="h-5 w-5 sm:h-6 sm:w-6" />
+            <XCircle className="h-5 w-5 sm:h-6 w-6" />
           </div>
         </div>
       </div>
@@ -193,117 +219,126 @@ export default function OutletsPage() {
 
       {/* Table */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/50 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                <th className="py-3 px-4">Outlet Name</th>
-                <th className="py-3 px-4">Phone Number</th>
-                <th className="py-3 px-4">Address</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {paginatedOutlets.map((outlet) => (
-                <tr key={outlet.id} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="py-4 px-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100">
-                        <Store className="h-4 w-4" />
-                      </div>
-                      <span className="font-medium text-slate-900">{outlet.name}</span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-4">
-                    <div className="flex items-center gap-1.5 text-slate-500">
-                      <Phone className="h-3.5 w-3.5 text-slate-400" />
-                      <span className="font-mono text-xs font-semibold text-slate-600">
-                        {outlet.phone || "—"}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-4">
-                    <div className="flex items-center gap-1.5 text-slate-500">
-                      <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                      <span>{outlet.address}</span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-4">
-                    <button
-                      type="button"
-                      onClick={() => toggleStatus(outlet.id)}
-                      title="Click to toggle status"
-                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:scale-105 active:scale-95 select-none ${
-                        outlet.status === "active"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200/50"
-                          : "bg-slate-100 text-slate-500 border border-slate-200"
-                      }`}
-                    >
-                      <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${outlet.status === "active" ? "bg-emerald-600" : "bg-slate-400"}`} />
-                      {outlet.status === "active" ? "Active" : "Inactive"}
-                    </button>
-                  </td>
-                  <td className="py-4 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => handleOpenEdit(outlet)}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                        title="Edit Outlet"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteOutlet(outlet.id)}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                        title="Remove Outlet"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {paginatedOutlets.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-12 text-center text-sm text-slate-400">
-                    No outlets match your search parameters.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        <div className="flex items-center justify-end gap-6 border-t border-slate-100 bg-white px-6 py-4">
-          <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
-            Page {activePage} of {totalPages}
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-              disabled={activePage === 1}
-              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-              disabled={activePage === totalPages}
-              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20 text-slate-400 gap-3">
+            <Loader2 className="w-6 h-6 animate-spin" />
+            <span className="text-sm font-medium">Loading outlets...</span>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/50 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    <th className="py-3 px-4">Outlet Name</th>
+                    <th className="py-3 px-4">Phone Number</th>
+                    <th className="py-3 px-4">Address</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedOutlets.map((outlet) => (
+                    <tr key={outlet.id} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100">
+                            <Store className="h-4 w-4" />
+                          </div>
+                          <span className="font-medium text-slate-900">{outlet.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-1.5 text-slate-500">
+                          <Phone className="h-3.5 w-3.5 text-slate-400" />
+                          <span className="font-mono text-xs font-semibold text-slate-600">
+                            {outlet.phone || "—"}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-1.5 text-slate-500">
+                          <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                          <span>{outlet.address}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <button
+                          type="button"
+                          onClick={() => toggleStatus(outlet.id)}
+                          title="Click to toggle status"
+                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:scale-105 active:scale-95 select-none ${
+                            outlet.status === "active"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200/50"
+                              : "bg-slate-100 text-slate-500 border border-slate-200"
+                          }`}
+                        >
+                          <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${outlet.status === "active" ? "bg-emerald-600" : "bg-slate-400"}`} />
+                          {outlet.status === "active" ? "Active" : "Inactive"}
+                        </button>
+                      </td>
+                      <td className="py-4 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleOpenEdit(outlet)}
+                            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                            title="Edit Outlet"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmId(outlet.id)}
+                            className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                            title="Remove Outlet"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {paginatedOutlets.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-sm text-slate-400">
+                        No outlets match your search parameters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            <div className="flex items-center justify-end gap-6 border-t border-slate-100 bg-white px-6 py-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
+                Page {activePage} of {totalPages}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  disabled={activePage === 1}
+                  className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  disabled={activePage === totalPages}
+                  className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Add / Edit Modal */}
       {isModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 p-0 sm:p-4 backdrop-blur-sm"
-          onClick={() => setIsModalOpen(false)}
+          onClick={() => !isSaving && setIsModalOpen(false)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -318,8 +353,9 @@ export default function OutletsPage() {
                 </h2>
               </div>
               <button
+                disabled={isSaving}
                 onClick={() => setIsModalOpen(false)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-emerald-100 hover:bg-white/10 hover:text-white transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-emerald-100 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-60"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -330,10 +366,11 @@ export default function OutletsPage() {
               <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-500">Outlet Branch Name</label>
                 <input
+                  disabled={isSaving}
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="Enter the name of branch"
-                  className="w-full rounded-lg border border-slate-200/80 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                  className="w-full rounded-lg border border-slate-200/80 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -342,12 +379,13 @@ export default function OutletsPage() {
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
+                    disabled={isSaving}
                     type="tel"
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
                     placeholder="98XXXXXXXX"
                     maxLength={15}
-                    className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                    className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -357,10 +395,11 @@ export default function OutletsPage() {
                 <div className="relative">
                   <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
+                    disabled={isSaving}
                     value={form.address}
                     onChange={(e) => setForm({ ...form, address: e.target.value })}
                     placeholder="Enter your location"
-                    className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                    className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -370,17 +409,54 @@ export default function OutletsPage() {
             <div className="flex items-center justify-end gap-3 border-t border-slate-100 p-5 md:p-6 bg-slate-50/50 rounded-b-xl shrink-0 pb-6 sm:pb-5">
               <button
                 type="button"
+                disabled={isSaving}
                 onClick={() => setIsModalOpen(false)}
-                className="flex-1 sm:flex-initial rounded-lg px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                className="flex-1 sm:flex-initial rounded-lg px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isSaving}
                 onClick={handleSaveOutlet}
-                className="flex-1 sm:flex-initial rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+                className="flex-1 sm:flex-initial rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {editingOutlet ? "Save Changes" : "Register Outlet"}
+                {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isSaving ? "Saving..." : editingOutlet ? "Save Changes" : "Register Outlet"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 w-full max-w-sm rounded-xl shadow-xl overflow-hidden">
+            <div className="flex flex-col items-center text-center gap-3 p-6 border-b border-slate-100">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
+                <Trash2 className="h-6 w-6 text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Delete Outlet?</h3>
+                <p className="text-sm text-slate-500">This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="flex gap-3 p-6">
+              <button
+                disabled={isDeleting}
+                onClick={() => setDeleteConfirmId(null)}
+                className="flex-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 font-medium text-sm py-2.5 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={isDeleting}
+                onClick={() => handleDeleteOutlet(deleteConfirmId)}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold text-sm py-2.5 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isDeleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isDeleting ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>
