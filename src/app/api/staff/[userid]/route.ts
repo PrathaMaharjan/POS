@@ -50,13 +50,30 @@ export async function DELETE(
   { params }: { params: Promise<{ userid: string }> },
 ) {
   const { userid } = await params;
+
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
   const permError = requiredPermission(auth.payload, "core.users.delete");
   if (permError) return permError;
 
-  const result = await removeStaff(auth.payload.activeOutletId!, userid);
+  // Owner → can pass ?outletId= in query params
+  // Manager → uses their activeOutletId from JWT
+  const isOwner = auth.payload.role === "Owner";
+
+  const outletId = isOwner
+    ? (req.nextUrl.searchParams.get("outletId") ?? auth.payload.activeOutletId!)
+    : auth.payload.activeOutletId!;
+
+  if (!outletId) {
+    return NextResponse.json({ error: "No outlet found" }, { status: 400 });
+  }
+
+  console.log("userid:", userid);
+  console.log("outletId:", outletId);
+  console.log("role:", auth.payload.role);
+  const result = await removeStaff(outletId, userid);
+
   if (!result.success) {
     return NextResponse.json(
       { error: result.error },

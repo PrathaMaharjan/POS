@@ -8,6 +8,7 @@ import { activateStaff, deactivateStaff } from "@/controller/staff";
 
 const schema = z.object({
   isActive: z.boolean(),
+  outletId: z.string().uuid().optional(), // ← Owner passes this
 });
 
 export async function PATCH(
@@ -28,9 +29,20 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const result = parsed.data.isActive
-    ? await activateStaff(auth.payload.activeOutletId!, userid)
-    : await deactivateStaff(auth.payload.activeOutletId!, userid);
+  const { isActive, outletId } = parsed.data;
+
+  // Owner → uses outletId from body, Manager → uses JWT
+  const resolvedOutletId = auth.payload.role === "Owner"
+    ? (outletId ?? auth.payload.activeOutletId!)
+    : auth.payload.activeOutletId!;
+
+  if (!resolvedOutletId) {
+    return NextResponse.json({ error: "No outlet found" }, { status: 400 });
+  }
+
+  const result = isActive
+    ? await activateStaff(resolvedOutletId, userid)
+    : await deactivateStaff(resolvedOutletId, userid);
 
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: result.status });
