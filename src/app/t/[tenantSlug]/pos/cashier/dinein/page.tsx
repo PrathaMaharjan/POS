@@ -315,34 +315,41 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
   }, []);
 
   async function fetchTickets() {
-    try {
-      const res = await api.get('/kot');
-      const data = res.data;
-      const mapped: ActiveFoodStatus[] = (data.tickets ?? [])
-        .filter((ticket: any) => ticket.status !== 'served')
-        .map((ticket: any) => {
-          const dbOrder = ticket.order ?? {};
-          const rawItems = ticket.items ?? dbOrder.items ?? [];
-          const mappedItems: ActiveFoodItem[] = rawItems.map((item: any) => ({
-            id: item.id,
-            name: item.product?.name ?? item.name ?? item.productName ?? 'Unknown Product',
-            quantity: item.quantity ?? 1,
-            notes: item.notes ?? item.note ?? item.instruction ?? '',
-          }));
-          return {
-            id: ticket.id,
-            orderNumber: dbOrder.orderNumber ?? 0,
-            tableName: dbOrder.customerName ?? dbOrder.table?.tableNumber ?? 'Takeaway Order',
-            type: dbOrder.orderType?.toUpperCase() === 'TAKEAWAY' || ticket.orderType?.toUpperCase() === 'TAKEAWAY' ? 'TAKEAWAY' : 'DINE_IN',
-            ticketState: (ticket.status === 'ready' ? 'DONE' : (ticket.status?.toUpperCase() ?? 'PENDING')) as ActiveFoodStatus['ticketState'],
-            items: mappedItems,
-          };
-        });
-      setActiveOrders(mapped);
-    } catch (err) {
-      console.error("Failed to fetch KOT tickets for table status:", err);
-    }
+  try {
+    const res = await api.get('/kot');
+    const data = res.data;
+
+    const mapped: ActiveFoodStatus[] = (data.tickets ?? [])
+      .filter((ticket: any) => ticket.status !== 'served')
+      .map((ticket: any) => {
+        const dbOrder = ticket.order ?? {};
+
+        const mappedItems: ActiveFoodItem[] = (ticket.items ?? []).map((item: any) => ({
+          id: item.id,
+          name: item.orderItem?.product?.name ?? 'Deleted Product', // ✅ correct path
+          quantity: item.orderItem?.quantity ?? 1,                  // ✅ also from orderItem
+          notes: item.orderItem?.notes ?? '',                       // ✅ also from orderItem
+        }));
+
+        return {
+          id: ticket.id,
+          orderNumber: dbOrder.orderNumber ?? 0,
+          tableName: dbOrder.table?.tableNumber
+            ?? dbOrder.customerName
+            ?? 'Takeaway',
+          type: dbOrder.orderType === 'takeaway' ? 'TAKEAWAY' : 'DINE_IN',
+          ticketState: (
+            ticket.status === 'ready' ? 'DONE' : ticket.status?.toUpperCase() ?? 'PENDING'
+          ) as ActiveFoodStatus['ticketState'],
+          items: mappedItems,
+        };
+      });
+
+    setActiveOrders(mapped);
+  } catch (err) {
+    console.error("Failed to fetch KOT tickets:", err);
   }
+}
 
   useEffect(() => {
     fetchTickets();
