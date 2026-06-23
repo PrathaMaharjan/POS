@@ -65,7 +65,7 @@ interface OrderProps {
   tableId?: string | null;
   orderType?: 'TAKEAWAY' | 'DINE_IN';
   showHeader?: boolean;
-  role?: 'cashier' | 'waiter'; 
+  role?: 'cashier' | 'waiter';
   onOrderCreated?: (order: CreatedOrder) => void;
 }
 
@@ -80,31 +80,29 @@ export default function Order({
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
-  const accent        = isDark ? '#e5b83b' : '#059669'; 
+  const accent        = isDark ? '#e5b83b' : '#059669';
   const accentText    = isDark ? '#0c0c0d' : '#ffffff';
-  const pageBg     = isDark ? '#0c0c0d' : '#ffffff'; 
-  const sidebarBg  = isDark ? '#0c0c0d' : '#059669'; 
-  const surfaceBg  = isDark ? '#141416' : '#ffffff'; 
-  const surfaceBg2 = isDark ? '#1c1c1e' : '#d1fae5'; 
-  const skeletonBg = isDark ? '#1c1c1e' : '#e2e8f0'; 
-  const borderCol  = isDark ? '#27272a' : '#e2e8f0'; 
-
+  const pageBg        = isDark ? '#0c0c0d' : '#ffffff';
+  const sidebarBg     = isDark ? '#0c0c0d' : '#059669';
+  const surfaceBg     = isDark ? '#141416' : '#ffffff';
+  const surfaceBg2    = isDark ? '#1c1c1e' : '#d1fae5';
+  const skeletonBg    = isDark ? '#1c1c1e' : '#e2e8f0';
+  const borderCol     = isDark ? '#27272a' : '#e2e8f0';
   const borderHover   = isDark ? 'rgba(229,184,59,0.6)' : 'rgba(5,150,105,0.6)';
-  const textPrim      = isDark ? '#ffffff' : '#1e293b'; 
-  const textMuted     = isDark ? '#a1a1aa' : '#64748b'; 
-  const textFaint     = isDark ? '#52525b' : '#94a3b8'; 
+  const textPrim      = isDark ? '#ffffff' : '#1e293b';
+  const textMuted     = isDark ? '#a1a1aa' : '#64748b';
+  const textFaint     = isDark ? '#52525b' : '#94a3b8';
   const inputBg       = isDark ? '#141416' : '#ffffff';
   const accentRing    = isDark ? 'rgba(229,184,59,0.2)' : 'rgba(5,150,105,0.2)';
   const accentGlow    = isDark ? '0 4px 20px rgba(229,184,59,0.15)' : '0 4px 20px rgba(5,150,105,0.15)';
 
-  // Sidebar-specific colors
-  const sidebarTextPrim   = isDark ? textPrim : '#ffffff';
-  const sidebarTextMuted  = isDark ? textMuted : 'rgba(255,255,255,0.75)';
-  const sidebarTextFaint  = isDark ? textFaint : 'rgba(255,255,255,0.55)';
-  const sidebarBorderCol  = isDark ? borderCol : 'rgba(255,255,255,0.18)';
-  const sidebarSurfaceBg  = isDark ? surfaceBg : 'rgba(255,255,255,0.12)';
+  const sidebarTextPrim   = isDark ? textPrim   : '#ffffff';
+  const sidebarTextMuted  = isDark ? textMuted  : 'rgba(255,255,255,0.75)';
+  const sidebarTextFaint  = isDark ? textFaint  : 'rgba(255,255,255,0.55)';
+  const sidebarBorderCol  = isDark ? borderCol  : 'rgba(255,255,255,0.18)';
+  const sidebarSurfaceBg  = isDark ? surfaceBg  : 'rgba(255,255,255,0.12)';
   const sidebarSurfaceBg2 = isDark ? surfaceBg2 : 'rgba(255,255,255,0.18)';
-  const sidebarAccent     = isDark ? accent : '#ffffff';
+  const sidebarAccent     = isDark ? accent     : '#ffffff';
   const sidebarAccentText = isDark ? accentText : '#059669';
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -118,9 +116,6 @@ export default function Order({
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  const [createdTakeawayOrderId, setCreatedTakeawayOrderId] = useState<string | null>(null);
-  
-  // Tracks which cart item layout is open for custom notes
   const [activeNoteProductId, setActiveNoteProductId] = useState<string | null>(null);
 
   const router = useRouter();
@@ -226,6 +221,7 @@ export default function Order({
   const handleAction = async () => {
     if (cart.length === 0) return;
 
+    // ── DINE-IN: create order immediately as before ──
     if (orderType === 'DINE_IN') {
       try {
         setIsPlacingOrder(true);
@@ -263,34 +259,16 @@ export default function Order({
       return;
     }
 
-    setIsPlacingOrder(true);
-    try {
-      const res = await api.post('/orders/takeaway', {
-        customerName: customerName.trim() || undefined,
-        customerPhone: customerPhone.trim() || undefined,
-        items: cart.map(item => ({
-          productId: item.product.id,
-          quantity: item.quantity,
-          notes: item.note.trim() || undefined,
-        })),
-      });
-      setCreatedTakeawayOrderId(res.data.order.id);
-      setIsPaymentOpen(true);
-    } catch (err: any) {
-      console.error('Failed to place order:', err);
-      const message = err.response?.data?.error;
-      alert(typeof message === 'string' ? message : 'Failed to place order. Please try again.');
-    } finally {
-      setIsPlacingOrder(false);
-    }
+    // ── TAKEAWAY: open payment modal first, order is created only after payment ──
+    setIsPaymentOpen(true);
   };
 
+  // Called by PaymentModal after the combined place+pay API call succeeds
   const handlePaymentComplete = () => {
     setIsPaymentOpen(false);
     handleClearCart();
     setCustomerName('');
     setCustomerPhone('');
-    setCreatedTakeawayOrderId(null);
   };
 
   return (
@@ -300,7 +278,7 @@ export default function Order({
     >
       <div className="flex-1 flex overflow-hidden">
 
-        {/* Main Content Menu Grid */}
+        {/* ── Main Menu Grid ── */}
         <main className="flex-1 px-10 py-6 flex flex-col gap-4 overflow-hidden">
           <div className="flex items-center justify-between gap-3">
             <div className="relative flex-1">
@@ -312,11 +290,7 @@ export default function Order({
                 placeholder="Search menu items..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                style={{
-                  backgroundColor: inputBg,
-                  borderColor: borderCol,
-                  color: textPrim,
-                }}
+                style={{ backgroundColor: inputBg, borderColor: borderCol, color: textPrim }}
                 className="w-full border rounded-xl py-2.5 pl-9 pr-4 text-sm outline-none transition-all duration-150 placeholder-neutral-400"
                 onFocus={e => (e.currentTarget.style.borderColor = accent)}
                 onBlur={e => (e.currentTarget.style.borderColor = borderCol)}
@@ -325,11 +299,7 @@ export default function Order({
             {showHeader && (
               <button
                 onClick={handleGoBack}
-                style={{
-                  backgroundColor: surfaceBg,
-                  borderColor: borderCol,
-                  color: textMuted,
-                }}
+                style={{ backgroundColor: surfaceBg, borderColor: borderCol, color: textMuted }}
                 onMouseEnter={e => {
                   (e.currentTarget as HTMLElement).style.borderColor = borderHover;
                   (e.currentTarget as HTMLElement).style.color = textPrim;
@@ -346,6 +316,7 @@ export default function Order({
             )}
           </div>
 
+          {/* Categories */}
           <div className="flex gap-2 overflow-x-auto pb-1">
             {isLoadingCategories ? (
               <div className="flex gap-2">
@@ -366,7 +337,6 @@ export default function Order({
                 >
                   All Items
                 </button>
-
                 {categories.map(category => (
                   <button
                     key={category.id}
@@ -385,6 +355,7 @@ export default function Order({
             )}
           </div>
 
+          {/* Products grid */}
           <div className="flex-1 overflow-y-auto">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pt-1 pb-4">
               {isLoadingProducts ? (
@@ -417,8 +388,8 @@ export default function Order({
                     >
                       <div style={{ backgroundColor: skeletonBg }} className="relative w-full aspect-[4/3] rounded-xl overflow-hidden flex items-center justify-center">
                         {product.imageUrl ? (
-                          <Image 
-                            src={product.imageUrl} 
+                          <Image
+                            src={product.imageUrl}
                             alt={product.name}
                             fill
                             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
@@ -448,12 +419,9 @@ export default function Order({
           </div>
         </main>
 
-        {/* Sidebar Cart */}
+        {/* ── Sidebar Cart ── */}
         <aside
-          style={{
-            backgroundColor: sidebarBg,
-            borderColor: sidebarBorderCol,
-          }}
+          style={{ backgroundColor: sidebarBg, borderColor: sidebarBorderCol }}
           className="w-[300px] xl:w-[350px] border-l p-5 flex flex-col gap-4 overflow-hidden shrink-0"
         >
           <div className="flex items-center justify-between">
@@ -469,7 +437,6 @@ export default function Order({
             )}
           </div>
 
-          {/* Cart items list with customized notes section */}
           <div className="flex-1 flex flex-col gap-2 overflow-y-auto min-h-0">
             {cart.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-2" style={{ color: sidebarTextFaint }}>
@@ -493,13 +460,13 @@ export default function Order({
                       className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-md opacity-0 group-hover:opacity-100 transition-opacity"
                       style={{ backgroundColor: sidebarAccent }}
                     />
-                    
+
                     <div className="flex items-center justify-between w-full">
                       <div className="flex items-center gap-2.5">
                         <div
                           style={{ backgroundColor: sidebarSurfaceBg2, borderColor: sidebarBorderCol }}
                           className="flex items-center rounded-lg border p-0.5 gap-1 shrink-0"
-                          onClick={e => e.stopPropagation()} // Stop note block drop down toggling on count edit
+                          onClick={e => e.stopPropagation()}
                         >
                           <button
                             onClick={() => handleDecreaseQuantity(item.product.id)}
@@ -525,7 +492,6 @@ export default function Order({
                       <span className="text-sm font-bold shrink-0" style={{ color: sidebarTextPrim }}>Rs.{totalItemPrice.toFixed(2)}</span>
                     </div>
 
-                    {/* Expandable note text input layout */}
                     {isNoteSectionOpen && (
                       <div className="w-full mt-1 pt-1 border-t" style={{ borderColor: sidebarBorderCol }} onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1.5 text-[11px] mb-1 font-semibold" style={{ color: sidebarTextMuted }}>
@@ -536,11 +502,7 @@ export default function Order({
                           placeholder="No spicy, extra cheese, etc..."
                           value={item.note}
                           onChange={e => handleUpdateItemNote(item.product.id, e.target.value)}
-                          style={{ 
-                            backgroundColor: sidebarSurfaceBg2, 
-                            borderColor: sidebarBorderCol, 
-                            color: sidebarTextPrim 
-                          }}
+                          style={{ backgroundColor: sidebarSurfaceBg2, borderColor: sidebarBorderCol, color: sidebarTextPrim }}
                           className="w-full border rounded-lg py-1.5 px-2.5 text-xs outline-none placeholder-white/40 focus:ring-1 focus:ring-white/20"
                         />
                       </div>
@@ -551,7 +513,7 @@ export default function Order({
             )}
           </div>
 
-          {/* Totals + Actions Footer */}
+          {/* Footer: totals + customer info + action button */}
           <div style={{ borderColor: sidebarBorderCol }} className="border-t pt-4 flex flex-col gap-3">
             {orderType === 'TAKEAWAY' && (
               <div className="flex flex-col gap-2">
@@ -615,19 +577,24 @@ export default function Order({
         </aside>
       </div>
 
-      <PaymentModal
-        isOpen={isPaymentOpen}
-        onClose={handlePaymentComplete}
-        orderId={createdTakeawayOrderId}
-        totalAmount={subtotal}
-        orderType="TAKEAWAY"
-        tableId={null}
-        cart={cart.map(item => ({
-          quantity: item.quantity,
-          name: item.product.name,
-          price: parseFloat(item.product.price),
-        }))}
-      />
+      {/* Payment modal — only rendered for TAKEAWAY, passes cart so it can create+pay atomically */}
+      {orderType === 'TAKEAWAY' && (
+        <PaymentModal
+          isOpen={isPaymentOpen}
+          onClose={() => setIsPaymentOpen(false)}
+          onPaymentComplete={handlePaymentComplete}
+          subtotalAmount={subtotal}
+          customerName={customerName}
+          customerPhone={customerPhone}
+          cart={cart.map(item => ({
+            productId: item.product.id,
+            quantity: item.quantity,
+            notes: item.note.trim() || undefined,
+            name: item.product.name,
+            price: parseFloat(item.product.price),
+          }))}
+        />
+      )}
     </div>
   );
 }
