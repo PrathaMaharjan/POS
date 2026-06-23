@@ -341,3 +341,62 @@ export async function getDailyReport(outletId: string, dateStr?: string) {
     },
   };
 }
+
+// -------------filter payment based on payment method --------------------------
+export async function getFilteredPaymentHistory(
+  outletId: string,
+  limit: number,
+  offset: number,
+  method?: PaymentMethod
+) {
+  const conditions = [
+    eq(payments.outletId, outletId),
+    ...(method ? [eq(payments.method, method)] : []),
+  ];
+
+  const [rows, totalResult, summaryResult] = await Promise.all([
+    db
+      .select({
+        id:          payments.id,
+        method:      payments.method,
+        amount:      payments.amount,
+        createdAt:   payments.createdAt,
+        orderId:     payments.orderId,
+        orderNumber: orders.orderNumber,
+        orderType:   orders.orderType,
+        tableNumber: diningTables.tableNumber,
+      })
+      .from(payments)
+      .innerJoin(orders, eq(payments.orderId, orders.id))
+      .leftJoin(diningTables, eq(orders.tableId, diningTables.id))
+      .where(and(...conditions))
+      .orderBy(desc(payments.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(payments)
+      .where(and(...conditions)),
+
+    db
+      .select({
+        totalAmount: sql<string>`COALESCE(SUM(${payments.amount}), 0)`,
+      })
+      .from(payments)
+      .where(and(...conditions)),
+  ]);
+
+  return {
+    payments: rows.map((p) => ({
+      ...p,
+      amount:    Number(p.amount),
+      tableNumber: p.tableNumber ?? null,
+      createdAtNepal: new Date(new Date(p.createdAt).getTime() + NEPAL_OFFSET_MS)
+        .toISOString()
+        .replace("T", " ")
+        .split(".")[0],
+    })),
+    total:       Number(totalResult[0]?.count ?? 0),
+    totalAmount: Number(summaryResult[0]?.totalAmount ?? 0),
+  };
+}

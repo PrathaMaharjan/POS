@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { orderItems, orders, payments, products } from "@/db/schema";
+import { orderItems, orders, outlets, payments, products, userOutlets, users } from "@/db/schema";
 import { and, desc, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 
 const NEPAL_OFFSET_MS = 345 * 60 * 1000;
@@ -213,23 +213,53 @@ export async function getSalesTrend(
   }
 }
 
+// -----------------------activeStaffList ----------------------------------
+export async function getActiveStaffCount(outletId: string): Promise<number> {
+  const result = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(userOutlets)
+    .innerJoin(users, eq(userOutlets.userId, users.id))
+    .where(
+      and(
+        eq(userOutlets.outletId, outletId),
+        eq(users.isActive, true)
+      )
+    );
 
+  return Number(result[0]?.count ?? 0);
+}
+// ------------------------total outlets list -----------------------------
+export async function getTotalOutlets(organizationId: string): Promise<number> {
+  const result = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(outlets)
+    .where(
+      and(
+        eq(outlets.organizationId, organizationId),
+        eq(outlets.isActive, true)
+      )
+    );
+
+  return Number(result[0]?.count ?? 0);
+}
 
 export async function getDashboardData(
   outletId: string,
   organizationId: string,
   period: TrendPeriod = "hourly"
 ) {
-  const [totalRevenue, topProducts, salesTrend] =
+  const [totalRevenue, topProducts, salesTrend,activeStaff] =
     await Promise.all([
       getTotalRevenue(outletId),
       getTopProducts(outletId, 3),
       getSalesTrend(outletId, period),
+      getActiveStaffCount(outletId)
     ]);
 
   return {
     totalRevenue,
     topProducts,
     salesTrend,
+    activeStaff
   };
 }

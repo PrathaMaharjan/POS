@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { categories } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { categories, outlets } from "@/db/schema";
+import { and, eq, sql } from "drizzle-orm";
 import { tr } from "zod/v4/locales";
 import { formatProduct } from "./product";
 
@@ -179,3 +179,4 @@ export async function updateCategoryStatus(
     return { success: false, error: "Failed to update category status", status: 500 };
   }
 }
+
