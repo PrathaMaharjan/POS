@@ -53,6 +53,10 @@ export default function AdminNavbar({ role }: NavbarProps) {
 
   if (role === "org") {
     navItems.push({ label: "Outlets", href: `${baseUrl}/outlets`, icon: Store });
+    navItems.push({ label: "Tables", href: `${baseUrl}/tables`, icon: Layers });
+    navItems.push({ label: "Orders", href: `${baseUrl}/orders`, icon: ShoppingBag });
+    navItems.push({ label: "Menu", href: `${baseUrl}/menu`, icon: UtensilsCrossed });
+    navItems.push({ label: "Payments", href: `${baseUrl}/payments`, icon: CreditCard });
   }
 
   navItems.push({ label: "Settings", href: `${baseUrl}/settings`, icon: Settings });
@@ -89,7 +93,7 @@ export default function AdminNavbar({ role }: NavbarProps) {
         </button>
       </header>
 
-      {/* Mobile Drawer Overlay Backdrop */}
+  
       {isOpen && (
         <div
           className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs md:hidden"
@@ -97,13 +101,13 @@ export default function AdminNavbar({ role }: NavbarProps) {
         />
       )}
 
-      {/* Main Navigation Sidebar (Desktop Standard + Mobile Slideout Drawer) */}
+   
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white transition-transform duration-300 ease-in-out md:sticky md:top-0 md:h-screen md:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* Logo & Info Identity Section */}
+       
         <div className="flex h-16 items-center justify-between border-b border-slate-200 px-6 md:h-auto md:py-5">
           <div className="flex flex-col">
             <span className="font-semibold text-sm text-slate-800 tracking-tight capitalize leading-none mb-0.5">

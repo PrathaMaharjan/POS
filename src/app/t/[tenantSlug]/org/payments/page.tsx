@@ -165,7 +165,7 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-    
+      
 
       {/* Filters Section */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 justify-between">

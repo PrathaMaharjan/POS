@@ -1,27 +1,47 @@
+// app/api/payment/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { requiredToken } from "@/lib/auth/requireAuth";
-import { getPaymentHistory } from "@/modules/pos/controller/payment";
+import { getPaymentHistory, getFilteredPaymentHistory, PaymentMethod } from "@/modules/pos/controller/payment";
 
 export async function GET(req: NextRequest) {
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
-//   const permError = requirePermission(auth.payload, "pos.payments.read");
-//   if (permError) return permError;
-
   const searchParams = req.nextUrl.searchParams;
-  const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 100);
-  const page = Math.max(parseInt(searchParams.get("page") ?? "1"), 1);
+  const limit  = Math.min(parseInt(searchParams.get("limit") ?? "20"), 100);
+  const page   = Math.max(parseInt(searchParams.get("page") ?? "1"), 1);
   const offset = (page - 1) * limit;
-  const dateStr = searchParams.get("date") ?? undefined;
+  const dateStr   = searchParams.get("date") ?? undefined;
+  const methodStr = searchParams.get("method") ?? undefined;
 
   try {
-    const result = await getPaymentHistory(
-      auth.payload.activeOutletId!,
-      limit,
-      offset,
-      dateStr
-    );
+    let result;
+
+    if (methodStr && !dateStr) {
+  
+      result = await getFilteredPaymentHistory(
+        auth.payload.activeOutletId!,
+        limit,
+        offset,
+        methodStr as PaymentMethod,
+      );
+    } else {
+      
+      result = await getPaymentHistory(
+        auth.payload.activeOutletId!,
+        limit,
+        offset,
+        dateStr,
+      );
+
+      // if method is also provided, filter in-memory
+      if (methodStr) {
+        result.payments = result.payments.filter(
+          p => p.method === methodStr
+        );
+        result.total = result.payments.length;
+      }
+    }
 
     return NextResponse.json({
       ...result,

@@ -24,6 +24,7 @@ interface DashboardData {
   totalRevenue: number;
   topProducts: TopProduct[];
   salesTrend: SalesTrendItem[];
+  activeStaff: number;
 }
 
 type Period = "hourly" | "weekly" | "monthly";
@@ -84,21 +85,21 @@ export default function OverviewPage() {
     }
   }, []);
 
-  // ── On mount — full dashboard load ────────────────
+
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
 
-  // ── On period change — only trend ─────────────────
+
   useEffect(() => {
     if (isFirstLoad.current) {
       isFirstLoad.current = false;
-      return; // skip on first render — dashboard fetch handles it
+      return; 
     }
     fetchTrend(period);
   }, [period, fetchTrend]);
 
-  // ── Derived values ─────────────────────────────────
+
   const maxSalesValue = salesTrend.length
     ? Math.max(...salesTrend.map((s) => s.total), 1)
     : 1;
@@ -169,13 +170,19 @@ export default function OverviewPage() {
           </div>
         </div>
 
-        {/* Active Staff — hardcoded */}
+        {/* Active Staff */}
         <div className="rounded-xl border-l-4 border-l-blue-500 border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">
               Active Staff
             </p>
-            <p className="text-3xl font-bold text-slate-800 mt-1">3</p>
+
+            <p className="text-3xl font-bold text-slate-800 mt-1">
+              {isLoading 
+                ? <span className="text-xl text-slate-300 animate-pulse">Loading...</span>
+                : data?.activeStaff ?? 0
+              }
+            </p>
           </div>
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
             <Users className="h-6 w-6" />
