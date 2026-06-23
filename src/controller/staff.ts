@@ -10,8 +10,10 @@ export type ControllerResult<T> =
   | { success: true; data: T }
   | { success: false; error: string; status: number };
 
-async function getFrontlineRoleId(roleName: string) {
-  if (!FRONTLINE_ROLES.includes(roleName)) return null;
+const ASSIGNABLE_ROLES = ["Manager", "Cashier", "Waiter", "Kitchen Crew"];
+
+async function getFrontlineRoleId(roleName: string): Promise<string | null> {
+  if (!ASSIGNABLE_ROLES.includes(roleName)) return null;
   const role = await db.query.roles.findFirst({
     where: (r, { eq, and, isNull }) =>
       and(eq(r.name, roleName), isNull(r.organizationId)),

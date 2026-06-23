@@ -16,7 +16,7 @@ import {
 import { hashToken } from "@/lib/auth/hashtoken";
 
 const schema = z.object({
-  email: z.string().email(),
+  email:    z.string().email(),
   password: z.string(),
 });
 
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.flatten() },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -42,14 +42,14 @@ export async function POST(req: NextRequest) {
     if (!user || !user.isActive) {
       return NextResponse.json(
         { error: "Invalid credentials" },
-        { status: 401 },
+        { status: 401 }
       );
     }
 
     if (!user.emailVerified) {
       return NextResponse.json(
         { error: "Please verify your email before logging in" },
-        { status: 403 },
+        { status: 403 }
       );
     }
 
@@ -58,23 +58,41 @@ export async function POST(req: NextRequest) {
       verifyPassword(password, user.passwordHash),
       db.query.userOutlets.findMany({
         where: (uo, { eq }) => eq(uo.userId, user.id),
-        with: { outlet: true },
+        with: {
+          outlet: {
+            columns: {
+              id:       true,
+              name:     true,
+              isActive: true, // ← needed for inactive check
+            },
+          },
+        },
       }),
     ]);
 
     if (!valid) {
       return NextResponse.json(
         { error: "Invalid credentials" },
-        { status: 401 },
+        { status: 401 }
       );
     }
 
     // ── 3. Resolve active outlet + permissions + role ──
     let activeOutletId: string | null = null;
-    let permissions: string[] = [];
-    let role: string | null = null;
+    let permissions: string[]         = [];
+    let role: string | null           = null;
 
     if (userOutletRows.length === 1) {
+      const outlet = userOutletRows[0].outlet;
+
+      // ── block login if outlet is inactive ──
+      if (!outlet.isActive) {
+        return NextResponse.json(
+          { error: "This outlet is currently inactive. Contact your administrator." },
+          { status: 403 }
+        );
+      }
+
       activeOutletId = userOutletRows[0].outletId;
 
       const [perms, roleRow] = await Promise.all([
@@ -83,69 +101,78 @@ export async function POST(req: NextRequest) {
       ]);
 
       permissions = perms;
-      role = roleRow?.name ?? null;
+      role        = roleRow?.name ?? null;
     }
 
     // ── 4. Sign access token ──
     const accessToken = signAccessToken({
-      userId: user.id,
+      userId:         user.id,
       organizationId: user.organizationId,
       activeOutletId,
       permissions,
       role,
     });
 
-    // ── 5. Create refresh token — single insert using pre-generated UUID ──
-    const tokenId = randomUUID();
+    // ── 5. Create refresh token — single insert ──
+    const tokenId      = randomUUID();
     const refreshToken = signRefreshToken({ userId: user.id, tokenId });
 
     await db.insert(refreshTokens).values({
-      id: tokenId,
-      userId: user.id,
+      id:        tokenId,
+      userId:    user.id,
       tokenHash: hashToken(refreshToken),
       expiresAt: getRefreshExpiryDate(),
     });
 
     // ── 6. Build response ──
+    // filter inactive outlets from selection list
+    const activeOutlets = userOutletRows
+      .filter((uo) => uo.outlet.isActive)
+      .map((uo) => ({
+        id:   uo.outlet.id,
+        name: uo.outlet.name,
+      }));
+
     const response = NextResponse.json({
       accessToken,
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        isOwner: user.isOwner,
+        id:             user.id,
+        name:           user.name,
+        email:          user.email,
+        isOwner:        user.isOwner,
         organizationId: user.organizationId,
-        slug: user.organization.slug,
+        slug:           user.organization.slug,
       },
       role,
       permissions,
-      outlets: userOutletRows.map((uo) => ({
-        id: uo.outlet.id,
-        name: uo.outlet.name,
-      })),
+      outlets:                activeOutlets,
       activeOutletId,
-      requiresOutletSelection: userOutletRows.length > 1,
+      requiresOutletSelection: activeOutlets.length > 1, // only active outlets count
     });
 
     // ── 7. Set cookies ──
     response.cookies.set("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure:   process.env.NODE_ENV === "production",
       sameSite: "strict",
-      path: "/",
-      expires: getRefreshExpiryDate(),
+      path:     "/",
+      expires:  getRefreshExpiryDate(),
     });
 
     response.cookies.set("role", role ?? "", {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure:   process.env.NODE_ENV === "production",
       sameSite: "strict",
-      path: "/",
-      expires: getRefreshExpiryDate(),
+      path:     "/",
+      expires:  getRefreshExpiryDate(),
     });
 
     return response;
   } catch (error) {
-    console.log(error);
+    console.error("Login error:", error);
+    return NextResponse.json(
+      { error: "An unexpected error occurred" },
+      { status: 500 }
+    );
   }
 }
