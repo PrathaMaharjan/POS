@@ -120,6 +120,13 @@
       "when": 1782016577234,
       "tag": "0016_mixed_zombie",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1782201315720,
+      "tag": "0017_elite_living_mummy",
+      "breakpoints": true
     }
   ]
 }

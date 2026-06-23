@@ -7,6 +7,7 @@ import {
   boolean,
   pgEnum,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -73,7 +74,13 @@ export const outlets = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (table) => [index("outlets_org_idx").on(table.organizationId as any)],
+  (table) => [
+    index("outlets_org_idx").on(table.organizationId as any),
+    uniqueIndex("outlets_org_name_unique").on(
+      table.organizationId as any,
+      table.name as any,
+    ),
+  ],
 );
 
 export const userOutlets = pgTable(
