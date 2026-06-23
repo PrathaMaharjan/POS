@@ -1,22 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requiredToken } from "@/lib/auth/requireAuth";
+// import { requirePermission } from "@/lib/permissions/requirePermission";
+import { placeAndPayTakeawayOrder } from "@/controller/orderController";
 import { requiredPermission } from "@/lib/permissions/requirePermission";
-import { createTakeawayOrder } from "@/controller/orderController";
-
 
 const schema = z.object({
-  customerName: z.string().min(1).optional(),
-  customerPhone: z.string().min(1).optional(),
-  items: z
-    .array(
-      z.object({
-        productId: z.string().uuid(),
-        quantity: z.number().int().positive(),
-        notes: z.string().optional(),
-      })
-    )
-    .min(1),
+  customerName:  z.string().optional(),
+  customerPhone: z.string().optional(),
+  items: z.array(
+    z.object({
+      productId: z.string().uuid(),
+      quantity:  z.number().int().min(1),
+      notes:     z.string().optional(),
+    })
+  ).min(1, "At least one item is required"),
+  payment: z.object({
+    method:         z.enum(["cash", "card", "qr"]),
+    amountTendered: z.number().positive("Amount must be greater than 0"),
+  }),
 });
 
 export async function POST(req: NextRequest) {
@@ -32,7 +34,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const result = await createTakeawayOrder(auth.payload.activeOutletId!, auth.payload.userId, parsed.data);
+  const result = await placeAndPayTakeawayOrder(
+    auth.payload.activeOutletId!,
+    auth.payload.userId,
+    parsed.data
+  );
 
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: result.status });

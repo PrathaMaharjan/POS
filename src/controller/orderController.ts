@@ -1,4 +1,5 @@
 import { eq, sql, inArray, Column, ne, and, notInArray } from "drizzle-orm";
+import { payments } from "@/db/schema"; // add to existing imports
 import { db } from "@/db";
 import {
   orders,
@@ -250,7 +251,7 @@ export const listOrder = async (outletId: string) => {
     where: (o, { eq }) => eq(o.outletId, outletId),
     orderBy: (o, { desc }) => desc(o.createdAt),
     limit: 50,
-    with: {
+        with: {
       items: {
         with: {
           product: true,
@@ -384,12 +385,6 @@ export async function cancelOrder(
   }
 
   try {
-    //  const [cancelledOrder] = await db
-    // .update(orders)
-    // .set({ status: "cancelled", updatedAt: new Date() })
-    // .where(eq(orders.id, orderId))
-    // .returning();
-
     const [cancelledOrder] = await db
       .update(orders)
       .set({ status: "cancelled", updatedAt: new Date() })
@@ -421,9 +416,139 @@ export async function cancelOrder(
           .where(eq(diningTables.id, order.tableId));
       }
     }
-       return { success: true, data: cancelledOrder };
+    return { success: true, data: cancelledOrder };
   } catch (error) {
     console.error("cancelOrder error:", error);
     return { success: false, error: "Failed to cancel order", status: 500 };
+  }
+}
+
+//-------------------------------------- payment for takeawya ----------------------------------------
+
+export type PaymentMethod = "cash" | "card" | "qr";
+
+// ─────────────────────────────────────────────
+// PLACE TAKEAWAY ORDER + PAYMENT IN ONE SHOT
+// Order is only created after payment is confirmed
+// ─────────────────────────────────────────────
+export async function placeAndPayTakeawayOrder(
+  outletId: string,
+  userId: string,
+  input: {
+    customerName?: string;
+    customerPhone?: string;
+    items: OrderItemInput[];
+    payment: {
+      method: PaymentMethod;
+      amountTendered: number; // how much customer gave
+    };
+  },
+): Promise<
+  ControllerResult<{
+    order?: typeof orders.$inferSelect;
+    payment: typeof payments.$inferSelect;
+    changeDue: number;
+  }>
+> {
+  const { customerName, customerPhone, items, payment } = input;
+  const TAX_RATE = 0.08;
+
+  // ── 1. Price items first ──
+  const priced = await priceItem(outletId, items);
+  if (!priced.success) return priced;
+
+  const { itemRows, subtotal } = priced.data;
+  const tax = subtotal * TAX_RATE;
+  const total = subtotal + tax;
+
+  // ── 2. Validate payment amount ──
+  if (payment.amountTendered < total) {
+    return {
+      success: false,
+      error: `Insufficient payment. Required: Rs.${total.toFixed(2)}, received: Rs.${payment.amountTendered.toFixed(2)}`,
+      status: 400,
+    };
+  }
+
+  // ── 3. Calculate change ──
+  const changeDue =
+    payment.method === "cash" ? payment.amountTendered - total : 0; // no change for card/qr
+
+  const orderNumber = await getNextOrderNumber(outletId);
+
+  try {
+    // ── 4. Create order ──
+    const [order] = await db
+      .insert(orders)
+      .values({
+        outletId,
+        orderType: "takeaway",
+        tableId: null,
+        customerName,
+        customerPhone,
+        orderNumber,
+        status: "pending",
+        subtotal: subtotal.toFixed(2),
+        tax: tax.toFixed(2),
+        total: total.toFixed(2),
+        createdBy: userId,
+      })
+      .returning();
+
+    // ── 5. Insert order items ──
+    const insertedItems = await db
+      .insert(orderItems)
+      .values(itemRows.map((row) => ({ ...row, orderId: order.id })))
+      .returning();
+
+    // ── 6. Record payment immediately ──
+    const amountToRecord = Math.min(payment.amountTendered, total);
+
+    const [paymentRecord] = await db
+      .insert(payments)
+      .values({
+        orderId: order.id,
+        outletId,
+        method: payment.method,
+        amount: amountToRecord.toFixed(2),
+        receivedBy: userId,
+      })
+      .returning();
+
+    // ── 7. Mark order as completed (paid) ──
+    // const [completedOrder] = await db
+    //   .update(orders)
+    //   .set({ status: "completed", updatedAt: new Date() })
+    //   .where(eq(orders.id, order.id))
+    //   .returning();
+
+    // ── 8. Create KOT (kitchen needs to know) ──
+    const [kotTicket] = await db
+      .insert(kotTickets)
+      .values({ orderId: order.id, outletId, status: "pending" })
+      .returning();
+
+    await db.insert(kotItems).values(
+      insertedItems.map((item) => ({
+        kotTicketId: kotTicket.id,
+        orderItemId: item.id,
+      })),
+    );
+
+    return {
+      success: true,
+      data: {
+        // order: completedOrder,
+        payment: paymentRecord,
+        changeDue: Number(changeDue.toFixed(2)),
+      },
+    };
+  } catch (error) {
+    console.error("placeAndPayTakeawayOrder error:", error);
+    return {
+      success: false,
+      error: "Failed to place takeaway order",
+      status: 500,
+    };
   }
 }
