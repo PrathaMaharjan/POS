@@ -314,42 +314,6 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
     return () => clearInterval(interval);
   }, []);
 
-<<<<<<< HEAD
- async function fetchTickets() {
-  try {
-    const res = await api.get('/kot');
-    const data = res.data;
-
-    const mapped: ActiveFoodStatus[] = (data.tickets ?? [])
-      .filter((ticket: any) => ticket.status !== 'served')
-      .map((ticket: any) => {
-        const dbOrder = ticket.order ?? {};
-
-        const mappedItems: ActiveFoodItem[] = (ticket.items ?? []).map((item: any) => ({
-          id: item.id,
-          name: item.orderItem?.product?.name ?? 'Deleted Product', // ✅ correct path
-          quantity: item.orderItem?.quantity ?? 1,                  // ✅ also from orderItem
-          notes: item.orderItem?.notes ?? '',                       // ✅ also from orderItem
-        }));
-
-        return {
-          id: ticket.id,
-          orderNumber: dbOrder.orderNumber ?? 0,
-          tableName: dbOrder.table?.tableNumber
-            ?? dbOrder.customerName
-            ?? 'Takeaway',
-          type: dbOrder.orderType === 'takeaway' ? 'TAKEAWAY' : 'DINE_IN',
-          ticketState: (
-            ticket.status === 'ready' ? 'DONE' : ticket.status?.toUpperCase() ?? 'PENDING'
-          ) as ActiveFoodStatus['ticketState'],
-          items: mappedItems,
-        };
-      });
-
-    setActiveOrders(mapped);
-  } catch (err) {
-    console.error("Failed to fetch KOT tickets:", err);
-=======
   async function fetchTickets() {
     try {
       const res = await api.get('/kot');
@@ -378,9 +342,7 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
     } catch (err) {
       console.error("Failed to fetch KOT tickets for table status:", err);
     }
->>>>>>> adec07c3b7c111f0d3b4998dbe635702c9387078
   }
-}
 
   useEffect(() => {
     fetchTickets();
