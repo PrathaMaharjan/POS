@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import TableModal from '../../_components/TableModal';
 import api from '@/lib/api';
@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
   MessageSquare,
+  LayoutGrid,
 } from 'lucide-react';
 
 type TableStatus = 'available' | 'occupied' | 'reserved' | 'dirty';
@@ -51,6 +52,28 @@ interface TablesProps {
   role?: 'cashier' | 'waiter';
 }
 
+// ── Card size constants (px) ──────────────────────────────────────────────────
+const CARD_W = 140;
+const CARD_H = 140;
+const GRID_COLS = 6;
+const GRID_GAP = 24;
+const CANVAS_PADDING = 24;
+
+// Build a default grid layout for a list of tables
+function defaultLayout(tables: Table[]): Record<string, { x: number; y: number }> {
+  const layout: Record<string, { x: number; y: number }> = {};
+  tables.forEach((t, i) => {
+    const col = i % GRID_COLS;
+    const row = Math.floor(i / GRID_COLS);
+    layout[t.id] = {
+      x: CANVAS_PADDING + col * (CARD_W + GRID_GAP),
+      y: CANVAS_PADDING + row * (CARD_H + GRID_GAP),
+    };
+  });
+  return layout;
+}
+
+// ── Status config ─────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<TableStatus, {
   borderColor: string;
   shadowColor: string;
@@ -88,13 +111,20 @@ const STATUS_CONFIG: Record<TableStatus, {
   },
 };
 
+// ── Draggable TableCard ───────────────────────────────────────────────────────
 function TableCard({
   table,
+  position,
   isReadyToServe,
+  isDragging,
+  onPointerDown,
   onClick,
 }: {
   table: Table;
+  position: { x: number; y: number };
   isReadyToServe: boolean;
+  isDragging: boolean;
+  onPointerDown: (e: React.PointerEvent) => void;
   onClick: () => void;
 }) {
   const cfg = STATUS_CONFIG[table.status];
@@ -112,41 +142,54 @@ function TableCard({
 
   return (
     <div
+      onPointerDown={onPointerDown}
       onClick={onClick}
+      style={{
+        position: 'absolute',
+        left: position.x,
+        top: position.y,
+        width: CARD_W,
+        height: CARD_H,
+        cursor: isDragging ? 'grabbing' : 'grab',
+        zIndex: isDragging ? 50 : 1,
+        userSelect: 'none',
+        touchAction: 'none',
+      }}
       className={`
-        group relative flex flex-col items-center justify-center text-center cursor-pointer
-        bg-[#141416] border transition-all duration-300 p-5 gap-3 w-full aspect-square select-none
+        group flex flex-col items-center justify-center text-center
+        bg-[#141416] border transition-all duration-200 p-3 gap-2 select-none
         ${isRound ? 'rounded-full' : 'rounded-2xl'}
-        ${isReadyToServe
-          ? 'border-[#22c55e] shadow-[0_0_20px_rgba(34,197,94,0.35)] animate-[pulse_1.8s_infinite] scale-[1.02]'
-          : `${cfg.borderColor} ${cfg.shadowColor} hover:-translate-y-1`}
+        ${isDragging
+          ? 'shadow-[0_8px_32px_rgba(0,0,0,0.5)] scale-105 opacity-90'
+          : isReadyToServe
+            ? 'border-[#22c55e] shadow-[0_0_20px_rgba(34,197,94,0.35)] animate-[pulse_1.8s_infinite] scale-[1.02]'
+            : `${cfg.borderColor} ${cfg.shadowColor}`}
       `}
     >
-      {isReadyToServe && (
+      {isReadyToServe && !isDragging && (
         <span className="absolute -top-2 bg-[#22c55e] text-[#0a1a0f] text-[9px] font-black tracking-wider px-2 py-0.5 rounded-md uppercase shadow-lg">
           READY
         </span>
       )}
-      <span className="text-[12px] font-medium text-neutral-400 tracking-wider uppercase group-hover:text-white transition-colors">
+      <span className="text-[11px] font-medium text-neutral-400 tracking-wider uppercase group-hover:text-white transition-colors leading-tight">
         {table.label}
       </span>
       {renderStatusIcon()}
-      <div className="min-h-[24px] flex items-center justify-center w-full mt-1">
-        <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-neutral-900/60 border border-neutral-800 rounded-full">
-          <span className="text-[11px] font-medium text-neutral-400 tracking-wide">
-            {table.seats} Seats
-          </span>
-        </div>
+      <div className="flex items-center gap-1 px-2 py-0.5 bg-neutral-900/60 border border-neutral-800 rounded-full">
+        <span className="text-[10px] font-medium text-neutral-400 tracking-wide">
+          {table.seats} Seats
+        </span>
       </div>
     </div>
   );
 }
 
+// ── Main Component ────────────────────────────────────────────────────────────
 export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesProps) {
   const router = useRouter();
   const params = useParams<{ tenantSlug: string }>();
   const tenantSlug = propTenantSlug || params?.tenantSlug;
-  
+
   const [tables, setTables] = useState<Table[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeOrders, setActiveOrders] = useState<ActiveFoodStatus[]>([]);
@@ -154,13 +197,104 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
   const [confirmingTakeawayId, setConfirmingTakeawayId] = useState<string | null>(null);
   const [expandedTakeawayId, setExpandedTakeawayId] = useState<string | null>(null);
 
+  // ── Drag state ──────────────────────────────────────────────────────────────
+  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const dragOrigin = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
+  const hasDragged = useRef(false);
+  const canvasRef = useRef<HTMLDivElement>(null);
+
+  const storageKey = `table-layout-${tenantSlug ?? 'default'}`;
+
+  // Load saved positions from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) setPositions(JSON.parse(saved));
+    } catch { /* ignore */ }
+  }, [storageKey]);
+
+  // Once tables arrive, fill in any missing positions
+  useEffect(() => {
+    if (tables.length === 0) return;
+    setPositions(prev => {
+      const missing = tables.filter(t => !prev[t.id]);
+      if (missing.length === 0) return prev;
+      const defaults = defaultLayout(tables);
+      const merged = { ...prev };
+      missing.forEach(t => { merged[t.id] = defaults[t.id]; });
+      return merged;
+    });
+  }, [tables]);
+
+  // Persist positions whenever they change
+  useEffect(() => {
+    if (Object.keys(positions).length === 0) return;
+    try { localStorage.setItem(storageKey, JSON.stringify(positions)); } catch { /* ignore */ }
+  }, [positions, storageKey]);
+
+  // Canvas height: enough to fit all cards plus padding
+  const canvasHeight = Math.max(
+    480,
+    Object.values(positions).reduce((max, p) => Math.max(max, p.y + CARD_H + CANVAS_PADDING), 0)
+  );
+
+  // ── Pointer drag handlers ───────────────────────────────────────────────────
+  const handlePointerDown = useCallback((tableId: string, e: React.PointerEvent) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    hasDragged.current = false;
+    setDraggingId(tableId);
+    dragOrigin.current = {
+      px: e.clientX,
+      py: e.clientY,
+      ox: positions[tableId]?.x ?? 0,
+      oy: positions[tableId]?.y ?? 0,
+    };
+  }, [positions]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!draggingId || !dragOrigin.current || !canvasRef.current) return;
+    const dx = e.clientX - dragOrigin.current.px;
+    const dy = e.clientY - dragOrigin.current.py;
+
+    if (!hasDragged.current && Math.abs(dx) + Math.abs(dy) < 4) return;
+    hasDragged.current = true;
+
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    const newX = Math.max(0, Math.min(dragOrigin.current.ox + dx, canvasRect.width - CARD_W));
+    const newY = Math.max(0, dragOrigin.current.oy + dy);
+
+    setPositions(prev => ({
+      ...prev,
+      [draggingId]: { x: newX, y: newY },
+    }));
+  }, [draggingId]);
+
+  const stopDrag = useCallback(() => {
+    setDraggingId(null);
+    dragOrigin.current = null;
+  }, []);
+
+  // Escape key drops the card immediately
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') stopDrag(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [stopDrag]);
+
+  const resetLayout = () => {
+    const layout = defaultLayout(tables);
+    setPositions(layout);
+  };
+
+  // ── Data fetching (unchanged) ───────────────────────────────────────────────
   useEffect(() => {
     async function fetchTables(silent = false) {
       try {
         if (!silent) setIsLoading(true);
         const res = await api.get('/tables');
         const raw = res.data.tables ?? [];
-
         const mapped: Table[] = raw.map((t: any) => ({
           id: t.id,
           label: t.name ?? t.tableNumber ?? `T-${t.id}`,
@@ -168,7 +302,6 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
           shape: t.shape ?? 'square',
           seats: t.capacity ?? t.seats ?? 2,
         }));
-
         setTables(mapped);
       } catch (err) {
         console.error('Failed to fetch tables:', err);
@@ -189,18 +322,13 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
         .filter((ticket: any) => ticket.status !== 'served')
         .map((ticket: any) => {
           const dbOrder = ticket.order ?? {};
-          
-          // Fallback cascades safely to target nested array fields
           const rawItems = ticket.items ?? dbOrder.items ?? [];
           const mappedItems: ActiveFoodItem[] = rawItems.map((item: any) => ({
             id: item.id,
-            // FIXED: Added additional fallbacks for missing nested structures
             name: item.product?.name ?? item.name ?? item.productName ?? 'Unknown Product',
             quantity: item.quantity ?? 1,
-            // FIXED: Extended note field fallback checking mechanism
             notes: item.notes ?? item.note ?? item.instruction ?? '',
           }));
-
           return {
             id: ticket.id,
             orderNumber: dbOrder.orderNumber ?? 0,
@@ -224,9 +352,7 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
 
   const handleKotStatusChange = (ticketId: string, nextStatus: string) => {
     setActiveOrders(prev => {
-      if (nextStatus === 'served') {
-        return prev.filter(order => order.id !== ticketId);
-      }
+      if (nextStatus === 'served') return prev.filter(order => order.id !== ticketId);
       return prev;
     });
     fetchTickets();
@@ -254,16 +380,11 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
     setConfirmingTakeawayId(null);
   };
 
-  const handleTableClick = (table: Table) => {
-    setSelectedTable(table);
-  };
-
   const handleTableStatusChange = async (tableId: string, nextStatus: TableStatus) => {
     setTables(prevTables =>
       prevTables.map(t => t.id === tableId ? { ...t, status: nextStatus } : t)
     );
     setSelectedTable(prev => prev && prev.id === tableId ? { ...prev, status: nextStatus } : prev);
-
     try {
       await api.patch(`/tables/${tableId}/status`, { status: nextStatus });
     } catch (err: any) {
@@ -288,19 +409,29 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
               </div>
             ))}
           </div>
-          <button
-            onClick={() => {
-              if (role === 'cashier') {
-                router.push(`/t/${safeSlug}/pos/cashier`);
-              } else {
-                router.push(`/t/${safeSlug}/pos/waiter`);
-              }
-            }}
-            className="flex items-center gap-2 bg-[#141416] border border-neutral-800 hover:border-[#e5b83b]/60 text-neutral-400 hover:text-white px-4 py-2 rounded-xl text-xs font-semibold tracking-wide uppercase transition-all duration-150 shrink-0"
-          >
-            <ArrowLeft className="w-4 h-4" strokeWidth={2} />
-            Go Back
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={resetLayout}
+              title="Reset table layout to default grid"
+              className="flex items-center gap-2 bg-[#141416] border border-neutral-800 hover:border-neutral-600 text-neutral-500 hover:text-neutral-300 px-4 py-2 rounded-xl text-xs font-semibold tracking-wide uppercase transition-all duration-150"
+            >
+              <LayoutGrid className="w-4 h-4" strokeWidth={2} />
+              Reset Layout
+            </button>
+            <button
+              onClick={() => {
+                if (role === 'cashier') {
+                  router.push(`/t/${safeSlug}/pos/cashier`);
+                } else {
+                  router.push(`/t/${safeSlug}/pos/waiter`);
+                }
+              }}
+              className="flex items-center gap-2 bg-[#141416] border border-neutral-800 hover:border-[#e5b83b]/60 text-neutral-400 hover:text-white px-4 py-2 rounded-xl text-xs font-semibold tracking-wide uppercase transition-all duration-150"
+            >
+              <ArrowLeft className="w-4 h-4" strokeWidth={2} />
+              Go Back
+            </button>
+          </div>
         </div>
 
         {/* Cashier Takeaway Pickup Queue Panel */}
@@ -313,7 +444,6 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
               {readyTakeaways.map((order) => {
                 const isConfirming = confirmingTakeawayId === order.id;
                 const isExpanded = expandedTakeawayId === order.id;
-                
                 return (
                   <div
                     key={order.id}
@@ -321,12 +451,11 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
                     className={`flex flex-col border rounded-xl transition-all duration-200 cursor-pointer overflow-hidden ${
                       isConfirming
                         ? 'bg-[#291414] border-red-500/30'
-                        : isExpanded 
-                          ? 'bg-[#18181b] border-[#e5b83b]/40 shadow-md shadow-black/40' 
+                        : isExpanded
+                          ? 'bg-[#18181b] border-[#e5b83b]/40 shadow-md shadow-black/40'
                           : 'bg-[#112414] border-[#22c55e]/20 hover:border-[#22c55e]/40'
                     }`}
                   >
-                    {/* Header Summary Row */}
                     <div className="flex items-center justify-between px-4 py-3 gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className={`text-sm font-black ${isConfirming ? 'text-red-400' : 'text-green-400'}`}>
@@ -336,7 +465,6 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
                           {order.tableName}
                         </span>
                       </div>
-                      
                       <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
                         {isConfirming ? (
                           <div className="flex items-center gap-1">
@@ -366,13 +494,9 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
                         </div>
                       </div>
                     </div>
-
-                    {/* Expandable Order Details Panel */}
                     {isExpanded && (
                       <div className="border-t border-neutral-800/60 bg-black/20 px-4 py-3 flex flex-col gap-2">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                          Order Items
-                        </div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Order Items</div>
                         <div className="flex flex-col gap-1.5 max-h-[160px] overflow-y-auto">
                           {order.items.length === 0 ? (
                             <span className="text-xs text-neutral-500 italic">No item summary available</span>
@@ -414,15 +538,40 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
             <span className="text-sm font-medium">No tables found</span>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 flex-1 content-start py-2">
-            {tables.map((table) => (
-              <TableCard
-                key={table.id}
-                table={table}
-                isReadyToServe={checkTableReadyState(table.label)}
-                onClick={() => handleTableClick(table)}
-              />
-            ))}
+          /* ── Free-position drag canvas ── */
+          <div
+            ref={canvasRef}
+            onPointerMove={handlePointerMove}
+            onPointerUp={stopDrag}
+            onPointerLeave={stopDrag}
+            style={{ position: 'relative', height: canvasHeight, minHeight: 480 }}
+            className="w-full rounded-2xl border border-neutral-900/60 bg-[#0e0e10] overflow-hidden"
+          >
+            {/* Subtle dot-grid background */}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px)',
+                backgroundSize: '28px 28px',
+              }}
+            />
+
+            {tables.map((table) => {
+              const pos = positions[table.id] ?? { x: 0, y: 0 };
+              return (
+                <TableCard
+                  key={table.id}
+                  table={table}
+                  position={pos}
+                  isReadyToServe={checkTableReadyState(table.label)}
+                  isDragging={draggingId === table.id}
+                  onPointerDown={(e) => handlePointerDown(table.id, e)}
+                  onClick={() => {
+                    if (!hasDragged.current) setSelectedTable(table);
+                  }}
+                />
+              );
+            })}
           </div>
         )}
 
