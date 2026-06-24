@@ -1,5 +1,10 @@
-import { getProductById, hardDeleteProduct, updateProduct } from "@/controller/product";
+import {
+  getProductById,
+  hardDeleteProduct,
+  updateProduct,
+} from "@/controller/product";
 import { requiredToken } from "@/lib/auth/requireAuth";
+import { resolveOutletId } from "@/lib/auth/resolveOutletId";
 import { requiredPermission } from "@/lib/permissions/requirePermission";
 import { NextRequest, NextResponse } from "next/server";
 import z from "zod";
@@ -11,6 +16,7 @@ const updateSchema = z.object({
   description: z.string().optional(),
   imagePublicId: z.string().optional(),
   sortOrder: z.number().int().optional(),
+  outletId: z.string().uuid().optional(),
 });
 
 export async function GET(
@@ -84,11 +90,27 @@ export async function PATCH(
       { status: 400 },
     );
   }
+  const { outletId: requestedOutletId, ...updateFields } = parsed.data;
+
+  if (Object.keys(updateFields).length === 0) {
+    return NextResponse.json(
+      { error: "Provide at least one field to update" },
+      { status: 400 },
+    );
+  }
+
+  const resolved = await resolveOutletId(auth.payload, requestedOutletId);
+  if ("error" in resolved) {
+    return NextResponse.json(
+      { error: resolved.error },
+      { status: resolved.status },
+    );
+  }
 
   const result = await updateProduct(
-    auth.payload.activeOutletId!,
+    resolved.outletId,
     id,
-    parsed.data,
+    updateFields
   );
 
   if (!result.success) {

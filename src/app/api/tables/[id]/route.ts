@@ -3,18 +3,62 @@ import { z } from "zod";
 import { requiredToken } from "@/lib/auth/requireAuth";
 import { removeTable, updateTable, updateTableStatus } from "@/controller/tableController";
 import { requiredPermission } from "@/lib/permissions/requirePermission";
-
+import { resolveOutletId } from "@/lib/auth/resolveOutletId";
 
 
 const updateSchema = z.object({
   tableNumber: z.string().min(1).max(20).optional(),
-  capacity: z.number().int().min(1).optional(),
-  shape: z.enum(["square", "round","rectangle"]).optional(),
-  positionX: z.number().optional(),
-  positionY: z.number().optional(),
+  capacity:    z.number().int().min(1).optional(),
+  shape:       z.enum(["square", "round", "rectangle"]).optional(),
+  positionX:   z.number().optional(),
+  positionY:   z.number().optional(),
+  outletId:    z.string().uuid().optional(), // ← Owner passes this
 });
 
+// export async function PATCH(
+//   req: NextRequest,
+//   { params }: { params: Promise<{ id: string }> }
+// ) {
+//   const { id } = await params;
 
+//   const auth = await requiredToken(req);
+//   if (!auth.ok) return auth.response;
+
+//   const permError = requiredPermission(auth.payload, "restaurant.tables.update");
+//   if (permError) return permError;
+
+//   const body = await req.json();
+//   const parsed = updateSchema.safeParse(body);
+//   if (!parsed.success) {
+//     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+//   }
+
+//   const { outletId, ...updateFields } = parsed.data;
+
+//   if (Object.keys(updateFields).length === 0) {
+//     return NextResponse.json(
+//       { error: "Provide at least one field to update" },
+//       { status: 400 }
+//     );
+//   }
+
+//   // Owner → uses outletId from body, Manager → uses JWT
+//   const resolvedOutletId = auth.payload.role === "Owner"
+//     ? (outletId ?? auth.payload.activeOutletId!)
+//     : auth.payload.activeOutletId!;
+
+//   if (!resolvedOutletId) {
+//     return NextResponse.json({ error: "No outlet found" }, { status: 400 });
+//   }
+
+//   const result = await updateTable(resolvedOutletId, id, updateFields);
+
+//   if (!result.success) {
+//     return NextResponse.json({ error: result.error }, { status: result.status });
+//   }
+
+//   return NextResponse.json(result.data);
+// }
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -33,12 +77,21 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  if (Object.keys(parsed.data).length === 0) {
-    return NextResponse.json({ error: "Provide at least one field to update" }, { status: 400 });
+  const { outletId: requestedOutletId, ...updateFields } = parsed.data;
+
+  if (Object.keys(updateFields).length === 0) {
+    return NextResponse.json(
+      { error: "Provide at least one field to update" },
+      { status: 400 }
+    );
   }
 
-  const result = await updateTable(auth.payload.activeOutletId!, id, parsed.data);
+  const resolved = await resolveOutletId(auth.payload, requestedOutletId);
+  if ("error" in resolved) {
+    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+  }
 
+  const result = await updateTable(resolved.outletId, id, updateFields);
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -58,8 +111,15 @@ export async function DELETE(
   const permError = requiredPermission(auth.payload, "restaurant.tables.delete");
   if (permError) return permError;
 
-  const result = await removeTable(auth.payload.activeOutletId!, id);
+  const resolved = await resolveOutletId(
+    auth.payload,
+    req.nextUrl.searchParams.get("outletId")
+  );
+  if ("error" in resolved) {
+    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+  }
 
+  const result = await removeTable(resolved.outletId, id);
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }

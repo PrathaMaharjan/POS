@@ -5,12 +5,13 @@ import { NextRequest, NextResponse } from "next/server";
 import z from "zod";
 
 const schema = z.object({
-  role: z.enum(["Cashier", "Waiter", "Kitchen Crew"]),
+  role: z.enum(["Manager", "Cashier", "Waiter", "Kitchen Crew"]),
+  outletId: z.string().uuid().optional(), // ← Owner passes this
 });
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ userid: string }> },
+  { params }: { params: Promise<{ userid: string }> }
 ) {
   const { userid } = await params;
 
@@ -20,26 +21,42 @@ export async function PATCH(
   const permError = requiredPermission(auth.payload, "core.users.update");
   if (permError) return permError;
 
+  const isOwner = auth.payload.role === "Owner";
+
+  // validate role — Manager cannot assign Manager role
+  const allowedRoles = isOwner
+    ? (["Manager", "Cashier", "Waiter", "Kitchen Crew"] as const)
+    : (["Cashier", "Waiter", "Kitchen Crew"] as const);
+
   const body = await req.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+
+  // block Manager from assigning Manager role
+  if (!isOwner && parsed.data.role === "Manager") {
     return NextResponse.json(
-      { error: parsed.error.flatten() },
-      { status: 400 },
+      { error: "Managers cannot assign the Manager role" },
+      { status: 403 }
     );
   }
 
-  const result = await updateStaffRole(
-    auth.payload.activeOutletId!,
-    userid,
-    parsed.data.role,
-  );
+  const { role, outletId } = parsed.data;
+
+  // Owner → uses outletId from body, Manager → uses JWT
+  const resolvedOutletId = isOwner
+    ? (outletId ?? auth.payload.activeOutletId!)
+    : auth.payload.activeOutletId!;
+
+  if (!resolvedOutletId) {
+    return NextResponse.json({ error: "No outlet found" }, { status: 400 });
+  }
+
+  const result = await updateStaffRole(resolvedOutletId, userid, role);
 
   if (!result.success) {
-    return NextResponse.json(
-      { error: result.error },
-      { status: result.status },
-    );
+    return NextResponse.json({ error: result.error }, { status: result.status });
   }
 
   return NextResponse.json(result.data);

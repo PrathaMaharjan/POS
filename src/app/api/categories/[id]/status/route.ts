@@ -3,9 +3,12 @@ import { z } from "zod";
 import { requiredToken } from "@/lib/auth/requireAuth";
 import { requiredPermission } from "@/lib/permissions/requirePermission";
 import { updateCategoryStatus } from "@/controller/category";
+import { resolveOutletId } from "@/lib/auth/resolveOutletId";
 
 const schema = z.object({
   isActive: z.boolean(),
+  outletId: z.string().uuid().optional(),
+
 });
 
 export async function PATCH(
@@ -26,11 +29,18 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const result = await updateCategoryStatus(
-    auth.payload.activeOutletId!,
-    id,
-    parsed.data.isActive
-  );
+  const { outletId: requestedOutletId, isActive} = parsed.data;
+
+
+  const resolved = await resolveOutletId(auth.payload, requestedOutletId);
+  if ("error" in resolved) {
+    return NextResponse.json(
+      { error: resolved.error },
+      { status: resolved.status },
+    );
+  }
+
+  const result = await updateCategoryStatus(resolved.outletId, id, isActive);
 
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: result.status });

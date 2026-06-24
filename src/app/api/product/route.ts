@@ -1,5 +1,6 @@
 import { createProduct, listProducts } from "@/controller/product";
 import { requiredToken } from "@/lib/auth/requireAuth";
+import { resolveOutletId } from "@/lib/auth/resolveOutletId";
 import { requiredPermission } from "@/lib/permissions/requirePermission";
 import { NextRequest, NextResponse } from "next/server";
 import z from "zod";
@@ -22,12 +23,19 @@ export async function POST(req: NextRequest) {
   if (permError) return permError;
 
   const body = await req.json();
+
+  // Owner can optionally pass outletId in body to target a specific outlet
+  const resolved = await resolveOutletId(auth.payload, body.outletId);
+  if ("error" in resolved) {
+    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+  }
+
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const result = await createProduct(auth.payload.activeOutletId!, parsed.data);
+  const result = await createProduct(resolved.outletId, parsed.data);
 
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: result.status });
@@ -42,18 +50,19 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const searchParams = req.nextUrl.searchParams;
-  const categoryId = searchParams.get("categoryId");
 
+  // Owner can pass ?outletId= to query a specific outlet
+  const resolved = await resolveOutletId(auth.payload, searchParams.get("outletId"));
+  if ("error" in resolved) {
+    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+  }
+
+  const categoryId = searchParams.get("categoryId");
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 100);
   const page = Math.max(parseInt(searchParams.get("page") ?? "1"), 1);
   const offset = (page - 1) * limit;
 
-  const result = await listProducts(
-    auth.payload.activeOutletId!,
-    categoryId || undefined,
-    limit,
-    offset
-  );
+  const result = await listProducts(resolved.outletId, categoryId || undefined, limit, offset);
 
   return NextResponse.json({
     ...result,
