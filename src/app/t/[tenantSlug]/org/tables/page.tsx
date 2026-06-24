@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useParams } from "next/navigation";
 import api from "@/lib/api";
 import {
   Plus, X, Pencil, Trash2,
   Users, CheckCircle2, AlertCircle, HelpCircle,
   Armchair, Bookmark, Eraser, Loader2, LayoutGrid,
+  Store, ChevronDown,
 } from "lucide-react";
 
 type TableStatus = "available" | "occupied" | "reserved" | "dirty";
@@ -17,8 +19,15 @@ interface Table {
   status: TableStatus;
   seats: number;
   shape: TableShape;
+  outletId?: string;
+  outletName?: string;
   positionX?: string | number;
   positionY?: string | number;
+}
+
+interface Outlet {
+  id: string;
+  name: string;
 }
 
 interface FormState {
@@ -26,11 +35,11 @@ interface FormState {
   seats: number;
   status: TableStatus;
   shape: TableShape;
+  outletId: string;
 }
 
-const EMPTY_FORM: FormState = { name: "", seats: 4, status: "available", shape: "square" };
+const EMPTY_FORM: FormState = { name: "", seats: 4, status: "available", shape: "square", outletId: "" };
 
-// ── Drag / layout constants ───────────────────────────────────────────────────
 const CARD_W = 140;
 const CARD_H = 140;
 const GRID_COLS = 6;
@@ -50,7 +59,6 @@ function defaultLayout(tables: Table[]): Record<string, { x: number; y: number }
   return layout;
 }
 
-// ── Status style helpers ──────────────────────────────────────────────────────
 function getStatusStyle(status: TableStatus) {
   switch (status) {
     case "available": return {
@@ -76,14 +84,8 @@ function getStatusStyle(status: TableStatus) {
   }
 }
 
-// ── Draggable card ────────────────────────────────────────────────────────────
 function TableCard({
-  table,
-  position,
-  isDragging,
-  onPointerDown,
-  onEdit,
-  onDelete,
+  table, position, isDragging, onPointerDown, onEdit, onDelete,
 }: {
   table: Table;
   position: { x: number; y: number };
@@ -93,7 +95,6 @@ function TableCard({
   onDelete: () => void;
 }) {
   const style = getStatusStyle(table.status);
-
   return (
     <div
       onPointerDown={onPointerDown}
@@ -113,12 +114,9 @@ function TableCard({
         transition-all duration-150 shadow-sm
         ${table.shape === "round" ? "rounded-full" : "rounded-2xl"}
         ${style.border} ${style.bg}
-        ${isDragging
-          ? "shadow-xl scale-105 opacity-90"
-          : "hover:shadow-md hover:-translate-y-0.5"}
+        ${isDragging ? "shadow-xl scale-105 opacity-90" : "hover:shadow-md hover:-translate-y-0.5"}
       `}
     >
-      {/* Edit button — hidden while dragging */}
       {!isDragging && (
         <button
           onPointerDown={e => e.stopPropagation()}
@@ -128,8 +126,6 @@ function TableCard({
           <Pencil className="w-3 h-3" />
         </button>
       )}
-
-      {/* Delete button — hidden while dragging */}
       {!isDragging && (
         <button
           onPointerDown={e => e.stopPropagation()}
@@ -139,19 +135,15 @@ function TableCard({
           <Trash2 className="w-3 h-3" />
         </button>
       )}
-
       <div className="text-center space-y-1.5 pt-4 w-full px-2">
         <span className={`text-[11px] font-bold tracking-wider block uppercase ${style.label}`}>
           {table.name}
         </span>
-        <div className="flex justify-center py-0.5">
-          {style.icon}
-        </div>
+        <div className="flex justify-center py-0.5">{style.icon}</div>
         <span className="text-[10px] font-bold text-slate-500 bg-white/60 rounded-full px-2.5 py-0.5 inline-block">
           {table.seats} Seats
         </span>
       </div>
-
       <div className="flex items-center gap-1.5 mb-3">
         <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
         <span className={`text-[10px] font-semibold capitalize ${style.label}`}>{table.status}</span>
@@ -160,9 +152,12 @@ function TableCard({
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
 export default function ManagerTablePage() {
+  const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const [tables, setTables] = useState<Table[]>([]);
+  const [outlets, setOutlets] = useState<Outlet[]>([]);
+  const [selectedOutletId, setSelectedOutletId] = useState<string>("");
+  const [outletDropdownOpen, setOutletDropdownOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -170,7 +165,6 @@ export default function ManagerTablePage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
 
-  // ── Drag state ──────────────────────────────────────────────────────────────
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const dragOrigin = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
@@ -180,47 +174,46 @@ export default function ManagerTablePage() {
   const draggedPositionRef = useRef<{ x: number; y: number } | null>(null);
   const positionsRef = useRef<Record<string, { x: number; y: number }>>({});
 
-  useEffect(() => {
-    positionsRef.current = positions;
-  }, [positions]);
+  useEffect(() => { positionsRef.current = positions; }, [positions]);
 
-  // Once tables arrive, sync coordinates from DB
+  const filteredTables = tables;
+  const activeOutlet = outlets.find((o) => o.id === selectedOutletId);
+
+  // Close dropdown on outside click
   useEffect(() => {
-    if (tables.length === 0) return;
+    if (!outletDropdownOpen) return;
+    const handler = () => setOutletDropdownOpen(false);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [outletDropdownOpen]);
+
+  useEffect(() => {
+    if (filteredTables.length === 0) return;
     setPositions(prev => {
       const next = { ...prev };
-      const defaults = defaultLayout(tables);
+      const defaults = defaultLayout(filteredTables);
       let changed = false;
-
-      tables.forEach(t => {
+      filteredTables.forEach(t => {
         const dbX = t.positionX !== undefined ? Number(t.positionX) : 0;
         const dbY = t.positionY !== undefined ? Number(t.positionY) : 0;
-
         if (draggingId === t.id) return;
-
         let targetX = defaults[t.id].x;
         let targetY = defaults[t.id].y;
-        if (dbX !== 0 || dbY !== 0) {
-          targetX = dbX;
-          targetY = dbY;
-        }
-
+        if (dbX !== 0 || dbY !== 0) { targetX = dbX; targetY = dbY; }
         if (!prev[t.id] || prev[t.id].x !== targetX || prev[t.id].y !== targetY) {
           next[t.id] = { x: targetX, y: targetY };
           changed = true;
         }
       });
-
       return changed ? next : prev;
     });
-  }, [tables, draggingId]);
+  }, [filteredTables, draggingId]);
 
   const canvasHeight = Math.max(
     480,
     Object.values(positions).reduce((max, p) => Math.max(max, p.y + CARD_H + PAD), 0)
   );
 
-  // ── Pointer handlers ────────────────────────────────────────────────────────
   const handlePointerDown = useCallback((tableId: string, e: React.PointerEvent) => {
     e.preventDefault();
     const el = e.currentTarget as HTMLElement;
@@ -228,15 +221,9 @@ export default function ManagerTablePage() {
     draggingElementRef.current = el;
     hasDragged.current = false;
     setDraggingId(tableId);
-    
     const ox = positionsRef.current[tableId]?.x ?? 0;
     const oy = positionsRef.current[tableId]?.y ?? 0;
-    dragOrigin.current = {
-      px: e.clientX,
-      py: e.clientY,
-      ox,
-      oy,
-    };
+    dragOrigin.current = { px: e.clientX, py: e.clientY, ox, oy };
     draggedPositionRef.current = { x: ox, y: oy };
   }, []);
 
@@ -246,13 +233,10 @@ export default function ManagerTablePage() {
     const dy = e.clientY - dragOrigin.current.py;
     if (!hasDragged.current && Math.abs(dx) + Math.abs(dy) < 4) return;
     hasDragged.current = true;
-
     const rect = canvasRef.current.getBoundingClientRect();
     const newX = Math.max(0, Math.min(dragOrigin.current.ox + dx, rect.width - CARD_W));
     const newY = Math.max(0, dragOrigin.current.oy + dy);
-
     draggedPositionRef.current = { x: newX, y: newY };
-
     if (draggingElementRef.current) {
       draggingElementRef.current.style.left = `${newX}px`;
       draggingElementRef.current.style.top = `${newY}px`;
@@ -264,13 +248,15 @@ export default function ManagerTablePage() {
       const pos = draggedPositionRef.current;
       if (pos) {
         setPositions(prev => ({ ...prev, [draggingId]: pos }));
+        const tbl = tables.find(t => t.id === draggingId);
         try {
           await api.patch(`/tables/${draggingId}`, {
             positionX: Math.round(pos.x),
             positionY: Math.round(pos.y),
+            outletId: tbl?.outletId,
           });
         } catch (err) {
-          console.error("Failed to save table position to DB:", err);
+          console.error("Failed to save table position:", err);
         }
       }
     }
@@ -278,9 +264,8 @@ export default function ManagerTablePage() {
     dragOrigin.current = null;
     draggingElementRef.current = null;
     draggedPositionRef.current = null;
-  }, [draggingId]);
+  }, [draggingId, tables]);
 
-  // Escape key drops card
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") stopDrag(); };
     window.addEventListener("keydown", onKey);
@@ -288,98 +273,94 @@ export default function ManagerTablePage() {
   }, [stopDrag]);
 
   const resetLayout = async () => {
-    const layout = defaultLayout(tables);
-    setPositions(layout);
+    const layout = defaultLayout(filteredTables);
+    setPositions(prev => ({ ...prev, ...layout }));
     try {
       await Promise.all(
-        tables.map(t => {
+        filteredTables.map(t => {
           const pos = layout[t.id];
           return api.patch(`/tables/${t.id}`, {
             positionX: Math.round(pos.x),
             positionY: Math.round(pos.y),
+            outletId: t.outletId,
           });
         })
       );
     } catch (err) {
-      console.error("Failed to reset layout positions in DB:", err);
+      console.error("Failed to reset layout:", err);
     }
   };
 
-  // ── Data fetching ───────────────────────────────────────────────────────────
   useEffect(() => {
-    fetchTables();
-    const interval = setInterval(() => {
-      async function fetchTablesSilent() {
-        try {
-          const res = await api.get("/tables");
-          const raw = res.data.tables ?? [];
-          const mapped: Table[] = raw.map((t: any) => ({
-            id: t.id,
-            name: t.tableNumber ?? t.name ?? `T-${t.id}`,
-            status: (t.status as TableStatus) ?? "available",
-            seats: t.capacity ?? t.seats ?? 2,
-            shape: (t.shape as TableShape) ?? "square",
-            positionX: t.positionX,
-            positionY: t.positionY,
-          }));
-          setTables(mapped);
-        } catch (err: any) {
-          console.error("Failed to fetch tables silently:", err);
+    async function fetchOutlets() {
+      try {
+        const res = await api.get("/outlets");
+        const raw = res.data.outlets ?? [];
+        const mapped: Outlet[] = raw.map((o: any) => ({ id: o.id, name: o.name }));
+        setOutlets(mapped);
+        const savedOutletId = localStorage.getItem(`selected_outlet_${tenantSlug}`);
+        const isValidSaved = savedOutletId && mapped.some(o => o.id === savedOutletId);
+        const initialOutletId = isValidSaved ? savedOutletId : (mapped[0]?.id ?? "");
+        if (initialOutletId) {
+          setSelectedOutletId(initialOutletId);
+          setForm(p => ({ ...p, outletId: initialOutletId }));
         }
+      } catch (err) {
+        console.error("Failed to fetch outlets:", err);
       }
-      fetchTablesSilent();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    }
+    fetchOutlets();
+  }, [tenantSlug]);
 
-  async function fetchTables() {
+  const fetchTables = useCallback(async (silent = false) => {
+    if (!selectedOutletId) return;
     try {
-      setIsLoading(true);
-      const res = await api.get("/tables");
+      if (!silent) setIsLoading(true);
+      const res = await api.get(`/tables?outletId=${selectedOutletId}`);
       const raw = res.data.tables ?? [];
-      const mapped: Table[] = raw.map((t: any) => ({
+      setTables(raw.map((t: any) => ({
         id: t.id,
         name: t.tableNumber ?? t.name ?? `T-${t.id}`,
         status: (t.status as TableStatus) ?? "available",
         seats: t.capacity ?? t.seats ?? 2,
         shape: (t.shape as TableShape) ?? "square",
+        outletId: t.outletId ?? undefined,
+        outletName: t.outletName ?? undefined,
         positionX: t.positionX,
         positionY: t.positionY,
-      }));
-      setTables(mapped);
+      })));
     } catch (err: any) {
       console.error("Failed to fetch tables:", err);
-      alert(err.response?.data?.error ?? "Failed to load tables");
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
-  }
+  }, [selectedOutletId]);
 
-  const totalCount = tables.length;
-  const availableCount = tables.filter(t => t.status === "available").length;
-  const activeAlerts = tables.filter(t => t.status === "dirty" || t.status === "occupied").length;
+  useEffect(() => {
+    fetchTables(false);
+    const interval = setInterval(() => fetchTables(true), 5000);
+    return () => clearInterval(interval);
+  }, [fetchTables]);
+
+  const totalCount = filteredTables.length;
+  const availableCount = filteredTables.filter(t => t.status === "available").length;
+  const activeAlerts = filteredTables.filter(t => t.status === "dirty" || t.status === "occupied").length;
 
   function openAdd() {
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, outletId: selectedOutletId });
     setEditingTable(null);
     setIsAddModalOpen(true);
   }
-
   function openEdit(table: Table) {
     setEditingTable(table);
-    setForm({ name: table.name, seats: table.seats, status: table.status, shape: table.shape });
+    setForm({ name: table.name, seats: table.seats, status: table.status, shape: table.shape, outletId: table.outletId ?? "" });
     setIsAddModalOpen(true);
   }
-
-  function closeModal() {
-    setIsAddModalOpen(false);
-    setEditingTable(null);
-    setForm(EMPTY_FORM);
-  }
+  function closeModal() { setIsAddModalOpen(false); setEditingTable(null); setForm(EMPTY_FORM); }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || !form.outletId) return;
     setIsSaving(true);
     try {
       if (editingTable) {
@@ -387,41 +368,43 @@ export default function ManagerTablePage() {
           tableNumber: form.name.trim().toUpperCase(),
           capacity: form.seats,
           shape: form.shape,
+          outletId: form.outletId,
         });
         if (editingTable.status !== form.status) {
-          await api.patch(`/tables/${editingTable.id}/status`, { status: form.status });
+          await api.patch(`/tables/${editingTable.id}/status`, { status: form.status, outletId: form.outletId });
         }
       } else {
         const res = await api.post("/tables", {
           tableNumber: form.name.trim().toUpperCase(),
           capacity: form.seats,
           shape: form.shape,
+          outletId: form.outletId,
         });
         if (res.data?.id && form.status !== "available") {
-          await api.patch(`/tables/${res.data.id}/status`, { status: form.status });
+          await api.patch(`/tables/${res.data.id}/status`, { status: form.status, outletId: form.outletId });
         }
       }
       await fetchTables();
       closeModal();
     } catch (err: any) {
-      console.error("Failed to save table:", err);
       const message = err.response?.data?.error;
-      alert(typeof message === "string" ? message : "Failed to save table. Please try again.");
+      alert(typeof message === "string" ? message : "Failed to save table.");
     } finally {
       setIsSaving(false);
     }
   }
 
   async function handleDelete(id: string) {
+    const tbl = tables.find(t => t.id === id);
+    if (!tbl) return;
     try {
-      await api.delete(`/tables/${id}`);
+      await api.delete(`/tables/${id}`, { params: { outletId: tbl.outletId } });
       setTables(prev => prev.filter(t => t.id !== id));
       setPositions(prev => { const next = { ...prev }; delete next[id]; return next; });
       setDeleteConfirmId(null);
     } catch (err: any) {
-      console.error("Failed to delete table:", err);
       const message = err.response?.data?.error;
-      alert(typeof message === "string" ? message : "Failed to delete table. Please try again.");
+      alert(typeof message === "string" ? message : "Failed to delete table.");
     }
   }
 
@@ -432,7 +415,56 @@ export default function ManagerTablePage() {
       <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Table Layout</h1>
+          {activeOutlet && (
+            <p className="text-sm text-emerald-100/80 mt-1">{activeOutlet.name}</p>
+          )}
         </div>
+
+        {/* ── Outlet picker — same custom dropdown as Menu page ── */}
+        {outlets.length > 0 && (
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setOutletDropdownOpen((prev) => !prev)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-colors border bg-white text-emerald-700 border-white shadow-sm"
+            >
+              <Store className="w-4 h-4 shrink-0" />
+              <span className="max-w-[120px] truncate">
+                {activeOutlet?.name ?? "Select Outlet"}
+              </span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${outletDropdownOpen ? "rotate-180" : ""
+                  }`}
+              />
+            </button>
+
+            {outletDropdownOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                <div className="px-3 py-2 border-b border-slate-100">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Select Outlet</p>
+                </div>
+                <div className="py-1">
+                  {outlets.map((outlet) => (
+                    <button
+                      key={outlet.id}
+                      onClick={() => {
+                        setSelectedOutletId(outlet.id);
+                        localStorage.setItem(`selected_outlet_${tenantSlug}`, outlet.id);
+                        setOutletDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${selectedOutletId === outlet.id
+                          ? "bg-emerald-50 text-emerald-700 font-semibold"
+                          : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${selectedOutletId === outlet.id ? "bg-emerald-500" : "bg-slate-200"}`} />
+                      {outlet.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Stats */}
@@ -468,16 +500,15 @@ export default function ManagerTablePage() {
 
       {/* Legend + toolbar */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 gap-4">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 font-medium justify-center md:justify-start">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 font-medium">
           <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /><span>Available</span></div>
           <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /><span>Occupied</span></div>
           <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" /><span>Reserved</span></div>
           <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-slate-400" /><span>Dirty</span></div>
         </div>
-        <div className="flex items-center gap-2 justify-center">
+        <div className="flex items-center gap-2">
           <button
             onClick={resetLayout}
-            title="Reset to default grid"
             className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-500 transition-all"
           >
             <LayoutGrid className="h-4 w-4" strokeWidth={2} />
@@ -488,20 +519,21 @@ export default function ManagerTablePage() {
             className="flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition-all"
           >
             <Plus className="h-4 w-4 shrink-0" strokeWidth={2.5} />
-            <span>Add Table</span>
+            Add Table
           </button>
         </div>
       </div>
 
-      {/* ── Drag canvas ── */}
+      {/* Canvas */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20 text-slate-400 gap-3">
           <Loader2 className="w-6 h-6 animate-spin" />
           <span className="text-sm font-medium">Loading tables...</span>
         </div>
-      ) : tables.length === 0 ? (
+      ) : filteredTables.length === 0 ? (
         <div className="py-16 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-          <p className="text-sm text-slate-400 font-medium">No tables yet. Click "Add Table" to get started.</p>
+          <Store className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+          <p className="text-sm text-slate-400 font-medium">No tables found for this outlet.</p>
         </div>
       ) : (
         <div
@@ -512,7 +544,6 @@ export default function ManagerTablePage() {
           style={{ position: "relative", height: canvasHeight, minHeight: 480 }}
           className="w-full rounded-2xl border border-slate-200 bg-slate-50/60 overflow-hidden"
         >
-          {/* Dot-grid background */}
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
@@ -520,8 +551,7 @@ export default function ManagerTablePage() {
               backgroundSize: "28px 28px",
             }}
           />
-
-          {tables.map(table => {
+          {filteredTables.map(table => {
             const isCurrentDragging = draggingId === table.id;
             const pos = isCurrentDragging
               ? (draggedPositionRef.current ?? positions[table.id] ?? { x: 0, y: 0 })
@@ -541,7 +571,7 @@ export default function ManagerTablePage() {
         </div>
       )}
 
-      {/* Delete confirm modal */}
+      {/* Delete confirm */}
       {deleteConfirmId && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 w-full max-w-sm rounded-xl shadow-xl overflow-hidden">
@@ -555,18 +585,8 @@ export default function ManagerTablePage() {
               </div>
             </div>
             <div className="flex gap-3 p-6">
-              <button
-                onClick={() => setDeleteConfirmId(null)}
-                className="flex-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 font-medium text-sm py-2.5 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDelete(deleteConfirmId)}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold text-sm py-2.5 rounded-lg transition-colors"
-              >
-                Delete
-              </button>
+              <button onClick={() => setDeleteConfirmId(null)} className="flex-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 font-medium text-sm py-2.5 rounded-lg transition-colors">Cancel</button>
+              <button onClick={() => handleDelete(deleteConfirmId)} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold text-sm py-2.5 rounded-lg transition-colors">Delete</button>
             </div>
           </div>
         </div>
@@ -579,10 +599,9 @@ export default function ManagerTablePage() {
           onClick={closeModal}
         >
           <div
-            className="bg-white border border-slate-200 w-full max-w-md rounded-t-2xl sm:rounded-xl shadow-xl overflow-y-auto max-h-[92vh] sm:max-h-[90vh] flex flex-col"
+            className="bg-white border border-slate-200 w-full max-w-md rounded-t-2xl sm:rounded-xl shadow-xl overflow-y-auto max-h-[92vh] flex flex-col"
             onClick={e => e.stopPropagation()}
           >
-            {/* Green header */}
             <div className="relative flex flex-col items-center justify-center p-5 bg-emerald-600 text-white shrink-0">
               <div className="flex flex-col items-center gap-1.5 text-center">
                 <Users className="h-6 w-6 text-white mb-0.5" />
@@ -600,40 +619,43 @@ export default function ManagerTablePage() {
 
             <div className="p-5 md:p-6 overflow-y-auto">
               <form onSubmit={handleSave} className="space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Outlet Branch</label>
+                  <select
+                    disabled={!!editingTable}
+                    value={form.outletId}
+                    onChange={e => setForm(p => ({ ...p, outletId: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 bg-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-400"
+                  >
+                    {outlets.map(o => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                      Table Name
-                    </label>
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Table Name</label>
                     <input
-                      type="text"
-                      required
-                      placeholder=""
+                      type="text" required
                       value={form.name}
                       onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                      Seats
-                    </label>
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Seats</label>
                     <input
-                      type="number"
-                      min={1}
-                      required
+                      type="number" min={1} required
                       value={form.seats}
                       onChange={e => setForm(p => ({ ...p, seats: Number(e.target.value) }))}
                       className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     />
                   </div>
                 </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                      Shape
-                    </label>
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Shape</label>
                     <select
                       value={form.shape}
                       onChange={e => setForm(p => ({ ...p, shape: e.target.value as TableShape }))}
@@ -644,9 +666,7 @@ export default function ManagerTablePage() {
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                      Status
-                    </label>
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</label>
                     <select
                       value={form.status}
                       onChange={e => setForm(p => ({ ...p, status: e.target.value as TableStatus }))}
@@ -659,15 +679,8 @@ export default function ManagerTablePage() {
                     </select>
                   </div>
                 </div>
-
-                <div className="flex gap-3 pt-4 border-t border-slate-100 shrink-0 pb-6 sm:pb-0">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="flex-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 py-2.5 text-sm font-medium text-slate-600 transition-colors"
-                  >
-                    Cancel
-                  </button>
+                <div className="flex gap-3 pt-4 border-t border-slate-100 pb-6 sm:pb-0">
+                  <button type="button" onClick={closeModal} className="flex-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 py-2.5 text-sm font-medium text-slate-600 transition-colors">Cancel</button>
                   <button
                     type="submit"
                     disabled={isSaving}

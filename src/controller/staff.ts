@@ -159,7 +159,7 @@ export async function getStaffById(outletId: string, userId: string) {
     createdAt: row.user.createdAt,
     role: row.role.name,
   };
-  
+
 }
 
 // --------------set All Staff --------------------

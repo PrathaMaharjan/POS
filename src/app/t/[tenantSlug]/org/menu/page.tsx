@@ -4,12 +4,17 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import {
   Plus, Search, Pencil, Trash2, X,
-  UtensilsCrossed, Loader2, Settings2, ImagePlus
+  UtensilsCrossed, Loader2, Settings2, ImagePlus, Store, ChevronDown
 } from "lucide-react";
 import api from "@/lib/api";
 import { useImageUpload } from "@/lib/hooks/useImageUpload";
 
 interface Category {
+  id: string;
+  name: string;
+}
+
+interface Outlet {
   id: string;
   name: string;
 }
@@ -42,6 +47,11 @@ export default function MenuManagement() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [activeCategoryId, setActiveCategoryId] = useState<string | "all">("all");
 
+  // ── Outlet state ────────────────────────────────────────────────────────
+  const [outlets, setOutlets] = useState<Outlet[]>([]);
+  const [activeOutletId, setActiveOutletId] = useState<string>("");
+  const [outletDropdownOpen, setOutletDropdownOpen] = useState(false);
+
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -52,82 +62,96 @@ export default function MenuManagement() {
   const [draft, setDraft] = useState<FormDraft>(EMPTY_DRAFT);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0); 
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Image upload state
   const { uploadImage, uploading, error: uploadError } = useImageUpload();
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
 
-  // Category states
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [categoryManageMode, setCategoryManageMode] = useState(false);
 
-  // Fetch categories
-  async function fetchCategories() {
-    setIsLoadingCategories(true);
-    setErrorMsg(null);
-    try {
-      const res = await api.get("/categories");
-      setCategories(res.data.categories ?? res.data ?? []);
-    } catch (err: any) {
-      setErrorMsg(err?.response?.data?.error ?? "Failed to load categories.");
-    } finally {
-      setIsLoadingCategories(false);
-    }
-  }
+  const activeOutlet = outlets.find((o) => o.id === activeOutletId);
 
+  // 1. Fetch Outlets on mount
   useEffect(() => {
-    fetchCategories();
+    async function initOutlets() {
+      try {
+        const res = await api.get("/outlets");
+        const list = res.data.outlets ?? [];
+        setOutlets(list);
+        
+        // Try to read from localStorage first
+        const stored = localStorage.getItem("activeOutletId");
+        if (stored && list.some((o: any) => o.id === stored)) {
+          setActiveOutletId(stored);
+        } else if (list.length > 0) {
+          setActiveOutletId(list[0].id);
+        }
+      } catch (err: any) {
+        setErrorMsg(err?.response?.data?.error ?? "Failed to load outlets.");
+      }
+    }
+    initOutlets();
   }, []);
 
-  // Fetch products
+  // 2. Fetch categories when activeOutletId changes
   useEffect(() => {
-    if (categories.length === 0) {
-      setMenuItems([]);
-      return;
-    }
+    if (!activeOutletId) return;
 
-    if (activeCategoryId === "all") {
-      setIsLoadingProducts(true);
-      Promise.all(
-        categories.map((cat) =>
-          api
-            .get(`/categories/${cat.id}/products`)
-            .then((res) => {
-              const products = res.data.products ?? res.data ?? [];
-              return products.map((p: any) => ({
-                ...p,
-                category: cat.name,
-                categoryId: cat.id,
-                imageUrl: p.imageUrl ?? null,
-              }));
-            })
-            .catch(() => [])
-        )
-      )
-        .then((results) => setMenuItems(results.flat()))
-        .finally(() => setIsLoadingProducts(false));
+    localStorage.setItem("activeOutletId", activeOutletId);
+
+    async function loadCategories() {
+      setIsLoadingCategories(true);
+      setErrorMsg(null);
+      try {
+        const res = await api.get(`/categories?outletId=${activeOutletId}`);
+        const cats = res.data.categories ?? res.data ?? [];
+        setCategories(cats);
+        // Reset category filter when switching outlets
+        setActiveCategoryId("all");
+      } catch (err: any) {
+        setErrorMsg(err?.response?.data?.error ?? "Failed to load categories.");
+      } finally {
+        setIsLoadingCategories(false);
+      }
+    }
+    loadCategories();
+  }, [activeOutletId, refreshKey]);
+
+  // 3. Fetch products when activeOutletId, activeCategoryId, categories or refreshKey changes
+  useEffect(() => {
+    if (!activeOutletId || categories.length === 0) {
+      setMenuItems([]);
       return;
     }
 
     async function fetchProducts() {
       setIsLoadingProducts(true);
+      setErrorMsg(null);
       try {
-        const res = await api.get(`/product?categoryId=${activeCategoryId}`);
-        const cat = categories.find((c) => c.id === activeCategoryId);
-        const products = res.data.products ?? [];
-
+        let url = `/product?outletId=${activeOutletId}&limit=100`;
+        if (activeCategoryId !== "all") {
+          url += `&categoryId=${activeCategoryId}`;
+        }
+        const res = await api.get(url);
+        const productsList = res.data.products?.products ?? res.data.products ?? [];
         setMenuItems(
-          products.map((p: any) => ({
-            ...p,
-            category: cat?.name ?? "",
-            categoryId: activeCategoryId,
-            imageUrl: p.imageUrl ?? null,
-          }))
+          productsList.map((p: any) => {
+            const cat = categories.find((c) => c.id === p.categoryId);
+            return {
+              id: p.id,
+              name: p.name,
+              category: cat?.name ?? "Uncategorized",
+              categoryId: p.categoryId,
+              price: Number(p.price),
+              imageUrl: p.imageUrl ?? null,
+            };
+          })
         );
       } catch (err: any) {
         setErrorMsg(err?.response?.data?.error ?? "Failed to load products.");
@@ -136,7 +160,15 @@ export default function MenuManagement() {
       }
     }
     fetchProducts();
-  }, [activeCategoryId, categories, refreshKey]);
+  }, [activeOutletId, activeCategoryId, categories, refreshKey]);
+
+  // Close outlet dropdown when clicking outside
+  useEffect(() => {
+    if (!outletDropdownOpen) return;
+    const handler = () => setOutletDropdownOpen(false);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [outletDropdownOpen]);
 
   const filteredItems = menuItems.filter((item) =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -191,25 +223,20 @@ export default function MenuManagement() {
     e.preventDefault();
     setIsSaving(true);
     setErrorMsg(null);
-
     try {
       let imagePublicId: string | undefined = undefined;
-
       if (imageFile) {
         const result = await uploadImage(imageFile);
-        if (!result) {
-          setIsSaving(false);
-          return;
-        }
+        if (!result) { setIsSaving(false); return; }
         imagePublicId = result.publicId;
       }
-
       if (editingId) {
         await api.patch(`/product/${editingId}`, {
           name: draft.name,
           categoryId: draft.categoryId,
           price: Number(draft.price),
           description: draft.description || undefined,
+          outletId: activeOutletId,
           ...(imagePublicId && { imagePublicId }),
         });
       } else {
@@ -218,11 +245,11 @@ export default function MenuManagement() {
           categoryId: draft.categoryId,
           price: Number(draft.price),
           description: draft.description || undefined,
+          outletId: activeOutletId,
           imagePublicId: imagePublicId ?? undefined,
         });
       }
-
-      setRefreshKey(prev => prev + 1);
+      setRefreshKey((prev) => prev + 1);
       closeModal();
     } catch (err: any) {
       setErrorMsg(err?.response?.data?.error ?? "Failed to save product.");
@@ -232,13 +259,14 @@ export default function MenuManagement() {
   };
 
   const handleDeleteItem = async (id: string) => {
+    setIsDeleting(true);
     try {
-      await api.delete(`/product/${id}`);
-      setRefreshKey(prev => prev + 1);
-      setMenuItems((prev) => prev.filter((m) => m.id !== id));
+      await api.delete(`/product/${id}?outletId=${activeOutletId}`);
+      setRefreshKey((prev) => prev + 1);
     } catch (err: any) {
       setErrorMsg(err?.response?.data?.error ?? "Failed to delete product.");
     } finally {
+      setIsDeleting(false);
       setDeleteConfirmId(null);
     }
   };
@@ -261,20 +289,24 @@ export default function MenuManagement() {
     setErrorMsg(null);
     try {
       if (editingCategory) {
-        await api.patch(`/categories/${editingCategory.id}`, { name: newCategoryName.trim() });
+        await api.patch(`/categories/${editingCategory.id}`, {
+          name: newCategoryName.trim(),
+          outletId: activeOutletId,
+        });
       } else {
-        await api.post("/categories", { name: newCategoryName.trim() });
+        await api.post("/categories", {
+          name: newCategoryName.trim(),
+          outletId: activeOutletId,
+        });
       }
-      await fetchCategories();
+      setRefreshKey((prev) => prev + 1);
       setCategoryModalOpen(false);
       setNewCategoryName("");
       setEditingCategory(null);
     } catch (err: any) {
       const serverErr = err?.response?.data?.error;
       setErrorMsg(
-        typeof serverErr === "object"
-          ? JSON.stringify(serverErr)
-          : serverErr ?? "Failed to save category."
+        typeof serverErr === "object" ? JSON.stringify(serverErr) : serverErr ?? "Failed to save category."
       );
     }
   };
@@ -284,9 +316,9 @@ export default function MenuManagement() {
     if (!confirm("Delete this category?")) return;
     setErrorMsg(null);
     try {
-      await api.delete(`/categories/${catId}`);
+      await api.delete(`/categories/${catId}?outletId=${activeOutletId}`);
       if (activeCategoryId === catId) setActiveCategoryId("all");
-      await fetchCategories();
+      setRefreshKey((prev) => prev + 1);
     } catch (err: any) {
       setErrorMsg(err?.response?.data?.error ?? "Failed to delete category.");
     }
@@ -297,8 +329,48 @@ export default function MenuManagement() {
   return (
     <div className="flex flex-col gap-4 md:gap-6 h-full p-4 md:p-0">
       {/* Header */}
-      <div className="rounded-xl bg-emerald-600 px-4 py-4 md:px-6 md:py-5 text-white shadow-sm shrink-0">
+      <div className="rounded-xl bg-emerald-600 px-4 py-4 md:px-6 md:py-5 text-white shadow-sm shrink-0 flex items-center justify-between gap-4">
         <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Menu Editor</h1>
+
+        {/* ── Outlet picker ── */}
+        <div className="relative" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => setOutletDropdownOpen((prev) => !prev)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-colors border bg-white text-emerald-700 border-white shadow-sm"
+          >
+            <Store className="w-4 h-4 shrink-0" />
+            <span className="max-w-[120px] truncate">
+              {activeOutlet?.name ?? "Select Outlet"}
+            </span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${outletDropdownOpen ? "rotate-180" : ""
+                }`}
+            />
+          </button>
+
+          {outletDropdownOpen && (
+            <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+              <div className="px-3 py-2 border-b border-slate-100">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Select Outlet</p>
+              </div>
+              <div className="py-1">
+                {outlets.map((outlet) => (
+                  <button
+                    key={outlet.id}
+                    onClick={() => { setActiveOutletId(outlet.id); setOutletDropdownOpen(false); }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${activeOutletId === outlet.id
+                        ? "bg-emerald-50 text-emerald-700 font-semibold"
+                        : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${activeOutletId === outlet.id ? "bg-emerald-500" : "bg-slate-200"}`} />
+                    {outlet.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {(errorMsg || uploadError) && (
@@ -308,7 +380,7 @@ export default function MenuManagement() {
         </div>
       )}
 
-      {/* Category Tabs + Search Framework */}
+      {/* Category Tabs + Search */}
       <div className="flex flex-col xl:flex-row justify-between items-stretch xl:items-center gap-4 shrink-0">
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-2 xl:pb-0 w-full xl:max-w-[calc(100%-17rem)] snap-x">
           {isLoadingCategories ? (
@@ -317,11 +389,10 @@ export default function MenuManagement() {
             <>
               <button
                 onClick={() => setActiveCategoryId("all")}
-                className={`snap-start shrink-0 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                  activeCategoryId === "all"
+                className={`snap-start shrink-0 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors ${activeCategoryId === "all"
                     ? "bg-emerald-600 text-white shadow-sm"
                     : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
-                }`}
+                  }`}
               >
                 All Items
               </button>
@@ -329,11 +400,10 @@ export default function MenuManagement() {
               {categories.map((cat) => (
                 <div
                   key={cat.id}
-                  className={`snap-start shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                    activeCategoryId === cat.id
+                  className={`snap-start shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${activeCategoryId === cat.id
                       ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
                       : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                  }`}
+                    }`}
                 >
                   <button onClick={() => setActiveCategoryId(cat.id)} className="focus:outline-none">
                     {cat.name}
@@ -360,11 +430,10 @@ export default function MenuManagement() {
 
               <button
                 onClick={() => setCategoryManageMode(!categoryManageMode)}
-                className={`snap-start shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${
-                  categoryManageMode
+                className={`snap-start shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${categoryManageMode
                     ? "bg-amber-500 border-amber-500 text-white"
                     : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                }`}
+                  }`}
               >
                 <Settings2 className="w-3.5 h-3.5" />
                 <span className="whitespace-nowrap">{categoryManageMode ? "Exit Config" : "Edit Categories"}</span>
@@ -385,7 +454,7 @@ export default function MenuManagement() {
         </div>
       </div>
 
-      {/* Product Grid Layout updates */}
+      {/* Product Grid */}
       <div className="overflow-y-auto flex-1 min-h-0">
         {isLoadingProducts ? (
           <div className="flex items-center justify-center py-20">
@@ -410,10 +479,10 @@ export default function MenuManagement() {
               <div key={item.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow">
                 <div className="relative h-36 md:h-40 w-full shrink-0 bg-slate-100">
                   {item.imageUrl ? (
-                    <Image 
-                      src={item.imageUrl} 
-                      alt={item.name} 
-                      fill 
+                    <Image
+                      src={item.imageUrl}
+                      alt={item.name}
+                      fill
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                       className="object-cover"
                       priority={filteredItems.indexOf(item) < 4}
@@ -446,8 +515,9 @@ export default function MenuManagement() {
             ))}
 
             {filteredItems.length === 0 && !isLoadingProducts && (
-              <div className="col-span-full flex flex-col items-center justify-center py-20 text-slate-400 text-sm">
-                No items found.
+              <div className="col-span-full flex flex-col items-center justify-center py-20 text-slate-400 text-sm gap-2">
+                <Store className="w-8 h-8 text-slate-200" />
+                {`No items found for ${activeOutlet?.name ?? "this outlet"}.`}
               </div>
             )}
           </div>
@@ -468,11 +538,26 @@ export default function MenuManagement() {
               </div>
             </div>
             <div className="flex gap-3 p-5 md:p-6">
-              <button onClick={() => setDeleteConfirmId(null)} className="flex-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 font-medium text-sm py-2.5 rounded-lg transition-colors">
+              <button 
+                onClick={() => setDeleteConfirmId(null)} 
+                disabled={isDeleting}
+                className="flex-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 font-medium text-sm py-2.5 rounded-lg transition-colors disabled:opacity-50"
+              >
                 Cancel
               </button>
-              <button onClick={() => handleDeleteItem(deleteConfirmId)} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold text-sm py-2.5 rounded-lg transition-colors">
-                Delete
+              <button 
+                onClick={() => handleDeleteItem(deleteConfirmId)} 
+                disabled={isDeleting}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold text-sm py-2.5 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <span>Delete</span>
+                )}
               </button>
             </div>
           </div>
@@ -545,27 +630,19 @@ export default function MenuManagement() {
                   />
                 </div>
 
-                {/* Image Upload Area */}
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    Product Image
-                  </label>
-
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Product Image</label>
                   {modalImageSrc ? (
                     <div className="relative w-full h-36 md:h-40 rounded-lg overflow-hidden border border-slate-200">
-                      <Image 
-                        src={modalImageSrc} 
-                        alt="Preview" 
-                        fill 
+                      <Image
+                        src={modalImageSrc}
+                        alt="Preview"
+                        fill
                         sizes="(max-width: 500px) 100vw, 500px"
-                        className="object-cover" 
-                        unoptimized={modalImageSrc.startsWith('blob:')}
+                        className="object-cover"
+                        unoptimized={modalImageSrc.startsWith("blob:")}
                       />
-                      <button
-                        type="button"
-                        onClick={clearImage}
-                        className="absolute top-2 right-2 bg-white rounded-full p-1 shadow hover:bg-red-50 transition-colors z-10"
-                      >
+                      <button type="button" onClick={clearImage} className="absolute top-2 right-2 bg-white rounded-full p-1 shadow hover:bg-red-50 transition-colors z-10">
                         <X className="w-4 h-4 text-red-500" />
                       </button>
                     </div>
@@ -574,15 +651,9 @@ export default function MenuManagement() {
                       <ImagePlus className="w-7 h-7 text-slate-300" />
                       <span className="text-xs text-slate-400 font-medium">Click to upload image</span>
                       <span className="text-[10px] text-slate-300">JPG, PNG, WebP — max 5MB</span>
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        onChange={handleImageChange}
-                        className="hidden"
-                      />
+                      <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} className="hidden" />
                     </label>
                   )}
-
                   {uploading && (
                     <div className="flex items-center gap-2 mt-2 text-xs text-emerald-600">
                       <Loader2 className="w-3 h-3 animate-spin" />
@@ -592,10 +663,7 @@ export default function MenuManagement() {
                 </div>
 
                 <div className="flex gap-3 pt-3 border-t border-slate-100 pb-4 sm:pb-0">
-                  <button
-                    type="button" onClick={closeModal}
-                    className="flex-1 rounded-lg border border-slate-200 bg-slate-50 py-2.5 text-sm font-medium text-slate-600"
-                  >
+                  <button type="button" onClick={closeModal} className="flex-1 rounded-lg border border-slate-200 bg-slate-50 py-2.5 text-sm font-medium text-slate-600">
                     Cancel
                   </button>
                   <button
@@ -604,10 +672,7 @@ export default function MenuManagement() {
                     className="flex-1 rounded-lg bg-emerald-600 text-white py-2.5 text-sm font-medium shadow-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {isSaving || uploading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Saving...</span>
-                      </>
+                      <><Loader2 className="w-4 h-4 animate-spin" /><span>Saving...</span></>
                     ) : (
                       <span>{editingId ? "Save Changes" : "Add Item"}</span>
                     )}
@@ -619,7 +684,7 @@ export default function MenuManagement() {
         </div>
       )}
 
-      {/* Category Save Modal */}
+      {/* Category Modal */}
       {categoryModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white border border-slate-200 w-full sm:max-w-sm rounded-t-2xl sm:rounded-xl shadow-xl overflow-hidden animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-0 duration-150">

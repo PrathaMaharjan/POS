@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import api from "@/lib/api";
 import {
   UserPlus,
   Search,
@@ -20,6 +21,7 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  Loader2,
 } from "lucide-react";
 
 interface StaffMember {
@@ -28,43 +30,11 @@ interface StaffMember {
   role: string;
   level: "manager" | "staff";
   branch: string;
+  outletId: string;
   email: string;
   phone: string;
   status: "active" | "inactive";
 }
-
-const SEED_STAFF: StaffMember[] = [
-  {
-    id: "1",
-    name: "Kang Roy",
-    role: "Branch Manager",
-    level: "manager",
-    branch: "Kathmandu Main",
-    email: "kang.roy@demo-restaurant.com",
-    phone: "9810000001",
-    status: "active",
-  },
-  {
-    id: "2",
-    name: "Aisha Karki",
-    role: "Floor Supervisor",
-    level: "staff",
-    branch: "Lalitpur Hub",
-    email: "aisha.karki@demo-restaurant.com",
-    phone: "9810000002",
-    status: "active",
-  },
-  {
-    id: "3",
-    name: "Prakash Thapa",
-    role: "Cashier / POS Operator",
-    level: "staff",
-    branch: "Pokhara Lakeside",
-    email: "prakash.thapa@demo-restaurant.com",
-    phone: "9810000003",
-    status: "inactive",
-  },
-];
 
 const ROLE_OPTIONS = [
   "Branch Manager",
@@ -73,52 +43,104 @@ const ROLE_OPTIONS = [
   "Waiter",
 ];
 
-const BRANCH_OPTIONS = [
-  "Kathmandu Main",
-  "Lalitpur Hub",
-  "Pokhara Lakeside",
-  "Bhaktapur Square",
-];
-
 const ITEMS_PER_PAGE = 8;
 
 export default function OrgStaffPage() {
-  const [staff, setStaff] = useState<StaffMember[]>(SEED_STAFF);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [outlets, setOutlets] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<StaffMember | null>(null);
   const [search, setSearch] = useState("");
   const [selectedBranchFilter, setSelectedBranchFilter] = useState("all");
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
     role: ROLE_OPTIONS[0],
-    branch: BRANCH_OPTIONS[0],
+    branchId: "",
     email: "",
     phone: "",
     password: "",
   });
 
+  async function fetchAllData() {
+    try {
+      setIsLoading(true);
+      const resOutlets = await api.get("/outlets");
+      const fetchedOutlets = resOutlets.data.outlets ?? [];
+      setOutlets(fetchedOutlets);
+
+      if (fetchedOutlets.length > 0) {
+        // Fetch staff from all outlets concurrently
+        const staffRequests = fetchedOutlets.map(async (outlet: any) => {
+          try {
+            const res = await api.get(`/staff?outletId=${outlet.id}&limit=100`);
+            return (res.data.staff ?? []).map((s: any) => ({
+              id: s.userId,
+              name: s.name,
+              role: s.role === "Manager" ? "Branch Manager" : s.role,
+              level: s.role === "Manager" ? ("manager" as const) : ("staff" as const),
+              branch: outlet.name,
+              outletId: outlet.id,
+              email: s.email,
+              phone: s.phone || "",
+              status: s.isActive ? ("active" as const) : ("inactive" as const),
+            }));
+          } catch (err) {
+            console.error(`Failed to fetch staff for outlet ${outlet.name}:`, err);
+            return [];
+          }
+        });
+        const allStaffResults = await Promise.all(staffRequests);
+        setStaff(allStaffResults.flat());
+      } else {
+        setStaff([]);
+      }
+    } catch (err: any) {
+      console.error("Failed to fetch directories:", err);
+      alert(err.response?.data?.error ?? "Failed to load directory data");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchAllData();
+  }, []);
+
+  // Update initial form branch allocation when outlets load
+  useEffect(() => {
+    if (outlets.length > 0 && !form.branchId) {
+      setForm((prev) => ({ ...prev, branchId: outlets[0].id }));
+    }
+  }, [outlets, form.branchId]);
+
   const totalStaff = staff.length;
-  const totalManagers = staff.filter((s) => s.role === "Branch Manager").length;
+  const totalManagers = staff.filter((s) => s.role === "Branch Manager" || s.role === "Manager").length;
   const activeStaff = staff.filter((s) => s.status === "active").length;
 
   const filteredStaff = staff.filter((member) => {
     const matchesSearch =
       member.name.toLowerCase().includes(search.toLowerCase()) ||
       member.role.toLowerCase().includes(search.toLowerCase());
-    
-    const matchesBranch = 
-      selectedBranchFilter === "all" || member.branch === selectedBranchFilter;
 
-    return matchesSearch && matchesBranch;
+    const matchesBranch =
+      selectedBranchFilter === "all" || member.outletId === selectedBranchFilter;
+
+    const matchesRole =
+      selectedRoleFilter === "all" || member.role === selectedRoleFilter;
+
+    return matchesSearch && matchesBranch && matchesRole;
   });
 
   const totalItems = filteredStaff.length;
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
   const activePage = currentPage > totalPages ? totalPages : currentPage;
-  
+
   const startIndex = (activePage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE;
   const paginatedStaff = filteredStaff.slice(startIndex, endIndex);
@@ -127,7 +149,7 @@ export default function OrgStaffPage() {
     setForm({
       name: "",
       role: ROLE_OPTIONS[0],
-      branch: BRANCH_OPTIONS[0],
+      branchId: outlets[0]?.id || "",
       email: "",
       phone: "",
       password: "",
@@ -141,7 +163,7 @@ export default function OrgStaffPage() {
     setForm({
       name: member.name,
       role: member.role,
-      branch: member.branch,
+      branchId: member.outletId,
       email: member.email,
       phone: member.phone,
       password: "••••••••",
@@ -149,57 +171,124 @@ export default function OrgStaffPage() {
     setIsModalOpen(true);
   }
 
-  function handleSaveStaff() {
+  async function handleSaveStaff() {
     if (!form.name || !form.email) return;
+    setIsSaving(true);
 
-    if (editingMember) {
-      setStaff((prev) =>
-        prev.map((s) =>
-          s.id === editingMember.id
-            ? {
-                ...s,
-                name: form.name,
-                role: form.role,
-                level: form.role === "Branch Manager" ? "manager" : "staff",
-                branch: form.branch,
-                email: form.email,
-                phone: form.phone,
-              }
-            : s
-        )
-      );
-    } else {
-      if (!form.password) return;
-      const newMember: StaffMember = {
-        id: crypto.randomUUID(),
-        name: form.name,
-        role: form.role,
-        level: form.role === "Branch Manager" ? "manager" : "staff",
-        branch: form.branch,
-        email: form.email,
-        phone: form.phone,
-        status: "active",
-      };
-      setStaff((prev) => [newMember, ...prev]);
-      setCurrentPage(1);
+    try {
+      if (editingMember) {
+        const infoChanged =
+          form.name !== editingMember.name ||
+          form.email !== editingMember.email ||
+          (form.phone || "") !== (editingMember.phone || "");
+
+        const apiRole = form.role === "Branch Manager" ? "Manager" : form.role;
+        const originalApiRole = editingMember.role === "Branch Manager" ? "Manager" : editingMember.role;
+        const roleChanged = apiRole !== originalApiRole;
+
+        const errors: string[] = [];
+
+        if (infoChanged) {
+          try {
+            await api.patch(`/staff/${editingMember.id}/info`, {
+              name: form.name,
+              email: form.email,
+              phone: form.phone || undefined,
+              outletId: editingMember.outletId,
+            });
+          } catch (err: any) {
+            errors.push(err.response?.data?.error ?? "Failed to update profile details.");
+          }
+        }
+
+        if (roleChanged) {
+          try {
+            await api.patch(`/staff/${editingMember.id}`, {
+              role: apiRole,
+            });
+          } catch (err: any) {
+            errors.push(err.response?.data?.error ?? "Failed to update role.");
+          }
+        }
+
+        if (errors.length > 0) {
+          throw new Error(errors.join("\n"));
+        }
+
+        await fetchAllData();
+      } else {
+        if (!form.password) return;
+        const apiRole = form.role === "Branch Manager" ? "Manager" : form.role;
+
+        await api.post("/staff", {
+          name: form.name,
+          email: form.email,
+          phone: form.phone || undefined,
+          role: apiRole,
+          password: form.password,
+          outletId: form.branchId || outlets[0]?.id,
+        });
+
+        await fetchAllData();
+        setCurrentPage(1);
+      }
+
+      resetForm();
+      setIsModalOpen(false);
+    } catch (err: any) {
+      console.error("Failed to save staff member:", err);
+      const responseData = err.response?.data;
+      let errMsg = "Failed to save staff member. Please try again.";
+      if (responseData) {
+        if (typeof responseData.error === "string") {
+          errMsg = responseData.error;
+        } else if (responseData.error && typeof responseData.error === "object") {
+          const zodError = responseData.error;
+          if (zodError.fieldErrors) {
+            errMsg = Object.entries(zodError.fieldErrors)
+              .map(([field, messages]: any) => `${field}: ${messages.join(", ")}`)
+              .join("\n");
+          } else {
+            errMsg = JSON.stringify(responseData.error);
+          }
+        }
+      }
+      alert(errMsg);
+    } finally {
+      setIsSaving(false);
     }
-
-    resetForm();
-    setIsModalOpen(false);
   }
 
-  function handleDeleteStaff(id: string) {
-    if (confirm("Are you sure you want to remove this user from the organization?")) {
-      setStaff((prev) => prev.filter((member) => member.id !== id));
+  async function handleDeleteStaff(member: StaffMember) {
+    if (confirm(`Are you sure you want to remove ${member.name} from the organization?`)) {
+      try {
+        setIsLoading(true);
+        await api.delete(`/staff/${member.id}`, {
+          params: { outletId: member.outletId },
+        });
+        await fetchAllData();
+      } catch (err: any) {
+        console.error("Failed to delete staff member:", err);
+        alert(err.response?.data?.error ?? "Failed to delete staff member");
+      } finally {
+        setIsLoading(false);
+      }
     }
   }
 
-  function toggleStatus(id: string) {
-    setStaff((prev) =>
-      prev.map((s) =>
-        s.id === id ? { ...s, status: s.status === "active" ? "inactive" : "active" } : s
-      )
-    );
+  async function toggleStatus(member: StaffMember) {
+    try {
+      const newStatus = member.status === "active" ? "inactive" : "active";
+      const isActive = newStatus === "active";
+      await api.patch(`/staff/${member.id}/status`, {
+        isActive,
+        outletId: member.outletId,
+      });
+      await fetchAllData();
+    } catch (err: any) {
+      console.error("Failed to update status:", err);
+      alert(err.response?.data?.error ?? "Failed to update status");
+    }
   }
 
   return (
@@ -241,9 +330,8 @@ export default function OrgStaffPage() {
         </div>
       </div>
 
-    
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center max-w-2xl">
+        <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center max-w-3xl">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
@@ -267,11 +355,28 @@ export default function OrgStaffPage() {
               className="w-full appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-8 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             >
               <option value="all">All Branches</option>
-              {BRANCH_OPTIONS.map((branch) => (
-                <option key={branch} value={branch}>{branch}</option>
+              {outlets.map((outlet) => (
+                <option key={outlet.id} value={outlet.id}>{outlet.name}</option>
               ))}
             </select>
             <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          </div>
+
+          <div className="relative w-full sm:w-52">
+            <select
+              value={selectedRoleFilter}
+              onChange={(e) => {
+                setSelectedRoleFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-8 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            >
+              <option value="all">All Roles</option>
+              {ROLE_OPTIONS.map((role) => (
+                <option key={role} value={role}>{role}</option>
+              ))}
+            </select>
+            <Shield className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           </div>
         </div>
 
@@ -287,130 +392,134 @@ export default function OrgStaffPage() {
         </button>
       </div>
 
-      
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/50 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                <th className="py-3 px-4">Name / Verification</th>
-                <th className="py-3 px-4">Role Matrix</th>
-                <th className="py-3 px-4">Assigned Branch</th>
-                <th className="py-3 px-4">Contact Gateway</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {paginatedStaff.map((member) => (
-                <tr key={member.id} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="py-4 px-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold border ${
-                        member.role === "Branch Manager" 
-                          ? "bg-indigo-50 text-indigo-700 border-indigo-100" 
-                          : "bg-emerald-50 text-emerald-700 border-emerald-100"
-                      }`}>
-                        {member.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
-                      </div>
-                      <span className="font-medium text-slate-900">{member.name}</span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-4 text-slate-600 font-medium">{member.role}</td>
-                  <td className="py-4 px-4">
-                    <div className="flex items-center gap-1.5 text-slate-700">
-                      <MapPin className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
-                      <span className="font-medium text-sm">{member.branch}</span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-4 text-slate-500">
-                    <div className="flex flex-col">
-                      <span>{member.email}</span>
-                      <span className="text-xs text-slate-400 mt-0.5">{member.phone}</span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-4">
-                    <button
-                      type="button"
-                      onClick={() => toggleStatus(member.id)}
-                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:scale-105 active:scale-95 select-none ${
-                        member.status === "active"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200/50"
-                          : "bg-slate-100 text-slate-500 border border-slate-200"
-                      }`}
-                    >
-                      <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${member.status === "active" ? "bg-emerald-600" : "bg-slate-400"}`} />
-                      {member.status === "active" ? "Active" : "Inactive"}
-                    </button>
-                  </td>
-                  <td className="py-4 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => handleOpenEdit(member)}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                        title="Modify Profile Matrix"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteStaff(member.id)}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                        title="Revoke Credentials"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {paginatedStaff.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-sm text-slate-400">
-                    No directory entities matching selected filter criteria.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-   
-        <div className="flex items-center justify-between border-t border-slate-100 bg-white px-6 py-4">
-          <div className="text-sm text-slate-500"></div>
-          <div className="flex items-center gap-6">
-            <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
-              Page {activePage} of {totalPages}
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                disabled={activePage === 1}
-                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
-                title="Previous Page"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              <button
-                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                disabled={activePage === totalPages}
-                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
-                title="Next Page"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </button>
-            </div>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20 text-slate-400 gap-3">
+            <Loader2 className="w-6 h-6 animate-spin" />
+            <span className="text-sm font-medium">Loading organization directory...</span>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/50 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    <th className="py-3 px-4">Name / Verification</th>
+                    <th className="py-3 px-4">Role Matrix</th>
+                    <th className="py-3 px-4">Assigned Branch</th>
+                    <th className="py-3 px-4">Contact Gateway</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedStaff.map((member) => (
+                    <tr key={member.id} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold border ${member.role === "Branch Manager"
+                              ? "bg-indigo-50 text-indigo-700 border-indigo-100"
+                              : "bg-emerald-50 text-emerald-700 border-emerald-100"
+                            }`}>
+                            {member.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
+                          </div>
+                          <span className="font-medium text-slate-900">{member.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-slate-600 font-medium">{member.role}</td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-1.5 text-slate-700">
+                          <MapPin className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                          <span className="font-medium text-sm">{member.branch}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-slate-500">
+                        <div className="flex flex-col">
+                          <span>{member.email}</span>
+                          <span className="text-xs text-slate-400 mt-0.5">{member.phone}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <button
+                          type="button"
+                          onClick={() => toggleStatus(member)}
+                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:scale-105 active:scale-95 select-none ${member.status === "active"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200/50"
+                              : "bg-slate-100 text-slate-500 border border-slate-200"
+                            }`}
+                        >
+                          <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${member.status === "active" ? "bg-emerald-600" : "bg-slate-400"}`} />
+                          {member.status === "active" ? "Active" : "Inactive"}
+                        </button>
+                      </td>
+                      <td className="py-4 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleOpenEdit(member)}
+                            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                            title="Modify Profile Matrix"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteStaff(member)}
+                            className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                            title="Revoke Credentials"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {paginatedStaff.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-sm text-slate-400">
+                        No directory entities matching selected filter criteria.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-100 bg-white px-6 py-4">
+              <div className="text-sm text-slate-500"></div>
+              <div className="flex items-center gap-6">
+                <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
+                  Page {activePage} of {totalPages}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                    disabled={activePage === 1}
+                    className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                    title="Previous Page"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                    disabled={activePage === totalPages}
+                    className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                    title="Next Page"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-  
       {isModalOpen && (
-        <div 
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 p-0 sm:p-4 backdrop-blur-sm" 
-          onClick={() => setIsModalOpen(false)}
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 p-0 sm:p-4 backdrop-blur-sm"
+          onClick={() => !isSaving && setIsModalOpen(false)}
         >
-          <div 
-            onClick={(e) => e.stopPropagation()} 
+          <div
+            onClick={(e) => e.stopPropagation()}
             className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl border border-slate-100 overflow-y-auto max-h-[92vh] sm:max-h-[90vh] flex flex-col"
           >
             {/* Modal Header */}
@@ -421,8 +530,9 @@ export default function OrgStaffPage() {
               <h2 className="text-xl font-bold tracking-tight text-center">
                 {editingMember ? "Edit Staff Member" : "Add New Staff Member"}
               </h2>
-              <button 
-                onClick={() => setIsModalOpen(false)} 
+              <button
+                disabled={isSaving}
+                onClick={() => setIsModalOpen(false)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-white/80 hover:bg-white/10 hover:text-white transition-colors"
               >
                 <X className="h-5 w-5" />
@@ -435,10 +545,11 @@ export default function OrgStaffPage() {
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-500">Full Name</label>
                   <input
+                    disabled={isSaving}
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     placeholder="Enter your full name"
-                    className="w-full rounded-xl border border-slate-200/80 px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                    className="w-full rounded-xl border border-slate-200/80 px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
 
@@ -447,9 +558,10 @@ export default function OrgStaffPage() {
                     <label className="mb-2 block text-sm font-semibold text-slate-500">Role Classification</label>
                     <div className="relative">
                       <select
+                        disabled={isSaving}
                         value={form.role}
                         onChange={(e) => setForm({ ...form, role: e.target.value })}
-                        className="w-full appearance-none rounded-xl border border-slate-200/80 bg-slate-50/30 px-4 py-3 pr-10 text-sm text-slate-800 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                        className="w-full appearance-none rounded-xl border border-slate-200/80 bg-slate-50/30 px-4 py-3 pr-10 text-sm text-slate-800 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {ROLE_OPTIONS.map((role) => (
                           <option key={role} value={role}>{role}</option>
@@ -463,12 +575,13 @@ export default function OrgStaffPage() {
                     <label className="mb-2 block text-sm font-semibold text-slate-500">Branch Allocation</label>
                     <div className="relative">
                       <select
-                        value={form.branch}
-                        onChange={(e) => setForm({ ...form, branch: e.target.value })}
-                        className="w-full appearance-none rounded-xl border border-slate-200/80 bg-slate-50/30 px-4 py-3 pr-10 text-sm text-slate-800 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                        disabled={isSaving || !!editingMember}
+                        value={form.branchId}
+                        onChange={(e) => setForm({ ...form, branchId: e.target.value })}
+                        className="w-full appearance-none rounded-xl border border-slate-200/80 bg-slate-50/30 px-4 py-3 pr-10 text-sm text-slate-800 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        {BRANCH_OPTIONS.map((branch) => (
-                          <option key={branch} value={branch}>{branch}</option>
+                        {outlets.map((outlet) => (
+                          <option key={outlet.id} value={outlet.id}>{outlet.name}</option>
                         ))}
                       </select>
                       <MapPin className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -481,10 +594,11 @@ export default function OrgStaffPage() {
                   <div className="relative">
                     <Mail className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <input
+                      disabled={isSaving}
                       value={form.email}
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
                       placeholder="Enter your email"
-                      className="w-full rounded-xl border border-slate-200/80 py-3 pl-10 pr-4 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                      className="w-full rounded-xl border border-slate-200/80 py-3 pl-10 pr-4 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>
@@ -494,10 +608,11 @@ export default function OrgStaffPage() {
                   <div className="relative">
                     <Phone className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <input
+                      disabled={isSaving}
                       value={form.phone}
                       onChange={(e) => setForm({ ...form, phone: e.target.value })}
                       placeholder="9XXXXXXXXX"
-                      className="w-full rounded-xl border border-slate-200/80 py-3 pl-10 pr-4 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                      className="w-full rounded-xl border border-slate-200/80 py-3 pl-10 pr-4 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>
@@ -508,11 +623,12 @@ export default function OrgStaffPage() {
                     <div className="relative">
                       <Lock className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                       <input
+                        disabled={isSaving}
                         type={showPassword ? "text" : "password"}
                         value={form.password}
                         onChange={(e) => setForm({ ...form, password: e.target.value })}
                         placeholder="••••••••"
-                        className="w-full rounded-xl border border-slate-200/80 py-3 pl-10 pr-12 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                        className="w-full rounded-xl border border-slate-200/80 py-3 pl-10 pr-12 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                       />
                       <button
                         type="button"
@@ -529,17 +645,20 @@ export default function OrgStaffPage() {
               <div className="flex gap-3 pt-6 border-t border-slate-100 mt-6 shrink-0 pb-6 sm:pb-0">
                 <button
                   type="button"
+                  disabled={isSaving}
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 rounded-xl border border-slate-200 bg-slate-50 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="flex-1 rounded-xl border border-slate-200 bg-slate-50 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
+                  disabled={isSaving}
                   onClick={handleSaveStaff}
-                  className="flex-1 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/10 transition-all hover:bg-emerald-700 active:scale-[0.99]"
+                  className="flex-1 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/10 transition-all hover:bg-emerald-700 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {editingMember ? "Save Changes" : "Add Staff"}
+                  {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isSaving ? "Saving..." : editingMember ? "Save Changes" : "Add Staff"}
                 </button>
               </div>
             </div>

@@ -22,10 +22,10 @@ export async function POST(req: NextRequest) {
   const isOwner = auth.payload.role === "Owner";
 
   const createSchema = z.object({
-    name:     z.string().min(2),
-    email:    z.string().email(),
-    phone:    z.string().optional(),
-    role:     isOwner
+    name: z.string().min(2),
+    email: z.string().email(),
+    phone: z.string().optional(),
+    role: isOwner
       ? z.enum(["Manager", "Cashier", "Waiter", "Kitchen Crew"])
       : z.enum(["Cashier", "Waiter", "Kitchen Crew"]),
     password: z.string().min(8),
@@ -102,8 +102,8 @@ export async function GET(req: NextRequest) {
   if (permError) return permError;
 
   const searchParams = req.nextUrl.searchParams;
-  const limit  = Math.min(parseInt(searchParams.get("limit") ?? "20", 10), 100);
-  const page   = Math.max(parseInt(searchParams.get("page")  ?? "1",  10), 1);
+  const limit = Math.min(parseInt(searchParams.get("limit") ?? "20", 10), 100);
+  const page = Math.max(parseInt(searchParams.get("page") ?? "1", 10), 1);
   const offset = (page - 1) * limit;
 
   const isOwner = auth.payload.role === "Owner";
