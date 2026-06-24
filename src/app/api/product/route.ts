@@ -12,7 +12,7 @@ const createSchema = z.object({
   description: z.string().optional(),
   imagePublicId: z.string().optional(), // key from Cloudinary, not a URL
   sortOrder: z.number().int().optional(),
-  outletId: z.string().uuid().optional(), 
+  outletId: z.string().uuid().optional(),
 
 });
 

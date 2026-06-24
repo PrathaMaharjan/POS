@@ -65,7 +65,7 @@ interface OrderProps {
   tableId?: string | null;
   orderType?: 'TAKEAWAY' | 'DINE_IN';
   showHeader?: boolean;
-  role?: 'cashier' | 'waiter'; 
+  role?: 'cashier' | 'waiter';
   onOrderCreated?: (order: CreatedOrder) => void;
 }
 
@@ -80,31 +80,31 @@ export default function Order({
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
-  const accent        = isDark ? '#e5b83b' : '#059669'; 
-  const accentText    = isDark ? '#0c0c0d' : '#ffffff';
-  const pageBg     = isDark ? '#0c0c0d' : '#ffffff'; 
-  const sidebarBg  = isDark ? '#0c0c0d' : '#059669'; 
-  const surfaceBg  = isDark ? '#141416' : '#ffffff'; 
-  const surfaceBg2 = isDark ? '#1c1c1e' : '#d1fae5'; 
-  const skeletonBg = isDark ? '#1c1c1e' : '#e2e8f0'; 
-  const borderCol  = isDark ? '#27272a' : '#e2e8f0'; 
+  const accent = isDark ? '#e5b83b' : '#059669';
+  const accentText = isDark ? '#0c0c0d' : '#ffffff';
+  const pageBg = isDark ? '#0c0c0d' : '#ffffff';
+  const sidebarBg = isDark ? '#0c0c0d' : '#059669';
+  const surfaceBg = isDark ? '#141416' : '#ffffff';
+  const surfaceBg2 = isDark ? '#1c1c1e' : '#d1fae5';
+  const skeletonBg = isDark ? '#1c1c1e' : '#e2e8f0';
+  const borderCol = isDark ? '#27272a' : '#e2e8f0';
 
-  const borderHover   = isDark ? 'rgba(229,184,59,0.6)' : 'rgba(5,150,105,0.6)';
-  const textPrim      = isDark ? '#ffffff' : '#1e293b'; 
-  const textMuted     = isDark ? '#a1a1aa' : '#64748b'; 
-  const textFaint     = isDark ? '#52525b' : '#94a3b8'; 
-  const inputBg       = isDark ? '#141416' : '#ffffff';
-  const accentRing    = isDark ? 'rgba(229,184,59,0.2)' : 'rgba(5,150,105,0.2)';
-  const accentGlow    = isDark ? '0 4px 20px rgba(229,184,59,0.15)' : '0 4px 20px rgba(5,150,105,0.15)';
+  const borderHover = isDark ? 'rgba(229,184,59,0.6)' : 'rgba(5,150,105,0.6)';
+  const textPrim = isDark ? '#ffffff' : '#1e293b';
+  const textMuted = isDark ? '#a1a1aa' : '#64748b';
+  const textFaint = isDark ? '#52525b' : '#94a3b8';
+  const inputBg = isDark ? '#141416' : '#ffffff';
+  const accentRing = isDark ? 'rgba(229,184,59,0.2)' : 'rgba(5,150,105,0.2)';
+  const accentGlow = isDark ? '0 4px 20px rgba(229,184,59,0.15)' : '0 4px 20px rgba(5,150,105,0.15)';
 
   // Sidebar-specific colors
-  const sidebarTextPrim   = isDark ? textPrim : '#ffffff';
-  const sidebarTextMuted  = isDark ? textMuted : 'rgba(255,255,255,0.75)';
-  const sidebarTextFaint  = isDark ? textFaint : 'rgba(255,255,255,0.55)';
-  const sidebarBorderCol  = isDark ? borderCol : 'rgba(255,255,255,0.18)';
-  const sidebarSurfaceBg  = isDark ? surfaceBg : 'rgba(255,255,255,0.12)';
+  const sidebarTextPrim = isDark ? textPrim : '#ffffff';
+  const sidebarTextMuted = isDark ? textMuted : 'rgba(255,255,255,0.75)';
+  const sidebarTextFaint = isDark ? textFaint : 'rgba(255,255,255,0.55)';
+  const sidebarBorderCol = isDark ? borderCol : 'rgba(255,255,255,0.18)';
+  const sidebarSurfaceBg = isDark ? surfaceBg : 'rgba(255,255,255,0.12)';
   const sidebarSurfaceBg2 = isDark ? surfaceBg2 : 'rgba(255,255,255,0.18)';
-  const sidebarAccent     = isDark ? accent : '#ffffff';
+  const sidebarAccent = isDark ? accent : '#ffffff';
   const sidebarAccentText = isDark ? accentText : '#059669';
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -119,7 +119,7 @@ export default function Order({
   const [customerPhone, setCustomerPhone] = useState('');
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [createdTakeawayOrderId, setCreatedTakeawayOrderId] = useState<string | null>(null);
-  
+
   // Tracks which cart item layout is open for custom notes
   const [activeNoteProductId, setActiveNoteProductId] = useState<string | null>(null);
 
@@ -158,7 +158,9 @@ export default function Order({
         setIsLoadingProducts(true);
         const endpoint = activeCategory === 'ALL' ? '/product' : `/product?categoryId=${activeCategory}`;
         const res = await api.get(endpoint);
-        setProducts(res.data.products ?? []);
+        const data = res.data.products;
+        const productsList = Array.isArray(data) ? data : (data?.products ?? []);
+        setProducts(productsList);
       } catch (err) {
         console.error('Failed to fetch products:', err);
         setProducts([]);
@@ -263,26 +265,7 @@ export default function Order({
       return;
     }
 
-    setIsPlacingOrder(true);
-    try {
-      const res = await api.post('/orders/takeaway', {
-        customerName: customerName.trim() || undefined,
-        customerPhone: customerPhone.trim() || undefined,
-        items: cart.map(item => ({
-          productId: item.product.id,
-          quantity: item.quantity,
-          notes: item.note.trim() || undefined,
-        })),
-      });
-      setCreatedTakeawayOrderId(res.data.order.id);
-      setIsPaymentOpen(true);
-    } catch (err: any) {
-      console.error('Failed to place order:', err);
-      const message = err.response?.data?.error;
-      alert(typeof message === 'string' ? message : 'Failed to place order. Please try again.');
-    } finally {
-      setIsPlacingOrder(false);
-    }
+    setIsPaymentOpen(true);
   };
 
   const handlePaymentComplete = () => {
@@ -417,8 +400,8 @@ export default function Order({
                     >
                       <div style={{ backgroundColor: skeletonBg }} className="relative w-full aspect-[4/3] rounded-xl overflow-hidden flex items-center justify-center">
                         {product.imageUrl ? (
-                          <Image 
-                            src={product.imageUrl} 
+                          <Image
+                            src={product.imageUrl}
                             alt={product.name}
                             fill
                             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
@@ -493,7 +476,7 @@ export default function Order({
                       className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-md opacity-0 group-hover:opacity-100 transition-opacity"
                       style={{ backgroundColor: sidebarAccent }}
                     />
-                    
+
                     <div className="flex items-center justify-between w-full">
                       <div className="flex items-center gap-2.5">
                         <div
@@ -536,10 +519,10 @@ export default function Order({
                           placeholder="No spicy, extra cheese, etc..."
                           value={item.note}
                           onChange={e => handleUpdateItemNote(item.product.id, e.target.value)}
-                          style={{ 
-                            backgroundColor: sidebarSurfaceBg2, 
-                            borderColor: sidebarBorderCol, 
-                            color: sidebarTextPrim 
+                          style={{
+                            backgroundColor: sidebarSurfaceBg2,
+                            borderColor: sidebarBorderCol,
+                            color: sidebarTextPrim
                           }}
                           className="w-full border rounded-lg py-1.5 px-2.5 text-xs outline-none placeholder-white/40 focus:ring-1 focus:ring-white/20"
                         />
@@ -620,12 +603,17 @@ export default function Order({
         onClose={handlePaymentComplete}
         orderId={createdTakeawayOrderId}
         totalAmount={subtotal}
+        subtotalAmount={subtotal}
+        customerName={customerName}
+        customerPhone={customerPhone}
         orderType="TAKEAWAY"
         tableId={null}
         cart={cart.map(item => ({
+          productId: item.product.id,
           quantity: item.quantity,
           name: item.product.name,
           price: parseFloat(item.product.price),
+          notes: item.note.trim() || undefined,
         }))}
       />
     </div>

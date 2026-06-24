@@ -1,17 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
 import {
   User, Mail, Lock, Store, MapPin, Percent,
   Eye, EyeOff, Loader2, CheckCircle2, Building2, ChevronDown,
+  QrCode, Download, Printer
 } from "lucide-react";
 
-type Section = "account" | "outlet" | null;
+type Section = "account" | "outlet" | "qrMenu" | null;
 
 export default function SettingsPage() {
+  const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const [openSection, setOpenSection] = useState<Section>("account");
+  const [qrUrl, setQrUrl] = useState("");
 
-  // Account form state
+  useEffect(() => {
+    if (typeof window !== "undefined" && tenantSlug) {
+      const origin = window.location.origin;
+      const targetUrl = `${origin}/menu/${tenantSlug}`;
+      setQrUrl(`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(targetUrl)}`);
+    }
+  }, [tenantSlug]);
+
+  const handleDownload = async () => {
+    if (!qrUrl) return;
+    try {
+      const response = await fetch(qrUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${tenantSlug}-menu-qr.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to download QR code", err);
+      window.open(qrUrl, "_blank");
+    }
+  };
+
+
   const [account, setAccount] = useState({
     name: "Admin User",
     email: "admin@example.com",
@@ -23,7 +54,7 @@ export default function SettingsPage() {
   });
   const [showPw, setShowPw] = useState({ current: false, next: false, confirm: false });
 
-  // Outlet form state
+
   const [outlet, setOutlet] = useState({
     name: "Green Leaf Café",
     address: "Pulchowk, Lalitpur",
@@ -46,8 +77,7 @@ export default function SettingsPage() {
   async function handleSaveAccount(e: React.FormEvent) {
     e.preventDefault();
     setIsSavingAccount(true);
-    // TODO: wire up to api.patch("/account", { name, email })
-    // TODO: if passwords.next, call api.patch("/account/password", {...})
+
     await new Promise((r) => setTimeout(r, 700));
     setIsSavingAccount(false);
     setPasswords({ current: "", next: "", confirm: "" });
@@ -57,7 +87,7 @@ export default function SettingsPage() {
   async function handleSaveOutlet(e: React.FormEvent) {
     e.preventDefault();
     setIsSavingOutlet(true);
-    // TODO: wire up to api.patch("/outlet", { name, address, taxRate })
+
     await new Promise((r) => setTimeout(r, 700));
     setIsSavingOutlet(false);
     flashSaved("Outlet settings updated.");
@@ -71,7 +101,7 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-8">
 
-      {/* Header */}
+
       <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="text-sm text-emerald-100/80 mt-1">
@@ -79,7 +109,7 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* Save confirmation toast */}
+
       {savedMsg && (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
@@ -89,7 +119,6 @@ export default function SettingsPage() {
 
       <div className="flex flex-col gap-4">
 
-        {/* ── Account Accordion ───────────────────────── */}
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <button
             type="button"
@@ -106,16 +135,14 @@ export default function SettingsPage() {
               </div>
             </div>
             <ChevronDown
-              className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${
-                openSection === "account" ? "rotate-180" : ""
-              }`}
+              className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${openSection === "account" ? "rotate-180" : ""
+                }`}
             />
           </button>
 
           <div
-            className={`grid transition-all duration-200 ease-in-out ${
-              openSection === "account" ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-            }`}
+            className={`grid transition-all duration-200 ease-in-out ${openSection === "account" ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+              }`}
           >
             <div className="overflow-hidden">
               <form onSubmit={handleSaveAccount} className="border-t border-slate-100">
@@ -201,7 +228,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* ── Outlet Accordion ───────────────────────── */}
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <button
             type="button"
@@ -218,16 +244,14 @@ export default function SettingsPage() {
               </div>
             </div>
             <ChevronDown
-              className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${
-                openSection === "outlet" ? "rotate-180" : ""
-              }`}
+              className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${openSection === "outlet" ? "rotate-180" : ""
+                }`}
             />
           </button>
 
           <div
-            className={`grid transition-all duration-200 ease-in-out ${
-              openSection === "outlet" ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-            }`}
+            className={`grid transition-all duration-200 ease-in-out ${openSection === "outlet" ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+              }`}
           >
             <div className="overflow-hidden">
               <form onSubmit={handleSaveOutlet} className="border-t border-slate-100">
@@ -292,6 +316,164 @@ export default function SettingsPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+
+
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <button
+            type="button"
+            onClick={() => toggleSection("qrMenu")}
+            className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                <QrCode className="h-4 w-4" />
+              </div>
+              <div className="text-left">
+                <h2 className="text-sm font-semibold text-slate-800">QR Code Menu</h2>
+                <p className="text-xs text-slate-400">Generate and download customer menu QR codes</p>
+              </div>
+            </div>
+            <ChevronDown
+              className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${openSection === "qrMenu" ? "rotate-180" : ""
+                }`}
+            />
+          </button>
+
+          <div
+            className={`grid transition-all duration-200 ease-in-out ${openSection === "qrMenu" ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+              }`}
+          >
+            <div className="overflow-hidden">
+              <div className="border-t border-slate-100 p-8 flex flex-col items-center justify-center text-center gap-6 max-w-xl mx-auto">
+                <div className="space-y-2">
+                  <h3 className="text-base font-semibold text-slate-800">Menu QR Code</h3>
+
+                </div>
+
+                <div className="flex flex-col items-center justify-center p-6 border border-slate-150 rounded-2xl bg-slate-50/50 shadow-inner w-64">
+                  <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-sm relative group overflow-hidden">
+                    {qrUrl ? (
+                      <img
+                        src={qrUrl}
+                        alt="Menu QR Code"
+                        width={180}
+                        height={180}
+                        className="object-contain transition-transform duration-300 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="w-[180px] h-[180px] flex items-center justify-center bg-slate-100 rounded-lg text-xs text-slate-400">
+                        Generating QR...
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-4">Scan preview</span>
+                </div>
+
+                <div className="flex flex-wrap gap-3 justify-center">
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    disabled={!qrUrl}
+                    className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors disabled:opacity-50"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download QR PNG
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    disabled={!qrUrl}
+                    className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 px-6 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition-colors disabled:opacity-50"
+                  >
+                    <Printer className="h-4 w-4" />
+                    Print QR Flyer
+                  </button>
+                </div>
+
+                {/* Print-Only Tabletop Flyer Layout */}
+                <div id="print-flyer-area" className="hidden flex-col items-center justify-center p-8 bg-white border-[12px] border-emerald-600 rounded-3xl max-w-sm mx-auto text-center font-sans">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className="flex items-center gap-2 text-emerald-700">
+                      <Store className="w-6 h-6 shrink-0" />
+                      <span className="text-xl font-extrabold tracking-tight uppercase">{outlet.name}</span>
+                    </div>
+                    <p className="text-slate-400 text-[10px] tracking-widest font-bold uppercase">Welcome & Enjoy</p>
+                  </div>
+
+                  <div className="my-6 p-4 bg-white border border-slate-200/80 rounded-2xl shadow-sm">
+                    {qrUrl ? (
+                      <img
+                        src={qrUrl}
+                        alt="Menu QR Code"
+                        width={200}
+                        height={200}
+                        className="object-contain"
+                      />
+                    ) : (
+                      <div className="w-[200px] h-[200px] bg-slate-100 rounded-lg flex items-center justify-center text-xs text-slate-400">
+                        Generating QR...
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="text-base font-bold text-slate-800">Scan to Browse Menu</h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5">No App or Login required</p>
+                    </div>
+
+                    <div className="flex flex-col gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100 text-left mx-auto w-full max-w-[280px]">
+                      <div className="flex items-start gap-2 text-[11px] text-slate-600 leading-normal">
+                        <span className="flex h-4.5 w-4.5 items-center justify-center rounded-full bg-emerald-100 text-[9px] font-bold text-emerald-700 shrink-0">1</span>
+                        <span>Open your smartphone camera app</span>
+                      </div>
+                      <div className="flex items-start gap-2 text-[11px] text-slate-600 leading-normal">
+                        <span className="flex h-4.5 w-4.5 items-center justify-center rounded-full bg-emerald-100 text-[9px] font-bold text-emerald-700 shrink-0">2</span>
+                        <span>Point camera at the QR code above</span>
+                      </div>
+                      <div className="flex items-start gap-2 text-[11px] text-slate-600 leading-normal">
+                        <span className="flex h-4.5 w-4.5 items-center justify-center rounded-full bg-emerald-100 text-[9px] font-bold text-emerald-700 shrink-0">3</span>
+                        <span>Tap the link to view our menu</span>
+                      </div>
+                    </div>
+
+                    <div className="text-[9px] text-slate-400 pt-2 border-t border-slate-100">
+                      Powered by Antigravity POS
+                    </div>
+                  </div>
+                </div>
+
+                <style>{`
+                  @media print {
+                    body * {
+                      visibility: hidden !important;
+                    }
+                    #print-flyer-area, #print-flyer-area * {
+                      visibility: visible !important;
+                    }
+                    #print-flyer-area {
+                      position: absolute !important;
+                      left: 50% !important;
+                      top: 45% !important;
+                      transform: translate(-50%, -50%) !important;
+                      width: 320px !important;
+                      height: 520px !important;
+                      display: flex !important;
+                      flex-direction: column !important;
+                      align-items: center !important;
+                      justify-content: center !important;
+                      background: white !important;
+                      border: 12px solid #059669 !important;
+                      border-radius: 1.5rem !important;
+                      padding: 2rem !important;
+                      box-sizing: border-box !important;
+                    }
+                  }
+                `}</style>
+              </div>
             </div>
           </div>
         </div>

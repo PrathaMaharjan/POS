@@ -52,7 +52,7 @@ export default function MenuManagement() {
   const [draft, setDraft] = useState<FormDraft>(EMPTY_DRAFT);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0); 
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Image upload state
   const { uploadImage, uploading, error: uploadError } = useImageUpload();
@@ -119,10 +119,11 @@ export default function MenuManagement() {
       try {
         const res = await api.get(`/product?categoryId=${activeCategoryId}`);
         const cat = categories.find((c) => c.id === activeCategoryId);
-        const products = res.data.products ?? [];
+        const data = res.data.products;
+        const productsList = Array.isArray(data) ? data : (data?.products ?? []);
 
         setMenuItems(
-          products.map((p: any) => ({
+          productsList.map((p: any) => ({
             ...p,
             category: cat?.name ?? "",
             categoryId: activeCategoryId,
@@ -317,11 +318,10 @@ export default function MenuManagement() {
             <>
               <button
                 onClick={() => setActiveCategoryId("all")}
-                className={`snap-start shrink-0 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                  activeCategoryId === "all"
+                className={`snap-start shrink-0 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors ${activeCategoryId === "all"
                     ? "bg-emerald-600 text-white shadow-sm"
                     : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
-                }`}
+                  }`}
               >
                 All Items
               </button>
@@ -329,11 +329,10 @@ export default function MenuManagement() {
               {categories.map((cat) => (
                 <div
                   key={cat.id}
-                  className={`snap-start shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                    activeCategoryId === cat.id
+                  className={`snap-start shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${activeCategoryId === cat.id
                       ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
                       : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                  }`}
+                    }`}
                 >
                   <button onClick={() => setActiveCategoryId(cat.id)} className="focus:outline-none">
                     {cat.name}
@@ -360,11 +359,10 @@ export default function MenuManagement() {
 
               <button
                 onClick={() => setCategoryManageMode(!categoryManageMode)}
-                className={`snap-start shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${
-                  categoryManageMode
+                className={`snap-start shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${categoryManageMode
                     ? "bg-amber-500 border-amber-500 text-white"
                     : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                }`}
+                  }`}
               >
                 <Settings2 className="w-3.5 h-3.5" />
                 <span className="whitespace-nowrap">{categoryManageMode ? "Exit Config" : "Edit Categories"}</span>
@@ -410,10 +408,10 @@ export default function MenuManagement() {
               <div key={item.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow">
                 <div className="relative h-36 md:h-40 w-full shrink-0 bg-slate-100">
                   {item.imageUrl ? (
-                    <Image 
-                      src={item.imageUrl} 
-                      alt={item.name} 
-                      fill 
+                    <Image
+                      src={item.imageUrl}
+                      alt={item.name}
+                      fill
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                       className="object-cover"
                       priority={filteredItems.indexOf(item) < 4}
@@ -553,12 +551,12 @@ export default function MenuManagement() {
 
                   {modalImageSrc ? (
                     <div className="relative w-full h-36 md:h-40 rounded-lg overflow-hidden border border-slate-200">
-                      <Image 
-                        src={modalImageSrc} 
-                        alt="Preview" 
-                        fill 
+                      <Image
+                        src={modalImageSrc}
+                        alt="Preview"
+                        fill
                         sizes="(max-width: 500px) 100vw, 500px"
-                        className="object-cover" 
+                        className="object-cover"
                         unoptimized={modalImageSrc.startsWith('blob:')}
                       />
                       <button
