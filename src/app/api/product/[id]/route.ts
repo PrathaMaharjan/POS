@@ -27,12 +27,24 @@ export async function GET(
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
-  const product = await getProductById(auth.payload.activeOutletId!, id);
-  if (!product) {
-    return NextResponse.json({ error: "Product not found" }, { status: 404 });
+  const resolved = await resolveOutletId(
+    auth.payload,
+    req.nextUrl.searchParams.get("outletId"),
+  );
+  if ("error" in resolved) {
+    return NextResponse.json(
+      { error: resolved.error },
+      { status: resolved.status },
+    );
   }
-
-  return NextResponse.json({ product });
+  const product = await getProductById(resolved.outletId, id);
+  if (!product) {
+    return NextResponse.json(
+      { error: "Product not found" },
+      { status: 404 },
+    );
+  }
+  return NextResponse.json(product);
 }
 
 export async function DELETE(
@@ -48,17 +60,23 @@ export async function DELETE(
     "inventory.products.delete",
   );
   if (permError) return permError;
-
-  const result = await hardDeleteProduct(auth.payload.activeOutletId!, id);
-
+  const resolved = await resolveOutletId(
+    auth.payload,
+    req.nextUrl.searchParams.get("outletId"),
+  );
+  if ("error" in resolved) {
+    return NextResponse.json(
+      { error: resolved.error },
+      { status: resolved.status },
+    );
+  }
+  const result = await hardDeleteProduct(resolved.outletId, id);
   if (!result.success) {
     return NextResponse.json(
       { error: result.error },
       { status: result.status },
     );
   }
-
-  return NextResponse.json({ success: true });
 }
 
 export async function PATCH(
@@ -107,11 +125,7 @@ export async function PATCH(
     );
   }
 
-  const result = await updateProduct(
-    resolved.outletId,
-    id,
-    updateFields
-  );
+  const result = await updateProduct(resolved.outletId, id, updateFields);
 
   if (!result.success) {
     return NextResponse.json(

@@ -12,6 +12,8 @@ const createSchema = z.object({
   description: z.string().optional(),
   imagePublicId: z.string().optional(), // key from Cloudinary, not a URL
   sortOrder: z.number().int().optional(),
+  outletId: z.string().uuid().optional(), 
+
 });
 
 // create product
@@ -24,24 +26,23 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
 
-  // Owner can optionally pass outletId in body to target a specific outlet
-  const resolved = await resolveOutletId(auth.payload, body.outletId);
-  if ("error" in resolved) {
-    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
-  }
-
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
+  const { outletId: requestedOutletId, ...productData } = parsed.data;
 
-  const result = await createProduct(resolved.outletId, parsed.data);
+  const resolved = await resolveOutletId(auth.payload, requestedOutletId);
+  if ("error" in resolved) {
+    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+  }
+  const result = await createProduct(resolved.outletId, productData);
 
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
+  return NextResponse.json(result.data.id, { status: 201 });
 
-  return NextResponse.json(result.data, { status: 201 });
 }
 
 // get product by category yo chi more optimize xa so use this one 
@@ -51,26 +52,22 @@ export async function GET(req: NextRequest) {
 
   const searchParams = req.nextUrl.searchParams;
 
-  // Owner can pass ?outletId= to query a specific outlet
-  const resolved = await resolveOutletId(auth.payload, searchParams.get("outletId"));
-  if ("error" in resolved) {
-    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
-  }
-
   const categoryId = searchParams.get("categoryId");
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 100);
   const page = Math.max(parseInt(searchParams.get("page") ?? "1"), 1);
   const offset = (page - 1) * limit;
 
-  const result = await listProducts(resolved.outletId, categoryId || undefined, limit, offset);
-
+  const resolved = await resolveOutletId(auth.payload, searchParams.get("outletId"));
+  if ("error" in resolved) {
+    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+  }
+  const products = await listProducts(resolved.outletId, categoryId, limit, offset);
   return NextResponse.json({
-    ...result,
+    products,
     pagination: {
       page,
       limit,
-      total: result.total,
-      totalPages: Math.ceil(result.total / limit),
     },
   });
+
 }
