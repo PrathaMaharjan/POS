@@ -134,6 +134,7 @@ async function seedSystemRoles() {
       "pos.shift_reports.read",
       "pos.shift_reports.update",
       "restaurant.tables.read",
+      "restaurant.tables.update",
       "restaurant.kot.read",
       "restaurant.kot.update",
       "restaurant.bill_splits.create",
