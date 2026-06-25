@@ -6,6 +6,7 @@ import {
   ShoppingBag, Clock, CheckCircle2, XCircle,
   TrendingUp, Utensils, Armchair, Search,
   Loader2, ChevronLeft, ChevronRight,
+  Store, ChevronDown,
 } from "lucide-react";
 
 type OrderStatus = "pending" | "completed" | "cancelled";
@@ -31,10 +32,15 @@ interface Order {
   createdAt: string;
 }
 
+interface Outlet {
+  id: string;
+  name: string;
+}
+
 const STATUS_STYLE: Record<OrderStatus, { bg: string; text: string; dot: string; label: string }> = {
-  pending:   { bg: "bg-amber-50",   text: "text-amber-700",  dot: "bg-amber-500",  label: "Pending"   },
-  completed: { bg: "bg-[#f0fdf4]",  text: "text-[#0f6b4a]", dot: "bg-[#18a172]",  label: "Completed" },
-  cancelled: { bg: "bg-red-50",     text: "text-red-600",    dot: "bg-red-500",    label: "Cancelled" },
+  pending: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500", label: "Pending" },
+  completed: { bg: "bg-[#f0fdf4]", text: "text-[#0f6b4a]", dot: "bg-[#18a172]", label: "Completed" },
+  cancelled: { bg: "bg-red-50", text: "text-red-600", dot: "bg-red-500", label: "Cancelled" },
 };
 
 export default function ManagerOrdersPage() {
@@ -47,12 +53,51 @@ export default function ManagerOrdersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
+  // ── Outlet state ──────────────────────────────────────────────────────────
+  const [outlets, setOutlets] = useState<Outlet[]>([]);
+  const [activeOutletId, setActiveOutletId] = useState<string>("");
+  const [outletDropdownOpen, setOutletDropdownOpen] = useState(false);
+
+  const activeOutlet = outlets.find((o) => o.id === activeOutletId);
+
+  // 1. Fetch outlets on mount
   useEffect(() => {
+    async function initOutlets() {
+      try {
+        const res = await api.get("/outlets");
+        const list: Outlet[] = res.data.outlets ?? [];
+        setOutlets(list);
+
+        const stored = localStorage.getItem("activeOutletId");
+        if (stored && list.some((o) => o.id === stored)) {
+          setActiveOutletId(stored);
+        } else if (list.length > 0) {
+          setActiveOutletId(list[0].id);
+        }
+      } catch (err: any) {
+        setError(err?.response?.data?.error ?? "Failed to load outlets.");
+      }
+    }
+    initOutlets();
+  }, []);
+
+  // 2. Close outlet dropdown on outside click
+  useEffect(() => {
+    if (!outletDropdownOpen) return;
+    const handler = () => setOutletDropdownOpen(false);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [outletDropdownOpen]);
+
+  // 3. Fetch orders whenever outlet changes
+  useEffect(() => {
+    if (!activeOutletId) return;
+
     async function fetchOrders() {
       try {
         setIsLoading(true);
         setError(null);
-        const res = await api.get("/orders");
+        const res = await api.get(`/orders?outletId=${activeOutletId}`);
         const raw = res.data.orders ?? [];
 
         const mapped: Order[] = raw.map((o: any) => ({
@@ -83,13 +128,21 @@ export default function ManagerOrdersPage() {
       }
     }
     fetchOrders();
-  }, []);
+  }, [activeOutletId]);
 
-  const total     = orders.length;
+  const handleOutletChange = (id: string) => {
+    localStorage.setItem("activeOutletId", id);
+    setActiveOutletId(id);
+    setCurrentPage(1);
+    setExpanded(null);
+    setOutletDropdownOpen(false);
+  };
+
+  const total = orders.length;
   const completed = orders.filter(o => o.status === "completed").length;
-  const pending   = orders.filter(o => o.status === "pending").length;
+  const pending = orders.filter(o => o.status === "pending").length;
   const cancelled = orders.filter(o => o.status === "cancelled").length;
-  const revenue   = orders
+  const revenue = orders
     .filter(o => o.status === "completed")
     .reduce((s, o) => s + o.total, 0);
 
@@ -107,6 +160,16 @@ export default function ManagerOrdersPage() {
     });
   }, [orders, search, statusFilter]);
 
+  const hasFilters = !!(search.trim() || statusFilter !== "ALL");
+
+  const filteredTotal = filtered.length;
+  const filteredCompleted = filtered.filter(o => o.status === "completed").length;
+  const filteredPending = filtered.filter(o => o.status === "pending").length;
+  const filteredCancelled = filtered.filter(o => o.status === "cancelled").length;
+  const filteredRevenue = filtered
+    .filter(o => o.status === "completed")
+    .reduce((s, o) => s + o.total, 0);
+
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
@@ -117,18 +180,93 @@ export default function ManagerOrdersPage() {
     <div className="flex flex-col gap-6 p-4 sm:p-0">
 
       {/* Header */}
-      <div className="rounded-xl bg-[#0f6b4a] px-6 py-5 text-white shadow-sm">
+      <div className="rounded-xl bg-[#0f6b4a] px-6 py-5 text-white shadow-sm flex items-center justify-between gap-4">
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Orders</h1>
+
+        {/* Outlet picker */}
+        <div className="relative" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => setOutletDropdownOpen((prev) => !prev)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold border bg-white text-emerald-700 border-white shadow-sm transition-colors"
+          >
+            <Store className="w-4 h-4 shrink-0" />
+            <span className="max-w-[120px] truncate">
+              {activeOutlet?.name ?? "Select Outlet"}
+            </span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${outletDropdownOpen ? "rotate-180" : ""
+                }`}
+            />
+          </button>
+
+          {outletDropdownOpen && (
+            <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+              <div className="px-3 py-2 border-b border-slate-100">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Select Outlet
+                </p>
+              </div>
+              <div className="py-1">
+                {outlets.map((outlet) => (
+                  <button
+                    key={outlet.id}
+                    onClick={() => handleOutletChange(outlet.id)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${activeOutletId === outlet.id
+                        ? "bg-emerald-50 text-emerald-700 font-semibold"
+                        : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${activeOutletId === outlet.id ? "bg-emerald-500" : "bg-slate-200"
+                        }`}
+                    />
+                    {outlet.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {[
-          { label: "Total Orders", value: total,                         border: "border-l-slate-400",  iconBg: "bg-slate-50 text-slate-600",    icon: <ShoppingBag className="h-5 w-5 sm:h-6 sm:w-6" /> },
-          { label: "Revenue",      value: `Rs. ${revenue.toLocaleString()}`, border: "border-l-[#18a172]",  iconBg: "bg-[#f0fdf4] text-[#0f6b4a]",   icon: <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6" /> },
-          { label: "Completed",    value: completed,                         border: "border-l-[#18a172]",  iconBg: "bg-[#f0fdf4] text-[#0f6b4a]",   icon: <CheckCircle2 className="h-5 w-5 sm:h-6 sm:w-6" /> },
-          { label: "In Progress",  value: pending,                           border: "border-l-amber-500",  iconBg: "bg-amber-50 text-amber-600",    icon: <Clock className="h-5 w-5 sm:h-6 sm:w-6" /> },
-          { label: "Cancelled",    value: cancelled,                         border: "border-l-red-500",    iconBg: "bg-red-50 text-red-500",        icon: <XCircle className="h-5 w-5 sm:h-6 sm:w-6" /> },
+          {
+            label: search.trim() ? "Search Results Orders" : statusFilter !== "ALL" ? "Filtered Orders" : "Total Orders",
+            value: hasFilters ? filteredTotal : total,
+            border: "border-l-slate-400",
+            iconBg: "bg-slate-50 text-slate-600",
+            icon: <ShoppingBag className="h-5 w-5 sm:h-6 sm:w-6" />
+          },
+          {
+            label: search.trim() ? "Search Results Revenue" : statusFilter !== "ALL" ? "Filtered Revenue" : "Revenue",
+            value: `Rs. ${(hasFilters ? filteredRevenue : revenue).toLocaleString()}`,
+            border: "border-l-[#18a172]",
+            iconBg: "bg-[#f0fdf4] text-[#0f6b4a]",
+            icon: <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6" />
+          },
+          {
+            label: search.trim() ? "Search Completed" : statusFilter !== "ALL" ? "Filtered Completed" : "Completed",
+            value: hasFilters ? filteredCompleted : completed,
+            border: "border-l-[#18a172]",
+            iconBg: "bg-[#f0fdf4] text-[#0f6b4a]",
+            icon: <CheckCircle2 className="h-5 w-5 sm:h-6 sm:w-6" />
+          },
+          {
+            label: search.trim() ? "Search In Progress" : statusFilter !== "ALL" ? "Filtered In Progress" : "In Progress",
+            value: hasFilters ? filteredPending : pending,
+            border: "border-l-amber-500",
+            iconBg: "bg-amber-50 text-amber-600",
+            icon: <Clock className="h-5 w-5 sm:h-6 sm:w-6" />
+          },
+          {
+            label: search.trim() ? "Search Cancelled" : statusFilter !== "ALL" ? "Filtered Cancelled" : "Cancelled",
+            value: hasFilters ? filteredCancelled : cancelled,
+            border: "border-l-red-500",
+            iconBg: "bg-red-50 text-red-500",
+            icon: <XCircle className="h-5 w-5 sm:h-6 sm:w-6" />
+          },
         ].map((s) => (
           <div
             key={s.label}
@@ -162,11 +300,10 @@ export default function ManagerOrdersPage() {
             <button
               key={s}
               onClick={() => { setStatusFilter(s); setCurrentPage(1); }}
-              className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-colors whitespace-nowrap ${
-                statusFilter === s
+              className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-colors whitespace-nowrap ${statusFilter === s
                   ? "bg-[#0f6b4a] text-white border-[#0f6b4a]"
                   : "bg-white text-slate-500 border-slate-200 hover:text-slate-700 hover:bg-slate-50"
-              }`}
+                }`}
             >
               {s === "ALL" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
             </button>
@@ -311,7 +448,11 @@ export default function ManagerOrdersPage() {
 
         {/* Pagination Controls */}
         <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-t border-slate-100 bg-white px-6 py-4">
-          <div className="text-sm text-slate-500 order-2 sm:order-1" />
+          <div className="text-xs text-slate-400 order-2 sm:order-1">
+            {filtered.length > 0
+              ? `Showing ${Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, filtered.length)}–${Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} of ${filtered.length}`
+              : "No results"}
+          </div>
           <div className="flex items-center gap-6 order-1 sm:order-2 w-full sm:w-auto justify-between sm:justify-end">
             <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
               Page {currentPage} of {totalPages || 1}

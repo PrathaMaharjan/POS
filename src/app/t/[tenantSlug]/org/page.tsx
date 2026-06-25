@@ -1,99 +1,328 @@
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
-import { useParams } from "next/navigation";
+import React, { useState, useMemo } from "react";
 import {
-  LayoutGrid,
-  Users,
-  Store,
   TrendingUp,
+  ShoppingBag,
+  DollarSign,
+  Users,
+  Calendar,
+  Store,
   ArrowUpRight,
-  Shield,
-  PlusCircle,
-  Layers,
-  CreditCard,
-  Settings,
-  Bell,
-  RefreshCw,
-  Printer,
-  Wifi,
-  Activity,
-  ChevronRight,
-  Coffee,
-  CheckCircle2,
-  Clock,
-  ExternalLink
+  PieChart,
+  BarChart3,
+  UtensilsCrossed,
+  Award,
+  ChevronDown
 } from "lucide-react";
 
-// Mock Recent Activities across branches
-const ACTIVITIES = [
-  { id: 1, time: "3 mins ago", branch: "Lalitpur Hub", type: "order", detail: "Order #1405 completed", amount: "Rs. 1,450", status: "completed" },
-  { id: 2, time: "12 mins ago", branch: "Kathmandu Main", type: "shift", detail: "Shift opened by Kang Roy", amount: null, status: "info" },
-  { id: 3, time: "25 mins ago", branch: "Pokhara Lakeside", type: "order", detail: "Order #1404 completed", amount: "Rs. 2,100", status: "completed" },
-  { id: 4, time: "45 mins ago", branch: "Kathmandu Main", type: "order", detail: "Order #1403 cancelled", amount: "Rs. 450", status: "cancelled" },
-  { id: 5, time: "1 hour ago", branch: "Pokhara Lakeside", type: "table", detail: "Table T-3 reserved for 4 guests", amount: null, status: "reserved" },
-  { id: 6, time: "2 hours ago", branch: "Lalitpur Hub", type: "menu", detail: "Menu item 'Iced Matcha' price updated", amount: null, status: "info" }
+// Mock Outlets
+const OUTLETS = [
+  { id: "all", name: "All Branches Combined" },
+  { id: "1", name: "Kathmandu Main Branch" },
+  { id: "2", name: "Lalitpur Hub" },
+  { id: "3", name: "Pokhara Lakeside" }
 ];
 
-export default function OverviewPage() {
-  const { tenantSlug } = useParams();
-  const baseUrl = `/t/${tenantSlug}/org`;
-  const [activeAlerts, setActiveAlerts] = useState(3);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+// Simulated Data sets based on Outlet & Period
+const DATA_STORE: Record<string, any> = {
+  all: {
+    "7days": {
+      revenue: 1071500,
+      orders: 3180,
+      aov: 336.95,
+      staffCount: 8,
+      trend: [138000, 152000, 125000, 169000, 144000, 175000, 168500],
+      trendLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      items: [
+        { name: "Buff Momo", category: "Appetizer", sold: 1020, revenue: 153000 },
+        { name: "Chicken Biryani", category: "Main Course", sold: 650, revenue: 227500 },
+        { name: "Iced Latte", category: "Beverage", sold: 880, revenue: 220000 },
+        { name: "Iced Matcha", category: "Beverage", sold: 560, revenue: 140000 }
+      ],
+      staff: [
+        { name: "Prakash Thapa", orders: 1290, revenue: 435000, rank: 1 },
+        { name: "Kang Roy", orders: 1010, revenue: 375000, rank: 2 },
+        { name: "Aisha Karki", orders: 880, revenue: 261500, rank: 3 }
+      ],
+      payments: [
+        { method: "QR Payment", percent: 45, amount: 482175, color: "bg-purple-500", text: "text-purple-600" },
+        { method: "Cash", percent: 30, amount: 321450, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" },
+        { method: "Card", percent: 25, amount: 267875, color: "bg-blue-500", text: "text-blue-600" }
+      ]
+    },
+    month: {
+      revenue: 4380200,
+      orders: 12950,
+      aov: 338.24,
+      staffCount: 8,
+      trend: [850000, 980000, 1120000, 1430200],
+      trendLabels: ["Week 1", "Week 2", "Week 3", "Week 4"],
+      items: [
+        { name: "Buff Momo", category: "Appetizer", sold: 4150, revenue: 622500 },
+        { name: "Chicken Biryani", category: "Main Course", sold: 2850, revenue: 997500 },
+        { name: "Iced Latte", category: "Beverage", sold: 3450, revenue: 862500 },
+        { name: "Iced Matcha", category: "Beverage", sold: 2180, revenue: 545000 }
+      ],
+      staff: [
+        { name: "Prakash Thapa", orders: 5120, revenue: 1720000, rank: 1 },
+        { name: "Kang Roy", orders: 4210, revenue: 1450200, rank: 2 },
+        { name: "Aisha Karki", orders: 3620, revenue: 1210000, rank: 3 }
+      ],
+      payments: [
+        { method: "QR Payment", percent: 48, amount: 2102496, color: "bg-purple-500", text: "text-purple-600" },
+        { method: "Cash", percent: 27, amount: 1182654, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" },
+        { method: "Card", percent: 25, amount: 1095050, color: "bg-blue-500", text: "text-blue-600" }
+      ]
+    }
+  },
+  "1": {
+    "7days": {
+      revenue: 425800,
+      orders: 1240,
+      aov: 343.38,
+      staffCount: 8,
+      trend: [55000, 62000, 48000, 71000, 58000, 69000, 62800],
+      trendLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      items: [
+        { name: "Chicken Biryani", category: "Main Course", sold: 280, revenue: 98000 },
+        { name: "Iced Latte", category: "Beverage", sold: 310, revenue: 77500 },
+        { name: "Buff Momo", category: "Appetizer", sold: 420, revenue: 63000 },
+        { name: "Iced Matcha", category: "Beverage", sold: 190, revenue: 47500 }
+      ],
+      staff: [
+        { name: "Kang Roy", orders: 490, revenue: 165000, rank: 1 },
+        { name: "Aisha Karki", orders: 410, revenue: 140000, rank: 2 },
+        { name: "Prakash Thapa", orders: 340, revenue: 120800, rank: 3 }
+      ],
+      payments: [
+        { method: "QR Payment", percent: 40, amount: 170320, color: "bg-purple-500", text: "text-purple-600" },
+        { method: "Cash", percent: 35, amount: 149030, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" },
+        { method: "Card", percent: 25, amount: 106450, color: "bg-blue-500", text: "text-blue-600" }
+      ]
+    },
+    month: {
+      revenue: 1780500,
+      orders: 5120,
+      aov: 347.75,
+      staffCount: 8,
+      trend: [390000, 420000, 480000, 490500],
+      trendLabels: ["Week 1", "Week 2", "Week 3", "Week 4"],
+      items: [
+        { name: "Chicken Biryani", category: "Main Course", sold: 1150, revenue: 402500 },
+        { name: "Iced Latte", category: "Beverage", sold: 1290, revenue: 322500 },
+        { name: "Buff Momo", category: "Appetizer", sold: 1710, revenue: 256500 },
+        { name: "Iced Matcha", category: "Beverage", sold: 790, revenue: 197500 }
+      ],
+      staff: [
+        { name: "Kang Roy", orders: 2020, revenue: 690500, rank: 1 },
+        { name: "Aisha Karki", orders: 1710, revenue: 590000, rank: 2 },
+        { name: "Prakash Thapa", orders: 1390, revenue: 500000, rank: 3 }
+      ],
+      payments: [
+        { method: "QR Payment", percent: 43, amount: 765615, color: "bg-purple-500", text: "text-purple-600" },
+        { method: "Cash", percent: 33, amount: 587565, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" },
+        { method: "Card", percent: 24, amount: 427320, color: "bg-blue-500", text: "text-blue-600" }
+      ]
+    }
+  },
+  "2": {
+    "7days": {
+      revenue: 289500,
+      orders: 890,
+      aov: 325.28,
+      staffCount: 5,
+      trend: [38000, 41000, 35000, 45000, 39000, 48000, 43500],
+      trendLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      items: [
+        { name: "Chicken Biryani", category: "Main Course", sold: 190, revenue: 66500 },
+        { name: "Iced Latte", category: "Beverage", sold: 180, revenue: 45000 },
+        { name: "Buff Momo", category: "Appetizer", sold: 290, revenue: 43500 },
+        { name: "Iced Matcha", category: "Beverage", sold: 150, revenue: 37500 }
+      ],
+      staff: [
+        { name: "Aisha Karki", orders: 510, revenue: 165000, rank: 1 },
+        { name: "Prakash Thapa", orders: 380, revenue: 124500, rank: 2 }
+      ],
+      payments: [
+        { method: "QR Payment", percent: 50, amount: 144750, color: "bg-purple-500", text: "text-purple-600" },
+        { method: "Card", percent: 30, amount: 86850, color: "bg-blue-500", text: "text-blue-600" },
+        { method: "Cash", percent: 20, amount: 57900, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" }
+      ]
+    },
+    month: {
+      revenue: 1195000,
+      orders: 3650,
+      aov: 327.4,
+      staffCount: 5,
+      trend: [260000, 290000, 310000, 335000],
+      trendLabels: ["Week 1", "Week 2", "Week 3", "Week 4"],
+      items: [
+        { name: "Chicken Biryani", category: "Main Course", sold: 780, revenue: 273000 },
+        { name: "Iced Latte", category: "Beverage", sold: 760, revenue: 190000 },
+        { name: "Buff Momo", category: "Appetizer", sold: 1210, revenue: 181500 },
+        { name: "Iced Matcha", category: "Beverage", sold: 610, revenue: 152500 }
+      ],
+      staff: [
+        { name: "Aisha Karki", orders: 2050, revenue: 685000, rank: 1 },
+        { name: "Prakash Thapa", orders: 1600, revenue: 510000, rank: 2 }
+      ],
+      payments: [
+        { method: "QR Payment", percent: 52, amount: 621400, color: "bg-purple-500", text: "text-purple-600" },
+        { method: "Card", percent: 28, amount: 334600, color: "bg-blue-500", text: "text-blue-600" },
+        { method: "Cash", percent: 20, amount: 239000, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" }
+      ]
+    }
+  },
+  "3": {
+    "7days": {
+      revenue: 356200,
+      orders: 1050,
+      aov: 339.23,
+      staffCount: 6,
+      trend: [45000, 49000, 42000, 53000, 47000, 58000, 62200],
+      trendLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      items: [
+        { name: "Iced Latte", category: "Beverage", sold: 390, revenue: 97500 },
+        { name: "Iced Matcha", category: "Beverage", sold: 220, revenue: 55000 },
+        { name: "Buff Momo", category: "Appetizer", sold: 310, revenue: 46500 },
+        { name: "Chicken Biryani", category: "Main Course", sold: 180, revenue: 63000 }
+      ],
+      staff: [
+        { name: "Prakash Thapa", orders: 630, revenue: 216200, rank: 1 },
+        { name: "Kang Roy", orders: 420, revenue: 140000, rank: 2 }
+      ],
+      payments: [
+        { method: "QR Payment", percent: 40, amount: 142480, color: "bg-purple-500", text: "text-purple-600" },
+        { method: "Card", percent: 35, amount: 124670, color: "bg-blue-500", text: "text-blue-600" },
+        { method: "Cash", percent: 25, amount: 89050, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" }
+      ]
+    },
+    month: {
+      revenue: 1404700,
+      orders: 4180,
+      aov: 336.05,
+      staffCount: 6,
+      trend: [310000, 340000, 360000, 394700],
+      trendLabels: ["Week 1", "Week 2", "Week 3", "Week 4"],
+      items: [
+        { name: "Iced Latte", category: "Beverage", sold: 1540, revenue: 385000 },
+        { name: "Iced Matcha", category: "Beverage", sold: 880, revenue: 220000 },
+        { name: "Buff Momo", category: "Appetizer", sold: 1230, revenue: 184500 },
+        { name: "Chicken Biryani", category: "Main Course", sold: 580, revenue: 203000 }
+      ],
+      staff: [
+        { name: "Prakash Thapa", orders: 2480, revenue: 840000, rank: 1 },
+        { name: "Kang Roy", orders: 1700, revenue: 564700, rank: 2 }
+      ],
+      payments: [
+        { method: "QR Payment", percent: 41, amount: 575927, color: "bg-purple-500", text: "text-purple-600" },
+        { method: "Card", percent: 34, amount: 477598, color: "bg-blue-500", text: "text-blue-600" },
+        { method: "Cash", percent: 25, amount: 351175, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" }
+      ]
+    }
+  }
+};
 
-  // Trigger simulated refresh
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 800);
-  };
+export default function ReportsPage() {
+  const [selectedOutlet, setSelectedOutlet] = useState("all");
+  const [timePeriod, setTimePeriod] = useState<"7days" | "month">("7days");
+
+  const reportData = useMemo(() => {
+    return DATA_STORE[selectedOutlet]?.[timePeriod] || DATA_STORE.all["7days"];
+  }, [selectedOutlet, timePeriod]);
+
+  // SVG Chart Dimensions & Computations
+  const chartHeight = 180;
+  const chartWidth = 500;
+  const points = useMemo(() => {
+    const trend: number[] = reportData.trend;
+    const maxVal = Math.max(...trend) * 1.15;
+    const minVal = Math.min(...trend) * 0.85;
+    const range = maxVal - minVal;
+
+    return trend.map((val, index) => {
+      const x = (index / (trend.length - 1)) * (chartWidth - 40) + 20;
+      const y = chartHeight - ((val - minVal) / range) * (chartHeight - 40) - 20;
+      return { x, y, value: val };
+    });
+  }, [reportData]);
+
+  // Generate SVG Path
+  const linePath = useMemo(() => {
+    if (points.length === 0) return "";
+    return points.reduce((acc, p, i) => {
+      return i === 0 ? `M ${p.x} ${p.y}` : `${acc} L ${p.x} ${p.y}`;
+    }, "");
+  }, [points]);
+
+  // Generate Area SVG Path (closed loop for gradient fill)
+  const areaPath = useMemo(() => {
+    if (points.length === 0) return "";
+    const start = points[0];
+    const end = points[points.length - 1];
+    return `M ${start.x} ${chartHeight} L ${start.x} ${start.y} ${linePath.substring(linePath.indexOf("L"))} L ${end.x} ${chartHeight} Z`;
+  }, [points, linePath]);
 
   return (
     <div className="flex flex-col gap-6 md:gap-8 p-4 sm:p-0">
-      
-      {/* Header Banner */}
-      <div className="rounded-xl bg-emerald-600 px-5 py-5 md:px-6 md:py-6 text-white shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+
+      {/* Header Widget */}
+      <div className="rounded-xl bg-emerald-600 px-4 py-4 md:px-6 md:py-5 text-white shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Organization Overview</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Organization Reports</h1>
           <p className="text-xs md:text-sm text-emerald-100 mt-1">
-            Welcome back, admin! Manage active branches, review performance reports, and control organizational configurations.
+            Aggregate and analyze business performance analytics switchable per outlet branch.
           </p>
         </div>
 
-        {/* Quick action controls */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleRefresh}
-            className={`rounded-lg bg-emerald-700/80 p-2.5 text-emerald-100 hover:bg-emerald-700 hover:text-white transition-colors border border-emerald-500/20 ${isRefreshing ? "animate-spin" : ""}`}
-            title="Refresh Data"
-          >
-            <RefreshCw className="h-4.5 w-4.5" />
-          </button>
-          
-          <Link
-            href={`${baseUrl}/reports`}
-            className="flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-2.5 text-xs md:text-sm font-semibold text-emerald-700 shadow-sm transition-all hover:bg-emerald-50 hover:scale-[1.02]"
-          >
-            <Activity className="h-4 w-4" />
-            View Reports
-          </Link>
+        {/* Dropdown Filters */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* Outlet Selection */}
+          <div className="relative">
+            <select
+              value={selectedOutlet}
+              onChange={(e) => setSelectedOutlet(e.target.value)}
+              className="w-full sm:w-56 appearance-none rounded-lg bg-emerald-700/80 px-4 py-2.5 pr-10 text-sm font-semibold text-white border border-emerald-500/30 focus:outline-none focus:ring-2 focus:ring-white/20 cursor-pointer"
+            >
+              {OUTLETS.map((o) => (
+                <option key={o.id} value={o.id} className="text-slate-800 bg-white">
+                  {o.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-200" />
+          </div>
+
+          {/* Time range selection */}
+          <div className="relative">
+            <select
+              value={timePeriod}
+              onChange={(e) => setTimePeriod(e.target.value as "7days" | "month")}
+              className="w-full sm:w-40 appearance-none rounded-lg bg-emerald-700/80 px-4 py-2.5 pr-10 text-sm font-semibold text-white border border-emerald-500/30 focus:outline-none focus:ring-2 focus:ring-white/20 cursor-pointer"
+            >
+              <option value="7days" className="text-slate-800 bg-white">Last 7 Days</option>
+              <option value="month" className="text-slate-800 bg-white">This Month</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-200" />
+          </div>
         </div>
       </div>
 
-      {/* Metrics Cards Grid */}
+      {/* Stats Cards Section */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Net Combined Revenue", value: "Rs. 1,071,500", border: "border-l-[#18a172]", iconBg: "bg-[#f0fdf4] text-[#0f6b4a]", icon: <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6" /> },
-          { label: "Active Directory Staff", value: "8 Operators", border: "border-l-indigo-500", iconBg: "bg-indigo-50 text-indigo-600", icon: <Users className="h-5 w-5 sm:h-6 sm:w-6" /> },
-          { label: "Registered Outlets", value: "3 Branches", border: "border-l-slate-400", iconBg: "bg-slate-50 text-slate-600", icon: <Store className="h-5 w-5 sm:h-6 sm:w-6" /> },
-          { label: "Alerts & Notifications", value: `${activeAlerts} Active`, border: "border-l-amber-500", iconBg: "bg-amber-50 text-amber-600", icon: <Bell className="h-5 w-5 sm:h-6 sm:w-6" /> }
+          { label: "Net Revenue", value: `Rs. ${reportData.revenue.toLocaleString()}`, border: "border-l-[#18a172]", iconBg: "bg-[#f0fdf4] text-[#0f6b4a]", icon: <DollarSign className="h-5 w-5 sm:h-6 sm:w-6" /> },
+          { label: "Total Orders", value: reportData.orders.toLocaleString(), border: "border-l-indigo-500", iconBg: "bg-indigo-50 text-indigo-600", icon: <ShoppingBag className="h-5 w-5 sm:h-6 sm:w-6" /> },
+          { label: "Average Order Value", value: `Rs. ${reportData.aov.toFixed(2)}`, border: "border-l-amber-500", iconBg: "bg-amber-50 text-amber-600", icon: <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6" /> },
+          { label: "Active Staff", value: reportData.staffCount, border: "border-l-slate-400", iconBg: "bg-slate-50 text-slate-600", icon: <Users className="h-5 w-5 sm:h-6 sm:w-6" /> }
         ].map((s) => (
           <div
             key={s.label}
-            className={`rounded-xl border-l-4 ${s.border} border border-slate-200 bg-white p-4 sm:p-5 shadow-sm flex items-center justify-between`}
+            className={`rounded-xl border-l-4 ${s.border} border border-slate-200 bg-white p-4 sm:p-5 shadow-sm flex items-center justify-between transition-transform duration-200 hover:-translate-y-0.5`}
           >
             <div>
-              <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">{s.label}</p>
+              <p className="text-[10px] sm:text-xs font-medium text-slate-400 uppercase tracking-wider">{s.label}</p>
               <p className="text-xl sm:text-2xl font-semibold text-slate-800 mt-1 break-all">{s.value}</p>
             </div>
             <div className={`flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl ${s.iconBg}`}>
@@ -103,224 +332,215 @@ export default function OverviewPage() {
         ))}
       </div>
 
-      {/* Grid: Weekly Revenue Chart + Quick Actions */}
+      {/* Grid: Sales Trend Graph + Payment Methods */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Weekly Outlets Revenue Comparison (SVG Donut Chart Widget) */}
+
+        {/* Sales Trend (Large SVG Chart) */}
         <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm flex flex-col justify-between">
-          <div className="border-b border-slate-100 pb-4 mb-4">
-            <h2 className="text-sm font-semibold text-slate-700">Weekly Outlet Sales Share</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Revenue generated by branch during the last 7 days</p>
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-700">Sales Progression Trend</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Track revenue performance over the current period</p>
+            </div>
+            <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+              <ArrowUpRight className="w-3.5 h-3.5" />
+              +12.4% vs prev
+            </span>
           </div>
 
-          {/* SVG Donut Chart layout */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-8 py-3 flex-1">
-            
-            {/* Donut graphic */}
-            <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
-              <svg width="160" height="160" viewBox="0 0 120 120" className="-rotate-90 w-full h-full">
-                {/* Background circle */}
-                <circle cx="60" cy="60" r="45" fill="transparent" stroke="#f1f5f9" strokeWidth="12" />
-                
-                {/* Kathmandu Segment (39.7%) - length 112.25 */}
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="45"
-                  fill="transparent"
-                  stroke="#0f6b4a"
-                  strokeWidth="12"
-                  strokeDasharray="112.25 282.74"
-                  strokeDashoffset="0"
-                />
+          {/* SVG Canvas Chart */}
+          <div className="relative w-full overflow-hidden flex items-center justify-center my-4 h-[200px]">
+            <svg
+              viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+              className="w-full h-full text-emerald-500 overflow-visible"
+              preserveAspectRatio="none"
+            >
+              <defs>
+                <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
 
-                {/* Pokhara Segment (33.3%) - length 94.15 */}
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="45"
-                  fill="transparent"
-                  stroke="#2563eb"
-                  strokeWidth="12"
-                  strokeDasharray="94.15 282.74"
-                  strokeDashoffset="-112.25"
-                />
+              {/* Grid Lines */}
+              <line x1="20" y1={chartHeight - 20} x2={chartWidth - 20} y2={chartHeight - 20} stroke="#f1f5f9" strokeWidth="2" />
+              <line x1="20" y1={chartHeight / 2} x2={chartWidth - 20} y2={chartHeight / 2} stroke="#f1f5f9" strokeDasharray="4 4" />
+              <line x1="20" y1="20" x2={chartWidth - 20} y2="20" stroke="#f1f5f9" strokeDasharray="4 4" />
 
-                {/* Lalitpur Segment (27.0%) - length 76.34 */}
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="45"
-                  fill="transparent"
-                  stroke="#4f46e5"
-                  strokeWidth="12"
-                  strokeDasharray="76.34 282.74"
-                  strokeDashoffset="-206.40"
-                />
-              </svg>
+              {/* Path Area under Curve */}
+              <path d={areaPath} fill="url(#chartGrad)" />
 
-              {/* Central text display */}
-              <div className="absolute text-center flex flex-col justify-center items-center">
-                <span className="text-[9px] uppercase tracking-wider font-semibold text-slate-400">Combined</span>
-                <span className="text-base font-bold text-slate-800 mt-0.5">Rs. 1.07M</span>
-              </div>
-            </div>
+              {/* Curve Stroke */}
+              <path d={linePath} fill="none" stroke="#0f6b4a" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
 
-            {/* Color-coded branch list */}
-            <div className="flex-1 w-full space-y-3.5">
-              {[
-                { name: "Kathmandu Main Branch", revenue: 425800, percent: 39.7, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" },
-                { name: "Pokhara Lakeside", revenue: 356200, percent: 33.3, color: "bg-blue-600", text: "text-blue-600" },
-                { name: "Lalitpur Hub", revenue: 289500, percent: 27.0, color: "bg-indigo-600", text: "text-indigo-600" }
-              ].map((branch) => (
-                <div key={branch.name} className="flex items-center justify-between text-xs sm:text-sm border-b border-slate-50 pb-2 last:border-b-0 last:pb-0">
-                  <div className="flex items-center gap-3 pr-2">
-                    <span className={`w-3 h-3 rounded-full shrink-0 ${branch.color}`} />
-                    <span className="font-semibold text-slate-700 truncate max-w-[150px] sm:max-w-none">{branch.name}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-semibold text-slate-800 font-mono">Rs. {branch.revenue.toLocaleString()}</span>
-                    <span className="text-slate-400 text-[10px] block mt-0.5 font-semibold font-sans">{branch.percent}% Share</span>
-                  </div>
-                </div>
+              {/* Point Circles & labels */}
+              {points.map((p, idx) => (
+                <g key={idx} className="group/dot">
+                  <circle
+                    cx={p.x}
+                    cy={p.y}
+                    r="4.5"
+                    className="fill-white stroke-[#0f6b4a] stroke-[3px] cursor-pointer transition-all duration-150 hover:r-6"
+                  />
+                  {/* Subtle hover bubble overlay */}
+                  <g className="opacity-0 group-hover/dot:opacity-100 transition-opacity duration-150 pointer-events-none">
+                    <rect
+                      x={p.x - 35}
+                      y={p.y - 30}
+                      width="70"
+                      height="20"
+                      rx="4"
+                      className="fill-slate-800 shadow"
+                    />
+                    <text
+                      x={p.x}
+                      y={p.y - 16}
+                      textAnchor="middle"
+                      className="fill-white text-[9px] font-mono font-bold"
+                    >
+                      Rs. {Math.round(p.value).toLocaleString()}
+                    </text>
+                  </g>
+                </g>
               ))}
-            </div>
+            </svg>
+          </div>
 
+          {/* Graph X Axis Labels */}
+          <div className="flex justify-between items-center px-4 pt-2 text-[10px] sm:text-xs font-semibold text-slate-400 tracking-wider">
+            {reportData.trendLabels.map((lbl: string, i: number) => (
+              <span key={i}>{lbl}</span>
+            ))}
           </div>
         </div>
 
-        {/* Quick Config / Navigation Dashboard */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm flex flex-col justify-between gap-4">
-          <div className="border-b border-slate-100 pb-4">
-            <h2 className="text-sm font-semibold text-slate-700">Quick Operations Panel</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Direct gateway link actions</p>
+        {/* Payment Breakdown Widget */}
+        <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm flex flex-col justify-between">
+          <div className="border-b border-slate-100 pb-4 mb-4">
+            <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <PieChart className="w-4 h-4 text-emerald-600" />
+              Payment Gateway Share
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">Distribution across transaction methods</p>
           </div>
 
-          {/* Quick actions links */}
-          <div className="grid grid-cols-2 gap-3 flex-1 py-1">
-            {[
-              { label: "New Outlet", href: `${baseUrl}/outlets`, icon: <Store className="w-4 h-4 text-emerald-600" />, desc: "Register a branch" },
-              { label: "Add Staff", href: `${baseUrl}/staff`, icon: <PlusCircle className="w-4 h-4 text-indigo-600" />, desc: "Enroll personnel" },
-              { label: "Edit Tables", href: `${baseUrl}/tables`, icon: <Layers className="w-4 h-4 text-blue-600" />, desc: "Shape layouts" },
-              { label: "Payments Log", href: `${baseUrl}/payments`, icon: <CreditCard className="w-4 h-4 text-purple-600" />, desc: "Transaction logs" }
-            ].map((action) => (
-              <Link
-                key={action.label}
-                href={action.href}
-                className="group border border-slate-100 hover:border-emerald-100 rounded-xl p-3 flex flex-col justify-between bg-slate-50/50 hover:bg-emerald-50/20 transition-all text-left"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="p-1.5 rounded-lg bg-white shadow-xs border border-slate-200/50">
-                    {action.icon}
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-600 transition-colors" />
+          {/* Progress Bars Stack */}
+          <div className="flex-1 flex flex-col justify-center gap-6 py-4">
+            {reportData.payments.map((p: any) => (
+              <div key={p.method} className="space-y-2">
+                <div className="flex items-center justify-between text-xs sm:text-sm font-semibold">
+                  <span className="text-slate-600">{p.method}</span>
+                  <span className={`${p.text} font-mono font-bold`}>
+                    {p.percent}% <span className="text-slate-400 font-normal">({Math.round(p.percent * reportData.orders / 100)} orders)</span>
+                  </span>
                 </div>
-                <div className="mt-3">
-                  <span className="text-xs font-semibold text-slate-800 block">{action.label}</span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">{action.desc}</span>
+                {/* Visual bar */}
+                <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div className={`h-full ${p.color} rounded-full transition-all duration-500`} style={{ width: `${p.percent}%` }} />
                 </div>
-              </Link>
+                <div className="text-[10px] text-slate-400 text-right font-mono">
+                  Rs. {p.amount.toLocaleString()}
+                </div>
+              </div>
             ))}
           </div>
 
-          <Link
-            href={`${baseUrl}/menu`}
-            className="flex items-center justify-center gap-2 rounded-xl bg-slate-100 hover:bg-[#0f6b4a] hover:text-white py-3 text-xs font-semibold text-slate-700 transition-all"
-          >
-            <Coffee className="w-4 h-4" />
-            Launch Menu Configurator
-          </Link>
+          {/* Bottom Total Amount box */}
+          <div className="border-t border-slate-100 pt-4 mt-2 text-center">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Net Settled Amount</span>
+            <p className="text-xl font-bold text-[#0f6b4a] mt-0.5">Rs. {reportData.revenue.toLocaleString()}</p>
+          </div>
         </div>
 
       </div>
 
-      {/* Grid: Recent Live Activity + System Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Real-time Activity Stream */}
-        <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm flex flex-col justify-between">
+      {/* Grid: Popular Menu Items & Staff Performance */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        {/* Popular Menu Items */}
+        <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm overflow-hidden flex flex-col justify-between">
           <div className="border-b border-slate-100 pb-4 mb-4 flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-slate-700">Live Cross-Outlet Events</h2>
-              <p className="text-xs text-slate-400 mt-0.5">Real-time action logs across connected branches</p>
+              <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <UtensilsCrossed className="w-4 h-4 text-emerald-600" />
+                Popular Menu Items
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">Best performing items by quantity sold</p>
             </div>
-            <span className="flex h-2.5 w-2.5 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
           </div>
 
-          <div className="space-y-4 max-h-[280px] overflow-y-auto pr-1">
-            {ACTIVITIES.map((act) => (
-              <div key={act.id} className="flex items-start justify-between border-b border-slate-50 pb-3 last:border-0 last:pb-0 text-xs">
-                <div className="flex gap-3">
-                  {/* Status Indicator circle */}
-                  <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                    act.status === "completed" 
-                      ? "bg-emerald-500" 
-                      : act.status === "cancelled" 
-                        ? "bg-red-500" 
-                        : act.status === "reserved" 
-                          ? "bg-blue-500" 
-                          : "bg-indigo-500"
-                  }`} />
-                  <div>
-                    <p className="font-medium text-slate-700">{act.detail}</p>
-                    <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5 font-medium">
-                      <span className="font-semibold text-slate-500 uppercase tracking-wider">{act.branch}</span>
-                      <span>•</span>
-                      <span>{act.time}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Amount display */}
-                {act.amount && (
-                  <span className="font-mono font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                    {act.amount}
-                  </span>
-                )}
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse text-left">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  <th className="py-2.5 px-3">Item Name</th>
+                  <th className="py-2.5 px-3">Category</th>
+                  <th className="py-2.5 px-3 text-center">Qty Sold</th>
+                  <th className="py-2.5 px-3 text-right">Gross Sales</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {reportData.items.map((item: any, idx: number) => (
+                  <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="py-3 px-3 font-semibold text-slate-800">{item.name}</td>
+                    <td className="py-3 px-3">
+                      <span className="text-[10px] font-bold bg-slate-100 border border-slate-200 text-slate-500 rounded px-2 py-0.5">
+                        {item.category}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono font-medium text-slate-700">{item.sold}</td>
+                    <td className="py-3 px-3 text-right font-mono font-bold text-[#0f6b4a]">
+                      Rs. {item.revenue.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {/* System & Hardware Health Grid */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm flex flex-col justify-between gap-4">
-          <div className="border-b border-slate-100 pb-4">
-            <h2 className="text-sm font-semibold text-slate-700">System Gateway Monitor</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Live status checks of core infrastructure</p>
+        {/* Staff Sales Performance */}
+        <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm overflow-hidden flex flex-col justify-between">
+          <div className="border-b border-slate-100 pb-4 mb-4">
+            <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <Award className="w-4 h-4 text-emerald-600" />
+              Staff Sales Leaderboard
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">Staff rankings based on processed sales volumes</p>
           </div>
 
-          <div className="space-y-3 flex-1 justify-center flex flex-col">
-            {[
-              { label: "Database Synchronization", status: "Fully Synced", icon: <RefreshCw className="w-4 h-4 text-emerald-600" /> },
-              { label: "Shift Logs Status", status: "Active (Nepal Time)", icon: <Clock className="w-4 h-4 text-emerald-600" /> },
-              { label: "Receipt Printer Gateway", status: "Online / Standby", icon: <Printer className="w-4 h-4 text-emerald-600" /> },
-              { label: "WebSocket Gateway Client", status: "Connected", icon: <Wifi className="w-4 h-4 text-emerald-600" /> }
-            ].map((hw) => (
-              <div key={hw.label} className="flex items-center justify-between border border-slate-100 bg-slate-50/50 rounded-xl px-4 py-3 text-xs">
-                <div className="flex items-center gap-3">
-                  <div className="p-1 rounded-md bg-white border border-slate-200/50">
-                    {hw.icon}
-                  </div>
-                  <span className="font-semibold text-slate-600">{hw.label}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="font-semibold text-slate-700 text-[10px] uppercase">{hw.status}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Quick info panel footer */}
-          <div className="bg-emerald-50/30 border border-emerald-100/50 rounded-xl px-4 py-3 flex items-center justify-between text-[10px] font-semibold text-emerald-800 mt-2">
-            <span className="flex items-center gap-1">
-              <Shield className="w-3.5 h-3.5 text-emerald-600" />
-              Role Permission Access: Owner
-            </span>
-            <span className="text-slate-400">Ver 1.0.4</span>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse text-left">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  <th className="py-2.5 px-3 text-center w-12">Rank</th>
+                  <th className="py-2.5 px-3">Sales Agent</th>
+                  <th className="py-2.5 px-3 text-center">Orders</th>
+                  <th className="py-2.5 px-3 text-right">Volume</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {reportData.staff.map((st: any, idx: number) => (
+                  <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="py-3 px-3 text-center">
+                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${idx === 0
+                          ? "bg-yellow-100 text-yellow-800 border border-yellow-200"
+                          : idx === 1
+                            ? "bg-slate-100 text-slate-800 border border-slate-200"
+                            : "bg-orange-100 text-orange-800 border border-orange-200"
+                        }`}>
+                        {st.rank}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 font-semibold text-slate-800">{st.name}</td>
+                    <td className="py-3 px-3 text-center font-mono font-medium text-slate-700">{st.orders}</td>
+                    <td className="py-3 px-3 text-right font-mono font-bold text-[#0f6b4a]">
+                      Rs. {st.revenue.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 

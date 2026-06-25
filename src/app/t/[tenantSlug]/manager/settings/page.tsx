@@ -5,8 +5,9 @@ import { useParams } from "next/navigation";
 import {
   User, Mail, Lock, Store, MapPin, Percent,
   Eye, EyeOff, Loader2, CheckCircle2, Building2, ChevronDown,
-  QrCode, Download, Printer
+  QrCode, Download, Printer, Phone
 } from "lucide-react";
+import api from "@/lib/api";
 
 type Section = "account" | "outlet" | "qrMenu" | null;
 
@@ -44,8 +45,8 @@ export default function SettingsPage() {
 
 
   const [account, setAccount] = useState({
-    name: "Admin User",
-    email: "admin@example.com",
+    name: "",
+    email: "",
   });
   const [passwords, setPasswords] = useState({
     current: "",
@@ -54,16 +55,59 @@ export default function SettingsPage() {
   });
   const [showPw, setShowPw] = useState({ current: false, next: false, confirm: false });
 
-
   const [outlet, setOutlet] = useState({
-    name: "Green Leaf Café",
-    address: "Pulchowk, Lalitpur",
-    taxRate: 13,
+    id: "",
+    name: "",
+    address: "",
+    phone: "",
+    taxRate: 8,
   });
 
   const [isSavingAccount, setIsSavingAccount] = useState(false);
   const [isSavingOutlet, setIsSavingOutlet] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Populate user account info
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      try {
+        const userData = JSON.parse(userStr);
+        setAccount({
+          name: userData.name || "",
+          email: userData.email || "",
+        });
+      } catch (err) {
+        console.error("Error parsing user from localStorage", err);
+      }
+    }
+
+    // Fetch outlets
+    async function loadOutletDetails() {
+      try {
+        const storedOutletId = localStorage.getItem("activeOutletId");
+        if (!storedOutletId) return;
+
+        const res = await api.get("/outlets");
+        const list = res.data.outlets ?? [];
+        const currentOutlet = list.find((o: any) => o.id === storedOutletId);
+        if (currentOutlet) {
+          setOutlet({
+            id: currentOutlet.id,
+            name: currentOutlet.name || "",
+            address: currentOutlet.address || "",
+            phone: currentOutlet.phone || "",
+            taxRate: 8,
+          });
+        }
+      } catch (err) {
+        console.error("Error loading outlet details", err);
+      }
+    }
+
+    loadOutletDetails();
+  }, []);
 
   function flashSaved(msg: string) {
     setSavedMsg(msg);
@@ -77,20 +121,71 @@ export default function SettingsPage() {
   async function handleSaveAccount(e: React.FormEvent) {
     e.preventDefault();
     setIsSavingAccount(true);
+    setError(null);
+    setSavedMsg(null);
 
-    await new Promise((r) => setTimeout(r, 700));
-    setIsSavingAccount(false);
-    setPasswords({ current: "", next: "", confirm: "" });
-    flashSaved("Account settings updated.");
+    try {
+      const payload: any = {
+        name: account.name,
+        email: account.email,
+      };
+
+      if (passwords.current && passwords.next) {
+        payload.currentPassword = passwords.current;
+        payload.newPassword = passwords.next;
+      }
+
+      const res = await api.patch("/auth/change-userDetail", payload);
+
+      // Save user details to localStorage
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        const userData = JSON.parse(userStr);
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            ...userData,
+            name: res.data.user.name,
+            email: res.data.user.email,
+          })
+        );
+      }
+
+      setPasswords({ current: "", next: "", confirm: "" });
+      flashSaved("Account settings updated successfully.");
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.response?.data?.error ?? "Failed to update account settings.");
+    } finally {
+      setIsSavingAccount(false);
+    }
   }
 
   async function handleSaveOutlet(e: React.FormEvent) {
     e.preventDefault();
     setIsSavingOutlet(true);
+    setError(null);
+    setSavedMsg(null);
 
-    await new Promise((r) => setTimeout(r, 700));
-    setIsSavingOutlet(false);
-    flashSaved("Outlet settings updated.");
+    try {
+      if (!outlet.id) {
+        throw new Error("No active outlet selected.");
+      }
+
+      const payload = {
+        name: outlet.name,
+        address: outlet.address,
+        phone: outlet.phone,
+      };
+
+      await api.patch(`/outlets/${outlet.id}`, payload);
+      flashSaved("Outlet settings updated successfully.");
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.response?.data?.error ?? "Failed to update outlet settings.");
+    } finally {
+      setIsSavingOutlet(false);
+    }
   }
 
   const passwordMismatch =
@@ -114,6 +209,12 @@ export default function SettingsPage() {
         <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           {savedMsg}
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
         </div>
       )}
 
@@ -255,7 +356,7 @@ export default function SettingsPage() {
           >
             <div className="overflow-hidden">
               <form onSubmit={handleSaveOutlet} className="border-t border-slate-100">
-                <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-x-8 gap-y-5">
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
                       Outlet Name
@@ -288,18 +389,30 @@ export default function SettingsPage() {
 
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                      Tax Rate
+                      Phone Number
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={outlet.phone}
+                        onChange={(e) => setOutlet((p) => ({ ...p, phone: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 py-2.5 pl-9 pr-3 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                      Tax Rate (%)
                     </label>
                     <div className="relative">
                       <Percent className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                       <input
                         type="number"
-                        min={0}
-                        max={100}
-                        step={0.1}
                         value={outlet.taxRate}
-                        onChange={(e) => setOutlet((p) => ({ ...p, taxRate: Number(e.target.value) }))}
-                        className="w-full rounded-lg border border-slate-200 py-2.5 pl-9 pr-3 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        disabled
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-400 cursor-not-allowed focus:outline-none"
                       />
                     </div>
                   </div>

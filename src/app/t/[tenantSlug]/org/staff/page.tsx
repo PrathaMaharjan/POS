@@ -22,6 +22,8 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  Store,
+  ChevronDown,
 } from "lucide-react";
 
 interface StaffMember {
@@ -53,10 +55,15 @@ export default function OrgStaffPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<StaffMember | null>(null);
   const [search, setSearch] = useState("");
-  const [selectedBranchFilter, setSelectedBranchFilter] = useState("all");
   const [selectedRoleFilter, setSelectedRoleFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
+
+  // ── Outlet picker state ───────────────────────────────────────────────────
+  const [activeOutletId, setActiveOutletId] = useState<string>("");
+  const [outletDropdownOpen, setOutletDropdownOpen] = useState(false);
+
+  const activeOutlet = outlets.find((o) => o.id === activeOutletId);
 
   const [form, setForm] = useState({
     name: "",
@@ -67,57 +74,84 @@ export default function OrgStaffPage() {
     password: "",
   });
 
-  async function fetchAllData() {
+  async function fetchAllData(outletId: string) {
+    if (!outletId) return;
     try {
       setIsLoading(true);
-      const resOutlets = await api.get("/outlets");
-      const fetchedOutlets = resOutlets.data.outlets ?? [];
-      setOutlets(fetchedOutlets);
-
-      if (fetchedOutlets.length > 0) {
-        // Fetch staff from all outlets concurrently
-        const staffRequests = fetchedOutlets.map(async (outlet: any) => {
-          try {
-            const res = await api.get(`/staff?outletId=${outlet.id}&limit=100`);
-            return (res.data.staff ?? []).map((s: any) => ({
-              id: s.userId,
-              name: s.name,
-              role: s.role === "Manager" ? "Branch Manager" : s.role,
-              level: s.role === "Manager" ? ("manager" as const) : ("staff" as const),
-              branch: outlet.name,
-              outletId: outlet.id,
-              email: s.email,
-              phone: s.phone || "",
-              status: s.isActive ? ("active" as const) : ("inactive" as const),
-            }));
-          } catch (err) {
-            console.error(`Failed to fetch staff for outlet ${outlet.name}:`, err);
-            return [];
-          }
-        });
-        const allStaffResults = await Promise.all(staffRequests);
-        setStaff(allStaffResults.flat());
-      } else {
-        setStaff([]);
-      }
+      const res = await api.get(`/staff?outletId=${outletId}&limit=100`);
+      const outlet = outlets.find((o) => o.id === outletId);
+      const mapped: StaffMember[] = (res.data.staff ?? []).map((s: any) => ({
+        id: s.userId,
+        name: s.name,
+        role: s.role === "Manager" ? "Branch Manager" : s.role,
+        level: s.role === "Manager" ? ("manager" as const) : ("staff" as const),
+        branch: outlet?.name ?? "",
+        outletId: outletId,
+        email: s.email,
+        phone: s.phone || "",
+        status: s.isActive ? ("active" as const) : ("inactive" as const),
+      }));
+      setStaff(mapped);
     } catch (err: any) {
-      console.error("Failed to fetch directories:", err);
-      alert(err.response?.data?.error ?? "Failed to load directory data");
+      console.error("Failed to fetch staff:", err);
+      alert(err.response?.data?.error ?? "Failed to load staff data");
     } finally {
       setIsLoading(false);
     }
   }
 
+  // 1. Fetch outlets on mount, then load staff for the active outlet
   useEffect(() => {
-    fetchAllData();
+    async function initOutlets() {
+      try {
+        const resOutlets = await api.get("/outlets");
+        const fetchedOutlets = resOutlets.data.outlets ?? [];
+        setOutlets(fetchedOutlets);
+
+        if (fetchedOutlets.length > 0) {
+          const stored = localStorage.getItem("activeOutletId");
+          const initialId =
+            stored && fetchedOutlets.some((o: any) => o.id === stored)
+              ? stored
+              : fetchedOutlets[0].id;
+          setActiveOutletId(initialId);
+        }
+      } catch (err: any) {
+        console.error("Failed to fetch outlets:", err);
+        alert(err.response?.data?.error ?? "Failed to load outlets");
+      }
+    }
+    initOutlets();
   }, []);
 
-  // Update initial form branch allocation when outlets load
+  // 2. Fetch staff whenever activeOutletId changes
+  useEffect(() => {
+    if (activeOutletId && outlets.length > 0) {
+      fetchAllData(activeOutletId);
+    }
+  }, [activeOutletId, outlets]);
+
+  // 3. Set default form branchId
   useEffect(() => {
     if (outlets.length > 0 && !form.branchId) {
       setForm((prev) => ({ ...prev, branchId: outlets[0].id }));
     }
   }, [outlets, form.branchId]);
+
+  // 4. Close dropdown on outside click
+  useEffect(() => {
+    if (!outletDropdownOpen) return;
+    const handler = () => setOutletDropdownOpen(false);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [outletDropdownOpen]);
+
+  const handleOutletChange = (id: string) => {
+    localStorage.setItem("activeOutletId", id);
+    setActiveOutletId(id);
+    setCurrentPage(1);
+    setOutletDropdownOpen(false);
+  };
 
   const totalStaff = staff.length;
   const totalManagers = staff.filter((s) => s.role === "Branch Manager" || s.role === "Manager").length;
@@ -127,29 +161,22 @@ export default function OrgStaffPage() {
     const matchesSearch =
       member.name.toLowerCase().includes(search.toLowerCase()) ||
       member.role.toLowerCase().includes(search.toLowerCase());
-
-    const matchesBranch =
-      selectedBranchFilter === "all" || member.outletId === selectedBranchFilter;
-
     const matchesRole =
       selectedRoleFilter === "all" || member.role === selectedRoleFilter;
-
-    return matchesSearch && matchesBranch && matchesRole;
+    return matchesSearch && matchesRole;
   });
 
   const totalItems = filteredStaff.length;
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
   const activePage = currentPage > totalPages ? totalPages : currentPage;
-
   const startIndex = (activePage - 1) * ITEMS_PER_PAGE;
-  const endIndex = startIndex + ITEMS_PER_PAGE;
-  const paginatedStaff = filteredStaff.slice(startIndex, endIndex);
+  const paginatedStaff = filteredStaff.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   function resetForm() {
     setForm({
       name: "",
       role: ROLE_OPTIONS[0],
-      branchId: outlets[0]?.id || "",
+      branchId: activeOutletId || outlets[0]?.id || "",
       email: "",
       phone: "",
       password: "",
@@ -185,7 +212,6 @@ export default function OrgStaffPage() {
         const apiRole = form.role === "Branch Manager" ? "Manager" : form.role;
         const originalApiRole = editingMember.role === "Branch Manager" ? "Manager" : editingMember.role;
         const roleChanged = apiRole !== originalApiRole;
-
         const errors: string[] = [];
 
         if (infoChanged) {
@@ -203,33 +229,26 @@ export default function OrgStaffPage() {
 
         if (roleChanged) {
           try {
-            await api.patch(`/staff/${editingMember.id}`, {
-              role: apiRole,
-            });
+            await api.patch(`/staff/${editingMember.id}`, { role: apiRole });
           } catch (err: any) {
             errors.push(err.response?.data?.error ?? "Failed to update role.");
           }
         }
 
-        if (errors.length > 0) {
-          throw new Error(errors.join("\n"));
-        }
-
-        await fetchAllData();
+        if (errors.length > 0) throw new Error(errors.join("\n"));
+        await fetchAllData(activeOutletId);
       } else {
         if (!form.password) return;
         const apiRole = form.role === "Branch Manager" ? "Manager" : form.role;
-
         await api.post("/staff", {
           name: form.name,
           email: form.email,
           phone: form.phone || undefined,
           role: apiRole,
           password: form.password,
-          outletId: form.branchId || outlets[0]?.id,
+          outletId: form.branchId || activeOutletId,
         });
-
-        await fetchAllData();
+        await fetchAllData(activeOutletId);
         setCurrentPage(1);
       }
 
@@ -266,7 +285,7 @@ export default function OrgStaffPage() {
         await api.delete(`/staff/${member.id}`, {
           params: { outletId: member.outletId },
         });
-        await fetchAllData();
+        await fetchAllData(activeOutletId);
       } catch (err: any) {
         console.error("Failed to delete staff member:", err);
         alert(err.response?.data?.error ?? "Failed to delete staff member");
@@ -279,12 +298,11 @@ export default function OrgStaffPage() {
   async function toggleStatus(member: StaffMember) {
     try {
       const newStatus = member.status === "active" ? "inactive" : "active";
-      const isActive = newStatus === "active";
       await api.patch(`/staff/${member.id}/status`, {
-        isActive,
+        isActive: newStatus === "active",
         outletId: member.outletId,
       });
-      await fetchAllData();
+      await fetchAllData(activeOutletId);
     } catch (err: any) {
       console.error("Failed to update status:", err);
       alert(err.response?.data?.error ?? "Failed to update status");
@@ -293,11 +311,55 @@ export default function OrgStaffPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm">
+
+      {/* Header */}
+      <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-tight">Organization Directory</h1>
+
+        {/* Outlet picker */}
+        <div className="relative" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => setOutletDropdownOpen((prev) => !prev)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold border bg-white text-emerald-700 border-white shadow-sm transition-colors"
+          >
+            <Store className="w-4 h-4 shrink-0" />
+            <span className="max-w-[120px] truncate">
+              {activeOutlet?.name ?? "Select Outlet"}
+            </span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${outletDropdownOpen ? "rotate-180" : ""
+                }`}
+            />
+          </button>
+
+          {outletDropdownOpen && (
+            <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+              <div className="px-3 py-2 border-b border-slate-100">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Select Outlet
+                </p>
+              </div>
+              <div className="py-1">
+                {outlets.map((outlet) => (
+                  <button
+                    key={outlet.id}
+                    onClick={() => handleOutletChange(outlet.id)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${activeOutletId === outlet.id
+                        ? "bg-emerald-50 text-emerald-700 font-semibold"
+                        : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${activeOutletId === outlet.id ? "bg-emerald-500" : "bg-slate-200"}`} />
+                    {outlet.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Top Status Dashboards */}
+      {/* Stat Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-xl border-l-4 border-l-slate-400 border border-slate-200 bg-white p-4 sm:p-5 shadow-sm flex items-center justify-between">
           <div>
@@ -330,16 +392,14 @@ export default function OrgStaffPage() {
         </div>
       </div>
 
+      {/* Search + Filters */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center max-w-3xl">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setCurrentPage(1);
-              }}
+              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
               placeholder="Search by identity or role..."
               className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
@@ -347,28 +407,8 @@ export default function OrgStaffPage() {
 
           <div className="relative w-full sm:w-52">
             <select
-              value={selectedBranchFilter}
-              onChange={(e) => {
-                setSelectedBranchFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-8 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-            >
-              <option value="all">All Branches</option>
-              {outlets.map((outlet) => (
-                <option key={outlet.id} value={outlet.id}>{outlet.name}</option>
-              ))}
-            </select>
-            <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          </div>
-
-          <div className="relative w-full sm:w-52">
-            <select
               value={selectedRoleFilter}
-              onChange={(e) => {
-                setSelectedRoleFilter(e.target.value);
-                setCurrentPage(1);
-              }}
+              onChange={(e) => { setSelectedRoleFilter(e.target.value); setCurrentPage(1); }}
               className="w-full appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-8 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             >
               <option value="all">All Roles</option>
@@ -381,10 +421,7 @@ export default function OrgStaffPage() {
         </div>
 
         <button
-          onClick={() => {
-            resetForm();
-            setIsModalOpen(true);
-          }}
+          onClick={() => { resetForm(); setIsModalOpen(true); }}
           className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 active:scale-98 self-start sm:self-center"
         >
           <UserPlus className="h-4 w-4" />
@@ -392,6 +429,7 @@ export default function OrgStaffPage() {
         </button>
       </div>
 
+      {/* Table */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center py-20 text-slate-400 gap-3">
@@ -457,14 +495,12 @@ export default function OrgStaffPage() {
                           <button
                             onClick={() => handleOpenEdit(member)}
                             className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                            title="Modify Profile Matrix"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteStaff(member)}
                             className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                            title="Revoke Credentials"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -484,7 +520,7 @@ export default function OrgStaffPage() {
             </div>
 
             <div className="flex items-center justify-between border-t border-slate-100 bg-white px-6 py-4">
-              <div className="text-sm text-slate-500"></div>
+              <div className="text-sm text-slate-500" />
               <div className="flex items-center gap-6">
                 <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
                   Page {activePage} of {totalPages}
@@ -494,7 +530,6 @@ export default function OrgStaffPage() {
                     onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                     disabled={activePage === 1}
                     className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
-                    title="Previous Page"
                   >
                     <ChevronLeft className="h-5 w-5" />
                   </button>
@@ -502,7 +537,6 @@ export default function OrgStaffPage() {
                     onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
                     disabled={activePage === totalPages}
                     className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-20 disabled:pointer-events-none transition-colors"
-                    title="Next Page"
                   >
                     <ChevronRight className="h-5 w-5" />
                   </button>
@@ -513,6 +547,7 @@ export default function OrgStaffPage() {
         )}
       </div>
 
+      {/* Add / Edit Modal */}
       {isModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 p-0 sm:p-4 backdrop-blur-sm"
@@ -522,7 +557,6 @@ export default function OrgStaffPage() {
             onClick={(e) => e.stopPropagation()}
             className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl border border-slate-100 overflow-y-auto max-h-[92vh] sm:max-h-[90vh] flex flex-col"
           >
-            {/* Modal Header */}
             <div className="relative bg-emerald-600 px-6 py-5 text-white flex flex-col items-center justify-center shrink-0">
               <div className="flex h-10 w-10 items-center justify-center text-white mb-1">
                 <UserPlus className="h-6 w-6" />
@@ -539,7 +573,6 @@ export default function OrgStaffPage() {
               </button>
             </div>
 
-            {/* Modal Body */}
             <div className="p-5 md:p-6 overflow-y-auto">
               <div className="flex flex-col gap-4">
                 <div>

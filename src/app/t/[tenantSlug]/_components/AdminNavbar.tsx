@@ -55,31 +55,31 @@ export default function AdminNavbar({ role }: NavbarProps) {
   const baseUrl = `/t/${tenantSlug}/${role}`;
 
   const navItems = [
-    { label: "Overview",      href: baseUrl,                icon: LayoutDashboard },
-    { label: "Manage Staff",  href: `${baseUrl}/staff`,     icon: Users           },
+    { label: "Overview", href: baseUrl, icon: LayoutDashboard },
+    { label: "Manage Staff", href: `${baseUrl}/staff`, icon: Users },
   ];
 
   if (role === "manager") {
-    navItems.push({ label: "Menu",      href: `${baseUrl}/menu`,      icon: UtensilsCrossed });
-    navItems.push({ label: "Tables",    href: `${baseUrl}/tables`,    icon: Layers          });
-    navItems.push({ label: "Orders",    href: `${baseUrl}/orders`,    icon: ShoppingBag     });
-    navItems.push({ label: "Payments",  href: `${baseUrl}/payments`,  icon: CreditCard      });
-    navItems.push({ label: "Inventory", href: `${baseUrl}/inventory`, icon: Package         });
+    navItems.push({ label: "Menu", href: `${baseUrl}/menu`, icon: UtensilsCrossed });
+    navItems.push({ label: "Tables", href: `${baseUrl}/tables`, icon: Layers });
+    navItems.push({ label: "Orders", href: `${baseUrl}/orders`, icon: ShoppingBag });
+    navItems.push({ label: "Payments", href: `${baseUrl}/payments`, icon: CreditCard });
+    navItems.push({ label: "Inventory", href: `${baseUrl}/inventory`, icon: Package });
   }
 
   if (role === "org") {
-    navItems.push({ label: "Outlets",  href: `${baseUrl}/outlets`,  icon: Store           });
-    navItems.push({ label: "Tables",   href: `${baseUrl}/tables`,   icon: Layers          });
-    navItems.push({ label: "Orders",   href: `${baseUrl}/orders`,   icon: ShoppingBag     });
-    navItems.push({ label: "Menu",     href: `${baseUrl}/menu`,     icon: UtensilsCrossed });
-    navItems.push({ label: "Payments", href: `${baseUrl}/payments`, icon: CreditCard      });
-    navItems.push({ label: "Reports",  href: `${baseUrl}/reports`,  icon: BarChart3       });
+    navItems.push({ label: "Outlets", href: `${baseUrl}/outlets`, icon: Store });
+    navItems.push({ label: "Tables", href: `${baseUrl}/tables`, icon: Layers });
+    navItems.push({ label: "Orders", href: `${baseUrl}/orders`, icon: ShoppingBag });
+    navItems.push({ label: "Menu", href: `${baseUrl}/menu`, icon: UtensilsCrossed });
+    navItems.push({ label: "Payments", href: `${baseUrl}/payments`, icon: CreditCard });
+
   }
 
 
   const settingsSubItems = [
-    { label: "Billing and Subscription",          href: `${baseUrl}/settings/billing`, icon: Receipt     },
-    { label: "Roles & Configuration",   href: `${baseUrl}/settings/roles`,   icon: ShieldCheck },
+    { label: "Billing and Subscription", href: `${baseUrl}/settings/billing`, icon: Receipt },
+    { label: "Roles & Configuration", href: `${baseUrl}/settings/roles`, icon: ShieldCheck },
   ];
 
 
@@ -134,9 +134,8 @@ export default function AdminNavbar({ role }: NavbarProps) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white transition-transform duration-300 ease-in-out md:sticky md:top-0 md:h-screen md:translate-x-0 ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white transition-transform duration-300 ease-in-out md:sticky md:top-0 md:h-screen md:translate-x-0 ${isOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
       >
         {/* Brand Header */}
         <div className="flex h-16 items-center justify-between border-b border-slate-200 px-6 md:h-auto md:py-5">
@@ -168,16 +167,14 @@ export default function AdminNavbar({ role }: NavbarProps) {
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-                      isActive
+                    className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${isActive
                         ? "bg-emerald-600 text-white shadow-sm"
                         : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                    }`}
+                      }`}
                   >
                     <IconComponent
-                      className={`h-[18px] w-[18px] shrink-0 ${
-                        isActive ? "text-white" : "text-slate-400"
-                      }`}
+                      className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-white" : "text-slate-400"
+                        }`}
                     />
                     {item.label}
                   </Link>
@@ -188,25 +185,22 @@ export default function AdminNavbar({ role }: NavbarProps) {
 
             {role === "org" && (
               <li>
-          
+
                 <button
                   onClick={() => setIsSettingsOpen(prev => !prev)}
-                  className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-                    isSettingsActive
+                  className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${isSettingsActive
                       ? "bg-emerald-50 text-emerald-700"
                       : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                  }`}
+                    }`}
                 >
                   <Settings
-                    className={`h-[18px] w-[18px] shrink-0 ${
-                      isSettingsActive ? "text-emerald-600" : "text-slate-400"
-                    }`}
+                    className={`h-[18px] w-[18px] shrink-0 ${isSettingsActive ? "text-emerald-600" : "text-slate-400"
+                      }`}
                   />
                   <span className="flex-1 text-left">Settings</span>
                   <ChevronDown
-                    className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
-                      isSettingsOpen ? "rotate-180" : ""
-                    } ${isSettingsActive ? "text-emerald-500" : "text-slate-400"}`}
+                    className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isSettingsOpen ? "rotate-180" : ""
+                      } ${isSettingsActive ? "text-emerald-500" : "text-slate-400"}`}
                   />
                 </button>
 
@@ -220,16 +214,14 @@ export default function AdminNavbar({ role }: NavbarProps) {
                         <li key={sub.href}>
                           <Link
                             href={sub.href}
-                            className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                              isSubActive
+                            className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${isSubActive
                                 ? "bg-emerald-600 text-white shadow-sm"
                                 : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                            }`}
+                              }`}
                           >
                             <SubIcon
-                              className={`h-4 w-4 shrink-0 ${
-                                isSubActive ? "text-white" : "text-slate-400"
-                              }`}
+                              className={`h-4 w-4 shrink-0 ${isSubActive ? "text-white" : "text-slate-400"
+                                }`}
                             />
                             {sub.label}
                           </Link>
