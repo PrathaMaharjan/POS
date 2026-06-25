@@ -325,13 +325,8 @@ export default function RolesConfigPage() {
             </div>
           </div>
 
-          {/* Info Card */}
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4 flex gap-3 text-xs text-slate-650 max-w-2xl">
-            <Info className="h-4.5 w-4.5 text-[#0f6b4a] shrink-0 mt-0.5" />
-            <div className="leading-relaxed font-medium">
-              <span className="font-bold text-emerald-800">Notice:</span> Disabling permission codes will immediately revoke access to specific route configurations for mapped operators. Frontline roles (Cashier, Waiter, Kitchen Crew) can only toggle pre-determined capabilities configured under standard company security guidelines.
-            </div>
-          </div>
+
+
         </>
       )}
 
