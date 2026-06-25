@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { useKotTickets } from '@/lib/hooks/useKotTickets';
+import SettingsDrawer from '../_components/SettingsDrawer';
+import { ThemeProvider, useTheme } from '../context/ThemeContext';
 
 type TicketState = 'PENDING' | 'PREPARING' | 'DONE';
 type OrderType = 'TAKEAWAY' | 'DINE_IN';
@@ -43,27 +45,6 @@ const getRotationClass = (id: string) => {
   return ROTATIONS[index];
 };
 
-const COLUMNS: { state: TicketState; label: string; headerBg: string; countBg: string }[] = [
-  {
-    state: 'PENDING',
-    label: 'New Orders',
-    headerBg: 'bg-[#e5b83b]/8 border-[#e5b83b]/15',
-    countBg: 'bg-[#e5b83b]/15 text-[#e5b83b] border-[#e5b83b]/25',
-  },
-  {
-    state: 'PREPARING',
-    label: 'Preparing',
-    headerBg: 'bg-blue-500/8 border-blue-500/15',
-    countBg: 'bg-blue-500/15 text-blue-400 border-blue-500/25',
-  },
-  {
-    state: 'DONE',
-    label: 'Ready to Serve',
-    headerBg: 'bg-[#22c55e]/8 border-[#22c55e]/15',
-    countBg: 'bg-[#22c55e]/15 text-[#4ade80] border-[#22c55e]/25',
-  },
-];
-
 function LiveClock() {
   const [time, setTime] = useState('');
   useEffect(() => {
@@ -82,8 +63,20 @@ function OrderModal({ order, onClose, onPreparing, onDone }: {
   onPreparing: (id: string) => void;
   onDone: (id: string) => void;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const isUrgent = order.minutesElapsed >= 10;
   const label = order.type === 'TAKEAWAY' ? 'Take away' : order.tableName;
+
+  const modalHeaderBg = order.ticketState === 'DONE'
+    ? (isDark ? 'bg-[#22c55e]/15' : 'bg-green-50')
+    : order.ticketState === 'PREPARING'
+      ? (isDark ? 'bg-blue-500/15' : 'bg-blue-50')
+      : isUrgent
+        ? (isDark ? 'bg-red-500/15' : 'bg-red-50')
+        : (isDark ? 'bg-[#27272a]/60' : 'bg-neutral-50');
+
+  const modalHeaderBorder = isDark ? 'border-[#27272a]' : 'border-neutral-200';
 
   return (
     <div
@@ -91,33 +84,28 @@ function OrderModal({ order, onClose, onPreparing, onDone }: {
       onClick={onClose}
     >
       <div
-        className="bg-[#1c1c1f] rounded-2xl border border-[#3f3f46] w-full max-w-md overflow-hidden shadow-2xl max-h-[90vh] flex flex-col"
+        className={`rounded-2xl border w-full max-w-md overflow-hidden shadow-2xl max-h-[90vh] flex flex-col transition-colors duration-200 ${isDark ? 'bg-[#1c1c1f] border-[#3f3f46]' : 'bg-white border-neutral-200'
+          }`}
         onClick={e => e.stopPropagation()}
       >
-        <div className={`px-5 pt-4 pb-3.5 border-b border-[#27272a] shrink-0 ${order.ticketState === 'DONE'
-          ? 'bg-[#22c55e]/15'
-          : order.ticketState === 'PREPARING'
-            ? 'bg-blue-500/15'
-            : isUrgent
-              ? 'bg-red-500/15'
-              : 'bg-[#27272a]/60'
-          }`}>
+        <div className={`px-5 pt-4 pb-3.5 border-b shrink-0 ${modalHeaderBg} ${modalHeaderBorder}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-[16px] font-black text-white">#{order.orderNumber}</span>
+              <span className={`text-[16px] font-black ${isDark ? 'text-white' : 'text-neutral-900'}`}>#{order.orderNumber}</span>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${order.type === 'TAKEAWAY'
                 ? 'bg-[#e5b83b]/10 text-[#e5b83b] border-[#e5b83b]/25'
                 : 'bg-blue-500/10 text-blue-400 border-blue-500/25'
                 }`}>
                 {label}
               </span>
-              <span className={`text-[11px] font-bold ${isUrgent ? 'text-red-400' : 'text-[#52525b]'}`}>
+              <span className={`text-[11px] font-bold ${isUrgent ? 'text-red-400' : isDark ? 'text-[#52525b]' : 'text-neutral-400'}`}>
                 {isUrgent ? `⚠ ${order.minutesElapsed}m` : `${order.minutesElapsed}m`}
               </span>
             </div>
             <button
               onClick={onClose}
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#27272a] text-[#71717a] hover:text-white transition-all"
+              className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all ${isDark ? 'hover:bg-[#27272a] text-[#71717a] hover:text-white' : 'hover:bg-neutral-100 text-neutral-400 hover:text-neutral-700'
+                }`}
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M18 6L6 18M6 6l12 12" />
@@ -131,27 +119,31 @@ function OrderModal({ order, onClose, onPreparing, onDone }: {
             <React.Fragment key={idx}>
               <div className="flex items-center justify-between gap-4 py-2.5">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-semibold text-[#d4d4d8] break-words">{item.name}</p>
+                  <p className={`text-[13px] font-semibold break-words ${isDark ? 'text-[#d4d4d8]' : 'text-neutral-800'}`}>{item.name}</p>
                   {item.notes && (
-                    <p className="text-[11px] text-red-400 italic mt-0.5">{item.notes}</p>
+                    <p className="text-[11px] text-red-500 italic mt-0.5">{item.notes}</p>
                   )}
                 </div>
-                <span className="text-[12px] font-bold text-[#a1a1aa] bg-[#27272a] border border-[#3f3f46] rounded px-2 py-0.5 flex-shrink-0 self-start">
+                <span className={`text-[12px] font-bold border rounded px-2 py-0.5 flex-shrink-0 self-start ${isDark ? 'text-[#a1a1aa] bg-[#27272a] border-[#3f3f46]' : 'text-neutral-600 bg-neutral-100 border-neutral-200'
+                  }`}>
                   x{item.quantity}
                 </span>
               </div>
               {idx < arr.length - 1 && (
-                <div className="border-t border-dashed border-[#2e2e32]" />
+                <div className={`border-t border-dashed ${isDark ? 'border-[#2e2e32]' : 'border-neutral-200'}`} />
               )}
             </React.Fragment>
           ))}
         </div>
 
-        <div className="px-5 pb-5 pt-3 flex gap-2 shrink-0 border-t border-[#27272a]">
+        <div className={`px-5 pb-5 pt-3 flex gap-2 shrink-0 border-t ${isDark ? 'border-[#27272a]' : 'border-neutral-200'}`}>
           {order.ticketState === 'DONE' ? (
             <button
               onClick={() => { onDone(order.id); onClose(); }}
-              className="flex-1 py-3 rounded-xl bg-[#22c55e]/10 hover:bg-red-500/10 border border-[#22c55e]/30 hover:border-red-500/30 text-[#4ade80] hover:text-red-400 text-[12px] font-bold text-center transition-all group flex items-center justify-center gap-1"
+              className={`flex-1 py-3 rounded-xl border text-[12px] font-bold text-center transition-all group flex items-center justify-center gap-1 ${isDark
+                  ? 'bg-[#22c55e]/10 hover:bg-red-500/10 border-[#22c55e]/30 hover:border-red-500/30 text-[#4ade80] hover:text-red-400'
+                  : 'bg-green-50 hover:bg-red-50 border-green-200 hover:border-red-200 text-green-700 hover:text-red-600'
+                }`}
             >
               <span className="group-hover:hidden">✓ Done</span>
               <span className="hidden group-hover:inline flex items-center gap-1">
@@ -166,15 +158,17 @@ function OrderModal({ order, onClose, onPreparing, onDone }: {
               <button
                 onClick={() => { onPreparing(order.id); onClose(); }}
                 className={`flex-1 py-3 rounded-xl text-[12px] font-bold transition-all active:scale-[0.97] ${order.ticketState === 'PREPARING'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-[#27272a] border border-[#3f3f46] text-[#a1a1aa] hover:bg-[#3f3f46]'
+                    ? 'bg-blue-600 text-white'
+                    : isDark
+                      ? 'bg-[#27272a] border border-[#3f3f46] text-[#a1a1aa] hover:bg-[#3f3f46]'
+                      : 'bg-neutral-100 border border-neutral-300 text-neutral-700 hover:bg-neutral-200'
                   }`}
               >
                 {order.ticketState === 'PREPARING' ? '● Preparing' : 'Start Preparing'}
               </button>
               <button
                 onClick={() => { onDone(order.id); onClose(); }}
-                className="flex-1 py-3 rounded-xl bg-[#22c55e] hover:bg-[#16a34a] text-[#0a1a0f] text-[12px] font-bold transition-all active:scale-[0.97]"
+                className="flex-1 py-3 rounded-xl bg-[#22c55e] hover:bg-[#16a34a] dark:text-[#0a1a0f] text-white text-[12px] font-bold transition-all active:scale-[0.97]"
               >
                 Done
               </button>
@@ -197,18 +191,20 @@ function TicketCard({
   onDone: (id: string) => void;
   onOpen: () => void;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const isUrgent = order.minutesElapsed >= 10;
   const label = order.type === 'TAKEAWAY' ? 'Take away' : order.tableName;
   const rotation = getRotationClass(order.id);
 
   const stickyBg =
     order.ticketState === 'DONE'
-      ? 'bg-[#1a2e1f]'
+      ? (isDark ? 'bg-[#1a2e1f] border-emerald-950/40 text-emerald-100' : 'bg-[#e8f5e9] border-emerald-200 text-emerald-900')
       : order.ticketState === 'PREPARING'
-        ? 'bg-[#17213a]'
+        ? (isDark ? 'bg-[#17213a] border-blue-950/40 text-blue-100' : 'bg-[#e3f2fd] border-blue-200 text-blue-900')
         : isUrgent
-          ? 'bg-[#2a1a1a]'
-          : 'bg-[#21201a]';
+          ? (isDark ? 'bg-[#2a1a1a] border-red-950/40 text-red-100' : 'bg-[#ffebee] border-red-200 text-red-900')
+          : (isDark ? 'bg-[#21201a] border-amber-950/40 text-amber-100' : 'bg-[#fffde7] border-amber-200 text-amber-900');
 
   const tapeBg =
     order.ticketState === 'DONE'
@@ -221,7 +217,7 @@ function TicketCard({
 
   return (
     <div
-      className={`${stickyBg} ${rotation} rounded-sm shadow-[2px_4px_16px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden transition-transform hover:scale-[1.02] sm:hover:rotate-0 cursor-pointer h-full`}
+      className={`${stickyBg} ${rotation} border rounded-xl shadow-lg hover:shadow-xl dark:shadow-[2px_4px_16px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden transition-all duration-200 hover:scale-[1.02] sm:hover:rotate-0 cursor-pointer h-full`}
       onClick={onOpen}
     >
       <div className={`h-2 w-full ${tapeBg}`} />
@@ -238,7 +234,7 @@ function TicketCard({
       <div className="px-3.5 pt-3 pb-2.5 border-b border-white/5">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-black text-white">#{order.orderNumber}</span>
+            <span className={`text-[13px] font-black ${isDark ? 'text-white' : 'text-neutral-900'}`}>#{order.orderNumber}</span>
             <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${order.type === 'TAKEAWAY'
               ? 'bg-[#e5b83b]/10 text-[#e5b83b] border-[#e5b83b]/25'
               : 'bg-blue-500/10 text-blue-400 border-blue-500/25'
@@ -246,7 +242,7 @@ function TicketCard({
               {label}
             </span>
           </div>
-          <span className={`text-[10px] font-bold ${isUrgent ? 'text-red-400' : 'text-[#52525b]'}`}>
+          <span className={`text-[10px] font-bold ${isUrgent ? 'text-red-400' : isDark ? 'text-[#52525b]' : 'text-neutral-400'}`}>
             {isUrgent ? `⚠ ${order.minutesElapsed}m` : `${order.minutesElapsed}m`}
           </span>
         </div>
@@ -256,21 +252,21 @@ function TicketCard({
         {order.items.slice(0, 3).map((item, idx, arr) => (
           <React.Fragment key={idx}>
             <div className="flex items-center justify-between gap-2 py-1.5">
-              <span className="text-[11px] font-semibold text-[#c4c4c8] flex-1 leading-tight break-all truncate">{item.name}</span>
+              <span className={`text-[11px] font-semibold flex-1 leading-tight break-all truncate ${isDark ? 'text-[#c4c4c8]' : 'text-neutral-800'}`}>{item.name}</span>
               {item.notes && (
-                <span className="text-[9px] text-red-400 italic truncate max-w-[70px]">{item.notes}</span>
+                <span className="text-[9px] text-red-500 italic truncate max-w-[70px]">{item.notes}</span>
               )}
-              <span className="text-[10px] font-bold text-[#71717a] bg-black/20 border border-white/10 rounded px-1.5 py-0.5 ml-1 flex-shrink-0">
+              <span className={`text-[10px] font-bold border rounded px-1.5 py-0.5 ml-1 flex-shrink-0 ${isDark ? 'text-[#71717a] bg-black/20 border-white/10' : 'text-neutral-600 bg-black/5 border-black/10'}`}>
                 x{item.quantity}
               </span>
             </div>
             {idx < arr.length - 1 && (
-              <div className="border-t border-dashed border-white/8 mx-1" />
+              <div className={`border-t border-dashed mx-1 ${isDark ? 'border-white/8' : 'border-black/8'}`} />
             )}
           </React.Fragment>
         ))}
         {order.items.length > 3 && (
-          <p className="text-[10px] text-[#52525b] mt-auto pt-2">+{order.items.length - 3} more — tap to view</p>
+          <p className={`text-[10px] mt-auto pt-2 ${isDark ? 'text-[#52525b]' : 'text-neutral-500'}`}>+{order.items.length - 3} more — tap to view</p>
         )}
       </div>
 
@@ -281,11 +277,14 @@ function TicketCard({
         {order.ticketState === 'DONE' ? (
           <button
             onClick={() => onDone(order.id)}
-            className="flex-1 py-2 rounded-lg bg-[#22c55e]/10 hover:bg-red-500/10 border border-[#22c55e]/30 hover:border-red-500/30 text-[#4ade80] hover:text-red-400 text-[10px] font-bold text-center transition-all group flex items-center justify-center gap-1"
+            className={`flex-1 py-2 rounded-lg border text-[10px] font-bold text-center transition-all group flex items-center justify-center gap-1 ${isDark
+                ? 'bg-[#22c55e]/10 hover:bg-red-500/10 border-[#22c55e]/30 hover:border-red-500/30 text-[#4ade80] hover:text-red-400'
+                : 'bg-green-50 hover:bg-red-50 border-green-200 hover:border-red-200 text-green-700 hover:text-red-600'
+              }`}
           >
             <span className="group-hover:hidden">✓ Done</span>
             <span className="hidden group-hover:inline flex items-center gap-1">
-              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
               </svg>
               Undo
@@ -296,8 +295,10 @@ function TicketCard({
             <button
               onClick={() => onPreparing(order.id)}
               className={`flex-1 py-2 rounded-lg text-[10px] font-bold transition-all active:scale-[0.97] ${order.ticketState === 'PREPARING'
-                ? 'bg-blue-500 text-white'
-                : 'bg-black/20 border border-white/10 text-[#a1a1aa] hover:bg-black/40'
+                  ? 'bg-blue-600 text-white'
+                  : isDark
+                    ? 'bg-black/20 border border-white/10 text-[#a1a1aa] hover:bg-black/40'
+                    : 'bg-white/60 border border-black/10 text-neutral-700 hover:bg-white/90 shadow-sm'
                 }`}
             >
               {order.ticketState === 'PREPARING' ? (
@@ -310,7 +311,7 @@ function TicketCard({
             </button>
             <button
               onClick={() => onDone(order.id)}
-              className="flex-1 py-2 rounded-lg bg-[#22c55e] hover:bg-[#16a34a] text-[#0a1a0f] text-[10px] font-bold transition-all active:scale-[0.97]"
+              className="flex-1 py-2 rounded-lg bg-[#22c55e] hover:bg-[#16a34a] dark:text-[#0a1a0f] text-white text-[10px] font-bold transition-all active:scale-[0.97]"
             >
               Done
             </button>
@@ -321,14 +322,18 @@ function TicketCard({
   );
 }
 
-export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
+function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
   const router = useRouter();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<KitchenOrder | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   // Mobile active tab view toggle status
   const [activeTab, setActiveTab] = useState<TicketState>('PENDING');
 
@@ -337,7 +342,10 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
   useEffect(() => {
     try {
       const mapped: KitchenOrder[] = (rawTickets ?? [])
-        .filter((ticket: any) => ticket.status !== 'served')
+        .filter((ticket: any) => {
+          const status = ticket.status?.toLowerCase();
+          return status !== 'served' && status !== 'cancelled';
+        })
         .map((ticket: any) => {
           const dbOrder = ticket.order ?? {};
           const elapsed = Math.floor((Date.now() - new Date(ticket.createdAt).getTime()) / 60000);
@@ -443,6 +451,27 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
     }
   };
 
+  const columnsConfig = [
+    {
+      state: 'PENDING' as TicketState,
+      label: 'New Orders',
+      headerBg: isDark ? 'bg-[#e5b83b]/8 border-[#e5b83b]/15 text-white' : 'bg-[#e5b83b]/12 border-[#e5b83b]/25 text-amber-950',
+      countBg: isDark ? 'bg-[#e5b83b]/15 text-[#e5b83b] border-[#e5b83b]/25' : 'bg-[#e5b83b]/20 text-amber-800 border-[#e5b83b]/30',
+    },
+    {
+      state: 'PREPARING' as TicketState,
+      label: 'Preparing',
+      headerBg: isDark ? 'bg-blue-500/8 border-blue-500/15 text-white' : 'bg-blue-500/12 border-blue-500/25 text-blue-950',
+      countBg: isDark ? 'bg-blue-500/15 text-blue-400 border-blue-500/25' : 'bg-blue-500/20 text-blue-800 border-blue-500/30',
+    },
+    {
+      state: 'DONE' as TicketState,
+      label: 'Ready to Serve',
+      headerBg: isDark ? 'bg-[#22c55e]/8 border-[#22c55e]/15 text-white' : 'bg-green-500/12 border-green-500/25 text-green-950',
+      countBg: isDark ? 'bg-[#22c55e]/15 text-[#4ade80] border-[#22c55e]/25' : 'bg-green-500/20 text-green-800 border-green-500/30',
+    },
+  ];
+
   return (
     <>
       <style>{`
@@ -457,21 +486,55 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
         .animate-fade-in {
           animation: fadeIn 0.2s ease-out forwards;
         }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+          height: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: ${isDark ? '#27272a' : '#d4d4d8'};
+          border-radius: 9999px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: ${isDark ? '#3f3f46' : '#a1a1aa'};
+        }
       `}</style>
 
-      <div className="fixed inset-0 h-screen w-screen bg-[#111113] text-[#e4e4e7] font-sans select-none antialiased flex flex-col overflow-hidden">
+      <div className={`fixed inset-0 h-screen w-screen font-sans select-none antialiased flex flex-col overflow-hidden transition-colors duration-200 ${isDark ? 'bg-[#111113] text-[#e4e4e7]' : 'bg-[#f4f4f5] text-neutral-800'
+        }`}>
 
         {/* Header */}
-        <header className="bg-[#18181b] border-b border-[#27272a] px-4 sm:px-6 py-3 flex items-center justify-between flex-shrink-0 gap-4">
+        <header className={`border-b px-4 sm:px-6 py-3 flex items-center justify-between flex-shrink-0 gap-4 transition-colors duration-200 ${isDark ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-neutral-200'
+          }`}>
           <div className="flex items-center gap-3 min-w-0">
-            <p className="text-[14px] sm:text-[16px] font-bold text-white truncate">Kitchen Display</p>
-            <span className="text-[11px] sm:text-[12px] text-[#52525b] tabular-nums shrink-0"><LiveClock /></span>
+            <p className={`text-[14px] sm:text-[16px] font-bold truncate ${isDark ? 'text-white' : 'text-neutral-900'}`}>Kitchen Display</p>
+            <span className={`text-[11px] sm:text-[12px] tabular-nums shrink-0 ${isDark ? 'text-[#52525b]' : 'text-neutral-400'}`}><LiveClock /></span>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
             <button
+              onClick={() => setIsSettingsOpen(true)}
+              className={`flex items-center gap-1.5 border px-2.5 py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold transition-all ${isDark
+                  ? 'bg-[#27272a] hover:bg-[#3f3f46] border-[#3f3f46] text-[#a1a1aa] hover:text-white'
+                  : 'bg-white hover:bg-neutral-100 border-neutral-200 text-neutral-600 hover:text-neutral-900 shadow-sm'
+                }`}
+              title="Open Settings"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              <span className="hidden sm:inline">Settings</span>
+            </button>
+
+            <button
               onClick={toggleFullscreen}
-              className="flex items-center gap-1.5 bg-[#27272a] hover:bg-[#3f3f46] border border-[#3f3f46] text-[#a1a1aa] hover:text-white px-2.5 py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold transition-all"
+              className={`flex items-center gap-1.5 border px-2.5 py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold transition-all ${isDark
+                  ? 'bg-[#27272a] hover:bg-[#3f3f46] border-[#3f3f46] text-[#a1a1aa] hover:text-white'
+                  : 'bg-white hover:bg-neutral-100 border-neutral-200 text-neutral-600 hover:text-neutral-900 shadow-sm'
+                }`}
               title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
             >
               {isFullscreen ? (
@@ -501,7 +564,10 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
                   router.push("/login");
                 }
               }}
-              className="flex items-center gap-1.5 bg-[#27272a] hover:bg-red-950/40 border border-[#3f3f46] hover:border-red-900/50 text-[#a1a1aa] hover:text-red-400 px-2.5 py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold transition-all"
+              className={`flex items-center gap-1.5 border px-2.5 py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold transition-all ${isDark
+                  ? 'bg-[#27272a] hover:bg-red-950/40 border-[#3f3f46] hover:border-red-900/50 text-[#a1a1aa] hover:text-red-400'
+                  : 'bg-white hover:bg-red-50 border-neutral-200 hover:border-red-200 text-neutral-600 hover:text-red-600 shadow-sm'
+                }`}
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" strokeLinecap="round" strokeLinejoin="round" />
@@ -512,22 +578,26 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
         </header>
 
         {/* Mobile Navigation Tabs (visible only on viewports below 'md') */}
-        <div className="flex md:hidden bg-[#141416] border-b border-[#27272a] p-2 gap-1 shrink-0">
-          {COLUMNS.map(col => {
+        <div className={`flex md:hidden border-b p-2 gap-1 shrink-0 ${isDark ? 'bg-[#141416] border-[#27272a]' : 'bg-neutral-100 border-neutral-200'}`}>
+          {columnsConfig.map(col => {
             const count = orders.filter(o => o.ticketState === col.state).length;
             const isActive = activeTab === col.state;
             return (
               <button
                 key={col.state}
                 onClick={() => setActiveTab(col.state)}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 px-1 rounded-xl text-[12px] font-bold border transition-all ${
-                  isActive 
-                    ? 'bg-[#27272a] text-white border-[#3f3f46]' 
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-1 rounded-xl text-[12px] font-bold border transition-all ${isActive
+                    ? isDark
+                      ? 'bg-[#27272a] text-white border-[#3f3f46]'
+                      : 'bg-white text-neutral-900 border-neutral-300 shadow-sm'
                     : 'bg-transparent text-[#71717a] border-transparent'
-                }`}
+                  }`}
               >
                 <span>{col.label.split(' ')[0]}</span>
-                <span className="px-1.5 py-0.2 text-[10px] rounded-md bg-white/5 border border-white/10 text-[#a1a1aa]">
+                <span className={`px-1.5 py-0.2 text-[10px] rounded-md border ${isDark
+                    ? 'bg-white/5 border-white/10 text-[#a1a1aa]'
+                    : 'bg-neutral-200/50 border-neutral-300 text-neutral-600'
+                  }`}>
                   {count}
                 </span>
               </button>
@@ -550,19 +620,18 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
               <span className="text-sm font-medium">{error}</span>
             </div>
           ) : (
-            COLUMNS.map(col => {
+            columnsConfig.map(col => {
               const colOrders = orders.filter(o => o.ticketState === col.state);
-              
+
               return (
-                <div 
-                  key={col.state} 
-                  className={`flex-col flex-1 md:min-w-[240px] lg:min-w-[280px] h-full overflow-hidden ${
-                    activeTab === col.state ? 'flex' : 'hidden md:flex'
-                  }`}
+                <div
+                  key={col.state}
+                  className={`flex-col flex-1 md:min-w-[240px] lg:min-w-[280px] h-full overflow-hidden ${activeTab === col.state ? 'flex' : 'hidden md:flex'
+                    }`}
                 >
                   {/* Column header */}
                   <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border mb-3 sm:mb-4 flex-shrink-0 ${col.headerBg}`}>
-                    <span className="text-[12px] sm:text-[13px] font-bold text-white">{col.label}</span>
+                    <span className="text-[12px] sm:text-[13px] font-bold">{col.label}</span>
                     <span className={`text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-full border ${col.countBg}`}>
                       {colOrders.length}
                     </span>
@@ -571,7 +640,7 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
                   {/* Scrollable grid area */}
                   <div className="flex-1 overflow-y-auto overflow-x-hidden pb-4 pr-1 custom-scrollbar">
                     {colOrders.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-16 text-[#3f3f46]">
+                      <div className={`flex flex-col items-center justify-center py-16 ${isDark ? 'text-[#3f3f46]' : 'text-neutral-400'}`}>
                         <svg className="w-8 h-8 mb-2 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
                         </svg>
@@ -607,6 +676,17 @@ export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
           onDone={handleDone}
         />
       )}
+
+      {/* Settings Drawer */}
+      <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </>
+  );
+}
+
+export default function KdsBoard({ tenantSlug }: { tenantSlug: string }) {
+  return (
+    <ThemeProvider role="kitchen">
+      <KdsBoardInner tenantSlug={tenantSlug} />
+    </ThemeProvider>
   );
 }

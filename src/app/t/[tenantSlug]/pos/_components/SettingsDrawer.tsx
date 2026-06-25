@@ -46,13 +46,13 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
 
   const accent = isDark ? '#e5b83b' : '#16a34a';
 
-  const bg         = isDark ? '#0c0c0d' : '#ffffff';
-  const surface    = isDark ? '#141416' : '#f0fdf4';
-  const border     = isDark ? '#27272a' : '#bbf7d0';
-  const textPrim   = isDark ? '#ffffff' : '#14532d';
-  const textMuted  = isDark ? '#71717a' : '#4b7a58';
-  const inputBg    = isDark ? '#0c0c0d' : '#ffffff';
-  const inputBorder= isDark ? '#3f3f46' : '#86efac';
+  const bg = isDark ? '#0c0c0d' : '#ffffff';
+  const surface = isDark ? '#141416' : '#f0fdf4';
+  const border = isDark ? '#27272a' : '#bbf7d0';
+  const textPrim = isDark ? '#ffffff' : '#14532d';
+  const textMuted = isDark ? '#71717a' : '#4b7a58';
+  const inputBg = isDark ? '#0c0c0d' : '#ffffff';
+  const inputBorder = isDark ? '#3f3f46' : '#86efac';
 
   const handleEditToggle = () => {
     if (!isEditingProfile) {
@@ -73,7 +73,7 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
       setSaveError('Please enter a valid email address.');
       return;
     }
-    
+
     const wantsPasswordChange = !!password;
     if (wantsPasswordChange) {
       if (password.length < 8) {
@@ -101,7 +101,7 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
       }
 
       const res = await api.patch('/auth/change-userDetail', payload);
-      
+
       if (res.data.user) {
         localStorage.setItem('user', JSON.stringify(res.data.user));
         setEmail(res.data.user.email || emailDraft);
@@ -151,7 +151,7 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
               <div className="flex items-center justify-between">
                 <div>
                   <p style={{ color: textPrim }} className="text-sm font-semibold">Active Operator</p>
-                  <p style={{ color: textMuted }} className="text-xs mt-0.5">Cashier Terminal</p>
+
                 </div>
                 <button
                   onClick={handleEditToggle}
@@ -313,7 +313,7 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
 
         </div>
 
-    
+
       </div>
     </div>
   );

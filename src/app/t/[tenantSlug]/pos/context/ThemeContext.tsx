@@ -21,11 +21,29 @@ function setCookie(name: string, value: string) {
   document.cookie = `${name}=${value}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
 }
 
+function getUserId(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) return null;
+    const user = JSON.parse(userStr);
+    return user.id || user.email || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function getThemeKey(): string {
+  const userId = getUserId();
+  return userId ? `pos-theme-${userId}` : 'pos-theme';
+}
+
 export function ThemeProvider({ children, role }: { children: React.ReactNode; role?: string }) {
   const [theme, setTheme] = useState<Theme>('dark');
 
   useEffect(() => {
-    const saved = getCookie('pos-theme') as Theme | null;
+    const key = getThemeKey();
+    const saved = (localStorage.getItem(key) || getCookie(key)) as Theme | null;
     if (saved === 'light' || saved === 'dark') {
       setTheme(saved);
     }
@@ -34,7 +52,9 @@ export function ThemeProvider({ children, role }: { children: React.ReactNode; r
   const toggleTheme = () => {
     setTheme(prev => {
       const next = prev === 'dark' ? 'light' : 'dark';
-      setCookie('pos-theme', next);
+      const key = getThemeKey();
+      setCookie(key, next);
+      localStorage.setItem(key, next);
       return next;
     });
   };
