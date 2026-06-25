@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTheme } from '@/app/t/[tenantSlug]/pos/context/ThemeContext';
-import { X, Mail, Lock, Eye, EyeOff, Check, Pencil } from 'lucide-react';
+import { X, Mail, Lock, Eye, EyeOff, Check, Pencil, Loader2 } from 'lucide-react';
+import api from '@/lib/api';
 
 interface SettingsDrawerProps {
   isOpen: boolean;
@@ -18,10 +19,30 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
   const [emailDraft, setEmailDraft] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && typeof window !== 'undefined') {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        try {
+          const u = JSON.parse(userStr);
+          if (u.email) {
+            setEmail(u.email);
+            setEmailDraft(u.email);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }, [isOpen]);
 
   const accent = isDark ? '#e5b83b' : '#16a34a';
 
@@ -38,21 +59,66 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
       setEmailDraft(email);
       setPassword('');
       setConfirmPassword('');
+      setCurrentPassword('');
       setSaveError('');
       setSaveSuccess(false);
     }
     setIsEditingProfile(!isEditingProfile);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaveError('');
-    if (!emailDraft.includes('@')) { setSaveError('Please enter a valid email address.'); return; }
-    if (password && password.length < 8) { setSaveError('Password must be at least 8 characters.'); return; }
-    if (password && password !== confirmPassword) { setSaveError('Passwords do not match.'); return; }
-    setEmail(emailDraft);
-    setIsEditingProfile(false);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
+    setSaveSuccess(false);
+    if (!emailDraft.includes('@')) {
+      setSaveError('Please enter a valid email address.');
+      return;
+    }
+    
+    const wantsPasswordChange = !!password;
+    if (wantsPasswordChange) {
+      if (password.length < 8) {
+        setSaveError('New password must be at least 8 characters.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setSaveError('Passwords do not match.');
+        return;
+      }
+      if (!currentPassword) {
+        setSaveError('Please enter your current password to change password.');
+        return;
+      }
+    }
+
+    setIsSaving(true);
+    try {
+      const payload: Record<string, string> = {
+        email: emailDraft,
+      };
+      if (wantsPasswordChange) {
+        payload.currentPassword = currentPassword;
+        payload.newPassword = password;
+      }
+
+      const res = await api.patch('/auth/change-userDetail', payload);
+      
+      if (res.data.user) {
+        localStorage.setItem('user', JSON.stringify(res.data.user));
+        setEmail(res.data.user.email || emailDraft);
+      }
+
+      setSaveSuccess(true);
+      setIsEditingProfile(false);
+      setPassword('');
+      setConfirmPassword('');
+      setCurrentPassword('');
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err: any) {
+      console.error(err);
+      setSaveError(err.response?.data?.error ?? 'Failed to update profile.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -112,12 +178,34 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
                     </label>
                     <input
                       type="email"
+                      disabled={isSaving}
                       value={emailDraft}
                       onChange={e => setEmailDraft(e.target.value)}
                       style={{ backgroundColor: inputBg, borderColor: inputBorder, color: textPrim }}
-                      className="w-full text-sm px-3 py-2 rounded-lg border focus:outline-none transition-all placeholder-neutral-400"
+                      className="w-full text-sm px-3 py-2 rounded-lg border focus:outline-none transition-all placeholder-neutral-400 disabled:opacity-50"
                       placeholder="you@example.com"
                     />
+                  </div>
+
+                  {/* Current Password */}
+                  <div className="space-y-1.5">
+                    <label style={{ color: textMuted }} className="text-xs font-medium flex items-center gap-1.5">
+                      <Lock className="w-3 h-3" /> Current Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showCurrentPassword ? 'text' : 'password'}
+                        disabled={isSaving}
+                        value={currentPassword}
+                        onChange={e => setCurrentPassword(e.target.value)}
+                        style={{ backgroundColor: inputBg, borderColor: inputBorder, color: textPrim }}
+                        className="w-full text-sm px-3 py-2 pr-10 rounded-lg border focus:outline-none transition-all placeholder-neutral-400 disabled:opacity-50"
+                        placeholder="Required only to change password"
+                      />
+                      <button type="button" disabled={isSaving} onClick={() => setShowCurrentPassword(p => !p)} style={{ color: textMuted }} className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                        {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
 
                   {/* New Password */}
@@ -128,48 +216,56 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
                     <div className="relative">
                       <input
                         type={showPassword ? 'text' : 'password'}
+                        disabled={isSaving}
                         value={password}
                         onChange={e => setPassword(e.target.value)}
                         style={{ backgroundColor: inputBg, borderColor: inputBorder, color: textPrim }}
-                        className="w-full text-sm px-3 py-2 pr-10 rounded-lg border focus:outline-none transition-all placeholder-neutral-400"
+                        className="w-full text-sm px-3 py-2 pr-10 rounded-lg border focus:outline-none transition-all placeholder-neutral-400 disabled:opacity-50"
                         placeholder="Leave blank to keep current"
                       />
-                      <button type="button" onClick={() => setShowPassword(p => !p)} style={{ color: textMuted }} className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                      <button type="button" disabled={isSaving} onClick={() => setShowPassword(p => !p)} style={{ color: textMuted }} className="absolute right-2.5 top-1/2 -translate-y-1/2">
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
 
                   {/* Confirm Password */}
-                  {password && (
-                    <div className="space-y-1.5">
-                      <label style={{ color: textMuted }} className="text-xs font-medium flex items-center gap-1.5">
-                        <Lock className="w-3 h-3" /> Confirm Password
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showConfirmPassword ? 'text' : 'password'}
-                          value={confirmPassword}
-                          onChange={e => setConfirmPassword(e.target.value)}
-                          style={{ backgroundColor: inputBg, borderColor: inputBorder, color: textPrim }}
-                          className="w-full text-sm px-3 py-2 pr-10 rounded-lg border focus:outline-none transition-all placeholder-neutral-400"
-                          placeholder="Re-enter new password"
-                        />
-                        <button type="button" onClick={() => setShowConfirmPassword(p => !p)} style={{ color: textMuted }} className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
+                  <div className="space-y-1.5">
+                    <label style={{ color: textMuted }} className="text-xs font-medium flex items-center gap-1.5">
+                      <Lock className="w-3 h-3" /> Confirm Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        disabled={isSaving}
+                        value={confirmPassword}
+                        onChange={e => setConfirmPassword(e.target.value)}
+                        style={{ backgroundColor: inputBg, borderColor: inputBorder, color: textPrim }}
+                        className="w-full text-sm px-3 py-2 pr-10 rounded-lg border focus:outline-none transition-all placeholder-neutral-400 disabled:opacity-50"
+                        placeholder="Re-enter new password"
+                      />
+                      <button type="button" disabled={isSaving} onClick={() => setShowConfirmPassword(p => !p)} style={{ color: textMuted }} className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
-                  )}
+                  </div>
 
                   {saveError && <p className="text-xs text-red-500">{saveError}</p>}
 
                   <button
                     onClick={handleSave}
+                    disabled={isSaving}
                     style={{ backgroundColor: accent }}
-                    className="w-full mt-1 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+                    className="w-full mt-1 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    Save Changes
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      'Save Changes'
+                    )}
                   </button>
                 </div>
               ) : (
