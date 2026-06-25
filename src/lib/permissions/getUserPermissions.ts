@@ -1,7 +1,3 @@
-// import { db } from "@/db";
-// import { userOutletRoles, rolePermissions, permissions } from "@/db/schema";
-// import { eq, and } from "drizzle-orm";
-
 import { db } from "@/db";
 import { permissions, rolePermissions, userOutletRoles } from "@/db/schema";
 import { and, eq } from "drizzle-orm";

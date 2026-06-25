@@ -19,7 +19,7 @@ const ACCESS_EXPIRES_IN = process.env.JWT_ACCESS_EXPIRES_IN || "15m";
 const REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || "7d";
 
 export function signAccessToken(payload: AccessTokenPayload) {
-  return jwt.sign(payload, ACCESS_SECRET, { expiresIn: ACCESS_EXPIRES_IN as any });
+  return jwt.sign(payload, ACCESS_SECRET, { expiresIn: ACCESS_EXPIRES_IN });
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
@@ -27,7 +27,7 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
 }
 
 export function signRefreshToken(payload: RefreshTokenPayload) {
-  return jwt.sign(payload, REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES_IN as any });
+  return jwt.sign(payload, REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES_IN });
 }
 
 export function verifyRefreshToken(token: string): RefreshTokenPayload {

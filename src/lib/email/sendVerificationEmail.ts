@@ -7,9 +7,7 @@ export const sendVerificationEmail = async (
   email: string,
   rawtoken: string,
 ) => {
-    // console.log("hi")
-  // const veriffyUrl = `${process.env.APP_URL}/api/auth/verify-email?token=${rawtoken}`;
-  // console.log("verify route ",veriffyUrl)
+ 
 const veriffyUrl = `${process.env.APP_URL}/api/auth/verify-email?token=${rawtoken}`;
   await resend.emails.send({
     from: process.env.EMAIL_FROM!, // e.g. "POS System <noreply@yourdomain.com>"

@@ -8,24 +8,30 @@ import z from "zod";
 const updateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   sortOrder: z.number().int().optional(),
-  outletId:  z.string().uuid().optional(), 
+  outletId: z.string().uuid().optional(),
 });
 export const PATCH = async (
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) => {
   const { id } = await params;
 
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
-  const permError = requiredPermission(auth.payload, "inventory.categories.update");
+  const permError = requiredPermission(
+    auth.payload,
+    "inventory.categories.update",
+  );
   if (permError) return permError;
 
   const body = await req.json();
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
   const { outletId: requestedOutletId, ...updateFields } = parsed.data;
@@ -33,50 +39,62 @@ export const PATCH = async (
   if (Object.keys(updateFields).length === 0) {
     return NextResponse.json(
       { error: "Provide at least one field to update" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   const resolved = await resolveOutletId(auth.payload, requestedOutletId);
   if ("error" in resolved) {
-    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+    return NextResponse.json(
+      { error: resolved.error },
+      { status: resolved.status },
+    );
   }
 
   const result = await updateCategory(resolved.outletId, id, updateFields);
   if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json(
+      { error: result.error },
+      { status: result.status },
+    );
   }
 
   return NextResponse.json(result.data);
 };
 
-
-
-
 // -----------deleere----------------
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
 
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
-  const permError = requiredPermission(auth.payload, "inventory.categories.delete");
+  const permError = requiredPermission(
+    auth.payload,
+    "inventory.categories.delete",
+  );
   if (permError) return permError;
 
   const resolved = await resolveOutletId(
     auth.payload,
-    req.nextUrl.searchParams.get("outletId")
+    req.nextUrl.searchParams.get("outletId"),
   );
   if ("error" in resolved) {
-    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+    return NextResponse.json(
+      { error: resolved.error },
+      { status: resolved.status },
+    );
   }
 
   const result = await deleteCategory(resolved.outletId, id);
   if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json(
+      { error: result.error },
+      { status: result.status },
+    );
   }
 
   return NextResponse.json({ success: true });

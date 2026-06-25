@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requiredToken } from "@/lib/auth/requireAuth";
 import { getActiveStaffCount } from "@/controller/managerdashboard";
+// import { getActiveStaffCount } from "@/controller/managerdashboard";
 
 export async function GET(req: NextRequest) {
   const auth = await requiredToken(req);

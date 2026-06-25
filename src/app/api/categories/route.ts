@@ -11,10 +11,13 @@ export async function GET(req: NextRequest) {
 
   const resolved = await resolveOutletId(
     auth.payload,
-    req.nextUrl.searchParams.get("outletId")
+    req.nextUrl.searchParams.get("outletId"),
   );
   if ("error" in resolved) {
-    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+    return NextResponse.json(
+      { error: resolved.error },
+      { status: resolved.status },
+    );
   }
 
   const categories = await getCategories(resolved.outletId);
@@ -24,32 +27,44 @@ export async function GET(req: NextRequest) {
 const createSchema = z.object({
   name: z.string().min(1).max(100),
   sortOrder: z.number().int().optional(),
-    outletId:  z.string().uuid().optional(),
+  outletId: z.string().uuid().optional(),
 });
 
 export async function POST(req: NextRequest) {
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
-  const permError = requiredPermission(auth.payload, "inventory.categories.create");
+  const permError = requiredPermission(
+    auth.payload,
+    "inventory.categories.create",
+  );
   if (permError) return permError;
 
   const body = await req.json();
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
   const { outletId: requestedOutletId, ...categoryData } = parsed.data;
 
   const resolved = await resolveOutletId(auth.payload, requestedOutletId);
   if ("error" in resolved) {
-    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+    return NextResponse.json(
+      { error: resolved.error },
+      { status: resolved.status },
+    );
   }
 
   const result = await createCategory(resolved.outletId, categoryData);
   if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json(
+      { error: result.error },
+      { status: result.status },
+    );
   }
 
   return NextResponse.json(result.data, { status: 201 });

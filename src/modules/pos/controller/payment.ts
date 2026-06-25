@@ -400,3 +400,7 @@ export async function getFilteredPaymentHistory(
     totalAmount: Number(summaryResult[0]?.totalAmount ?? 0),
   };
 }
+
+//------------------ payment for takeaways -------------------------------------
+
+
