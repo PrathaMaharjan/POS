@@ -25,21 +25,15 @@ export function getDateRange(period: Period): { start: Date; end: Date } {
   const start = new Date(nepalNow);
 
   switch (period) {
-    case "7d":
-      start.setUTCDate(start.getUTCDate() - 6);
-      break;
-    case "30d":
-      start.setUTCDate(start.getUTCDate() - 29);
-      break;
-    case "90d":
-      start.setUTCDate(start.getUTCDate() - 89);
-      break;
+    case "7d":  start.setUTCDate(start.getUTCDate() - 6);  break;
+    case "30d": start.setUTCDate(start.getUTCDate() - 29); break;
+    case "90d": start.setUTCDate(start.getUTCDate() - 89); break;
   }
   start.setUTCHours(0, 0, 0, 0);
 
   return {
     start: new Date(start.getTime() - NEPAL_OFFSET_MS),
-    end: new Date(end.getTime() - NEPAL_OFFSET_MS),
+    end:   new Date(end.getTime()   - NEPAL_OFFSET_MS),
   };
 }
 // BUILD WHERE CONDITIONS
@@ -285,25 +279,26 @@ export async function getSalesTrend(
 ) {
   const outletCondition = outletId
     ? eq(payments.outletId, outletId)
-    : sql`${payments.outletId} IN (SELECT id FROM outlets WHERE organization_id = ${organizationId})`;
+    : sql`${payments.outletId} IN (
+        SELECT id FROM outlets WHERE organization_id = ${organizationId}
+      )`;
 
-  const groupExpr =
-    period === "90d"
-      ? sql`DATE_TRUNC('month', (${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC')`
-      : period === "30d"
-      ? sql`DATE_TRUNC('week',  (${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC')`
-      : sql`DATE(             (${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC')`;
+  // ── group expression changes per period ──
+  let groupExpr: ReturnType<typeof sql>;
 
-  const labelExpr =
-    period === "90d"
-      ? sql`TO_CHAR(DATE_TRUNC('month', (${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC'), 'Mon YYYY')`
-      : period === "30d"
-      ? sql`TO_CHAR(DATE_TRUNC('week',  (${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC'), 'Mon DD')`
-      : sql`TRIM(TO_CHAR(              (${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC', 'Day'))`;
+  if (period === "7d") {
+    // group by day → label: "Monday", "Tuesday"
+    groupExpr = sql`DATE((${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC')`;
+  } else if (period === "30d") {
+    // group by week → label: "Week 1", "Week 2", "Week 3", "Week 4"
+    groupExpr = sql`DATE_TRUNC('week', (${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC')`;
+  } else {
+    // group by month → label: "Month 1", "Month 2", "Month 3"
+    groupExpr = sql`DATE_TRUNC('month', (${payments.createdAt} + INTERVAL '5 hours 45 minutes') AT TIME ZONE 'UTC')`;
+  }
 
-   const rows = await db
+  const rows = await db
     .select({
-      label:    labelExpr,
       groupKey: groupExpr,
       total:    sql<string>`COALESCE(SUM(${payments.amount}), 0)`,
       count:    sql<number>`COUNT(*)::int`,
@@ -316,14 +311,32 @@ export async function getSalesTrend(
         lte(payments.createdAt, end)
       )
     )
-    .groupBy(groupExpr, labelExpr)
+    .groupBy(groupExpr)
     .orderBy(groupExpr);
 
-  return rows.map((r) => ({
-    label: String(r.label).trim(),
-    total: Number(r.total),
-    count: Number(r.count),
-  }));
+  // ── build labels based on period ──
+  return rows.map((r, index) => {
+    let label: string;
+
+    if (period === "7d") {
+      // "Monday", "Tuesday" etc — extract day name from date
+      const date = new Date(r.groupKey as string);
+      const nepalDate = new Date(date.getTime() + NEPAL_OFFSET_MS);
+      label = nepalDate.toLocaleDateString("en-US", { weekday: "long" });
+    } else if (period === "30d") {
+      // "Week 1", "Week 2", "Week 3", "Week 4"
+      label = `Week ${index + 1}`;
+    } else {
+      // "Month 1", "Month 2", "Month 3"
+      label = `Month ${index + 1}`;
+    }
+
+    return {
+      label,
+      total: Number(r.total),
+      count: Number(r.count),
+    };
+  });
 }
 
 //-------------------------------- send all value --------------------------------
