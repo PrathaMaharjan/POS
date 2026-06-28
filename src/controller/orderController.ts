@@ -8,6 +8,7 @@ import {
   kotTickets,
   kotItems,
 } from "@/db/schema";
+import { deductStockForOrder } from "./inventory/inventoy";
 
 export type ControllerResult<T> =
   | { success: true; data: T }
@@ -148,7 +149,17 @@ export const createDineInOrder = async (
       .update(diningTables)
       .set({ status: "occupied" })
       .where(eq(diningTables.id, tableId));
-
+    //stock decrement
+    const { stockWarnings } = await deductStockForOrder(
+      outletId,
+      order.id,
+      insertedItems.map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        quantity: item.quantity,
+      })),
+      userId,
+    );
     const [kotTicket] = await db
       .insert(kotTickets)
       .values({
@@ -165,7 +176,14 @@ export const createDineInOrder = async (
       })),
     );
 
-    return { success: true, data: { order, items: insertedItems } };
+    return {
+      success: true,
+      data: {
+        order,
+        items: insertedItems,
+        stockWarnings,
+      },
+    };
   } catch (error) {
     console.error("createDineInOrder error:", error);
     return {
@@ -251,7 +269,7 @@ export const listOrder = async (outletId: string) => {
     where: (o, { eq }) => eq(o.outletId, outletId),
     orderBy: (o, { desc }) => desc(o.createdAt),
     limit: 50,
-        with: {
+    with: {
       items: {
         with: {
           product: true,
@@ -448,6 +466,7 @@ export async function placeAndPayTakeawayOrder(
     order?: typeof orders.$inferSelect;
     payment: typeof payments.$inferSelect;
     changeDue: number;
+    stockWarnings: string[];
   }>
 > {
   const { customerName, customerPhone, items, payment } = input;
@@ -515,6 +534,19 @@ export async function placeAndPayTakeawayOrder(
       })
       .returning();
 
+    // stock ------
+    // ── 6. deduct stock ── ← NEW
+    const { stockWarnings } = await deductStockForOrder(
+      outletId,
+      order.id,
+      insertedItems.map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        quantity: item.quantity,
+      })),
+      userId,
+    );
+
     // ── 7. Mark order as completed (paid) ──
     // const [completedOrder] = await db
     //   .update(orders)
@@ -538,9 +570,9 @@ export async function placeAndPayTakeawayOrder(
     return {
       success: true,
       data: {
-        // order: completedOrder,
         payment: paymentRecord,
         changeDue: Number(changeDue.toFixed(2)),
+        stockWarnings,
       },
     };
   } catch (error) {

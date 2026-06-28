@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { orderItems, orders, outlets, payments, products, userOutlets, users } from "@/db/schema";
 import { and, desc, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
+import { getLowStockAlerts } from "./inventory/inventoy";
 
 const NEPAL_OFFSET_MS = 345 * 60 * 1000;
 export interface TrendPoint {
@@ -248,18 +249,20 @@ export async function getDashboardData(
   organizationId: string,
   period: TrendPeriod = "hourly"
 ) {
-  const [totalRevenue, topProducts, salesTrend,activeStaff] =
+  const [totalRevenue, topProducts, salesTrend,activeStaff,lowstock] =
     await Promise.all([
       getTotalRevenue(outletId),
       getTopProducts(outletId, 3),
       getSalesTrend(outletId, period),
-      getActiveStaffCount(outletId)
+      getActiveStaffCount(outletId),
+        getLowStockAlerts(outletId),
     ]);
 
   return {
     totalRevenue,
     topProducts,
     salesTrend,
-    activeStaff
+    activeStaff,
+    lowstock
   };
 }

@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { stockItems, stockMovements } from "@/db/schema";
-import { and, eq, sql } from "drizzle-orm";
+import { products, stockItems, stockMovements } from "@/db/schema";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { addStockPurchase, adjustStock, logWastage } from "./inventoy";
 
 export type ControllerResult<T> =
@@ -38,26 +38,82 @@ function formatStockItem(item: {
     isOutOfStock: current <= 0, // completely empty
   };
 }
+async function restoreProductAvailability(
+  outletId: string,
+  stockItemId: string,
+) {
+  // find all recipes that use this stock item
+  const affectedRecipes = await db.query.recipeItems.findMany({
+    where: (ri, { eq }) => eq(ri.stockItemId, stockItemId),
+    with: {
+      recipe: {
+        columns: { productId: true, outletId: true },
+        with: {
+          recipeItems: {
+            with: {
+              stockItem: {
+                columns: { currentStock: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // filter recipes belonging to this outlet
+  const outletRecipes = affectedRecipes.filter(
+    (ri) => ri.recipe.outletId === outletId,
+  );
+
+  if (outletRecipes.length === 0) return;
+
+  // only restore products where ALL ingredients are in stock
+  const productIdsToRestore: string[] = [];
+
+  for (const ri of outletRecipes) {
+    const allInStock = ri.recipe.recipeItems.every(
+      (item) => Number(item.stockItem.currentStock) > 0,
+    );
+
+    if (allInStock) {
+      productIdsToRestore.push(ri.recipe.productId);
+    }
+  }
+
+  if (productIdsToRestore.length === 0) return;
+
+  // restore availability for products where all ingredients back in stock
+  await db
+    .update(products)
+    .set({ isAvailable: true, updatedAt: new Date() })
+    .where(
+      and(
+        eq(products.outletId, outletId),
+        inArray(products.id, productIdsToRestore),
+      ),
+    );
+}
 // ─────────────────────────────────────────────
 // CREATE STOCK ITEM
 // ─────────────────────────────────────────────
 export async function createStockItem(
   outletId: string,
   input: {
-    name:           string;
-    unit:           "g" | "kg" | "ml" | "L" | "pieces";
-    currentStock?:  number;
+    name: string;
+    unit: "g" | "kg" | "ml" | "L" | "pieces";
+    currentStock?: number;
     minStockLevel?: number;
-  }
+  },
 ): Promise<ControllerResult<ReturnType<typeof formatStockItem>>> {
   try {
     const [item] = await db
       .insert(stockItems)
       .values({
         outletId,
-        name:          input.name,
-        unit:          input.unit,
-        currentStock:  (input.currentStock  ?? 0).toFixed(3),
+        name: input.name,
+        unit: input.unit,
+        currentStock: (input.currentStock ?? 0).toFixed(3),
         minStockLevel: (input.minStockLevel ?? 0).toFixed(3),
       })
       .returning();
@@ -67,12 +123,16 @@ export async function createStockItem(
     if (isUniqueViolation(error)) {
       return {
         success: false,
-        error:  `A stock item named "${input.name}" already exists in this outlet`,
+        error: `A stock item named "${input.name}" already exists in this outlet`,
         status: 409,
       };
     }
     console.error("createStockItem error:", error);
-    return { success: false, error: "Failed to create stock item", status: 500 };
+    return {
+      success: false,
+      error: "Failed to create stock item",
+      status: 500,
+    };
   }
 }
 
@@ -84,13 +144,13 @@ export async function listStockItems(outletId: string) {
     where: (s, { eq, and }) =>
       and(eq(s.outletId, outletId), eq(s.isActive, true)),
     columns: {
-      id:            true,
-      name:          true,
-      unit:          true,
-      currentStock:  true,
+      id: true,
+      name: true,
+      unit: true,
+      currentStock: true,
       minStockLevel: true,
-      isActive:      true,
-      createdAt:     true,
+      isActive: true,
+      createdAt: true,
     },
     orderBy: (s, { asc }) => asc(s.name),
   });
@@ -98,8 +158,8 @@ export async function listStockItems(outletId: string) {
   const formatted = items.map(formatStockItem);
 
   return {
-    stockItems:      formatted,
-    lowStockCount:   formatted.filter((i) => i.isLowStock).length,
+    stockItems: formatted,
+    lowStockCount: formatted.filter((i) => i.isLowStock).length,
     outOfStockCount: formatted.filter((i) => i.isOutOfStock).length,
   };
 }
@@ -109,19 +169,19 @@ export async function listStockItems(outletId: string) {
 // ─────────────────────────────────────────────
 export async function getStockItemById(
   outletId: string,
-  stockItemId: string
+  stockItemId: string,
 ): Promise<ControllerResult<ReturnType<typeof formatStockItem>>> {
   const item = await db.query.stockItems.findFirst({
     where: (s, { eq, and }) =>
       and(eq(s.id, stockItemId), eq(s.outletId, outletId)),
     columns: {
-      id:            true,
-      name:          true,
-      unit:          true,
-      currentStock:  true,
+      id: true,
+      name: true,
+      unit: true,
+      currentStock: true,
       minStockLevel: true,
-      isActive:      true,
-      createdAt:     true,
+      isActive: true,
+      createdAt: true,
     },
   });
 
@@ -132,13 +192,12 @@ export async function getStockItemById(
   return { success: true, data: formatStockItem(item) };
 }
 
-
 // ─────────────────────────────────────────────
 // DELETE STOCK ITEM (soft delete)
 // ─────────────────────────────────────────────
 export async function deleteStockItem(
-  outletId:    string,
-  stockItemId: string
+  outletId: string,
+  stockItemId: string,
 ): Promise<ControllerResult<null>> {
   const existing = await db.query.stockItems.findFirst({
     where: (s, { eq, and }) =>
@@ -154,10 +213,7 @@ export async function deleteStockItem(
     .update(stockItems)
     .set({ isActive: false, updatedAt: new Date() })
     .where(
-      and(
-        eq(stockItems.id,       stockItemId),
-        eq(stockItems.outletId, outletId)
-      )
+      and(eq(stockItems.id, stockItemId), eq(stockItems.outletId, outletId)),
     );
 
   return { success: true, data: null };
@@ -166,16 +222,17 @@ export async function deleteStockItem(
 // UPDATE STOCK ITEM
 // ─────────────────────────────────────────────
 export async function updateStockItem(
-  outletId:    string,
+  outletId: string,
   stockItemId: string,
   input: {
-    name?:          string;
+    name?: string;
     minStockLevel?: number;
-  }
+  },
 ): Promise<ControllerResult<ReturnType<typeof formatStockItem>>> {
   const updateValues: Record<string, unknown> = { updatedAt: new Date() };
-  if (input.name          !== undefined) updateValues.name          = input.name;
-  if (input.minStockLevel !== undefined) updateValues.minStockLevel = input.minStockLevel.toFixed(3);
+  if (input.name !== undefined) updateValues.name = input.name;
+  if (input.minStockLevel !== undefined)
+    updateValues.minStockLevel = input.minStockLevel.toFixed(3);
 
   try {
     const [updated] = await db
@@ -183,15 +240,19 @@ export async function updateStockItem(
       .set(updateValues)
       .where(
         and(
-          eq(stockItems.id,       stockItemId),
+          eq(stockItems.id, stockItemId),
           eq(stockItems.outletId, outletId),
-          eq(stockItems.isActive, true) 
-        )
+          eq(stockItems.isActive, true),
+        ),
       )
       .returning();
 
     if (!updated) {
-      return { success: false, error:"Stock item not found or has been deleted", status: 404 };
+      return {
+        success: false,
+        error: "Stock item not found or has been deleted",
+        status: 404,
+      };
     }
 
     return { success: true, data: formatStockItem(updated) };
@@ -199,30 +260,34 @@ export async function updateStockItem(
     if (isUniqueViolation(error)) {
       return {
         success: false,
-        error:  `A stock item named "${input.name}" already exists in this outlet`,
+        error: `A stock item named "${input.name}" already exists in this outlet`,
         status: 409,
       };
     }
     console.error("updateStockItem error:", error);
-    return { success: false, error: "Failed to update stock item", status: 500 };
+    return {
+      success: false,
+      error: "Failed to update stock item",
+      status: 500,
+    };
   }
 }
 
 // ─────────────────────────────────────────────
-// ADD PURCHASE (restock) -> add the stock 
+// ADD PURCHASE (restock) -> add the stock
 // ─────────────────────────────────────────────
 export async function purchaseStockItem(
-  outletId:    string,
+  outletId: string,
   stockItemId: string,
   input: { quantity: number; note?: string },
-  createdBy?:  string
+  createdBy?: string,
 ): Promise<ControllerResult<{ newStock: number }>> {
   const existing = await db.query.stockItems.findFirst({
     where: (s, { eq, and }) =>
       and(
-        eq(s.id,       stockItemId),
+        eq(s.id, stockItemId),
         eq(s.outletId, outletId),
-        eq(s.isActive, true)
+        eq(s.isActive, true),
       ),
     columns: { id: true },
   });
@@ -234,16 +299,16 @@ export async function purchaseStockItem(
   if (input.quantity <= 0) {
     return {
       success: false,
-      error:  "Purchase quantity must be greater than 0",
+      error: "Purchase quantity must be greater than 0",
       status: 400,
     };
   }
-
+  await restoreProductAvailability(outletId, stockItemId);
   const result = await addStockPurchase({
     outletId,
     stockItemId,
-    quantity:  input.quantity,
-    note:      input.note,
+    quantity: input.quantity,
+    note: input.note,
     createdBy,
   });
 
@@ -251,17 +316,17 @@ export async function purchaseStockItem(
 }
 
 export async function wasteStockItem(
-  outletId:    string,
+  outletId: string,
   stockItemId: string,
   input: { quantity: number; note?: string },
-  createdBy?:  string
+  createdBy?: string,
 ): Promise<ControllerResult<{ newStock: number }>> {
   const existing = await db.query.stockItems.findFirst({
     where: (s, { eq, and }) =>
       and(
-        eq(s.id,       stockItemId),
+        eq(s.id, stockItemId),
         eq(s.outletId, outletId),
-        eq(s.isActive, true)
+        eq(s.isActive, true),
       ),
     columns: { id: true, currentStock: true },
   });
@@ -273,7 +338,7 @@ export async function wasteStockItem(
   if (input.quantity <= 0) {
     return {
       success: false,
-      error:  "Wastage quantity must be greater than 0",
+      error: "Wastage quantity must be greater than 0",
       status: 400,
     };
   }
@@ -281,7 +346,7 @@ export async function wasteStockItem(
   if (input.quantity > Number(existing.currentStock)) {
     return {
       success: false,
-      error:  "Wastage quantity cannot exceed current stock",
+      error: "Wastage quantity cannot exceed current stock",
       status: 400,
     };
   }
@@ -289,8 +354,8 @@ export async function wasteStockItem(
   const result = await logWastage({
     outletId,
     stockItemId,
-    quantity:  input.quantity,
-    note:      input.note,
+    quantity: input.quantity,
+    note: input.note,
     createdBy,
   });
 
@@ -302,9 +367,10 @@ export async function wasteStockItem(
 export async function adjustStockItem(
   outletId:    string,
   stockItemId: string,
-  input: { newQuantity: number; note?: string },
+  input:       { newQuantity: number; note?: string },
   createdBy?:  string
 ): Promise<ControllerResult<{ newStock: number }>> {
+
   const existing = await db.query.stockItems.findFirst({
     where: (s, { eq, and }) =>
       and(
@@ -315,7 +381,7 @@ export async function adjustStockItem(
     columns: { id: true },
   });
 
- if (!existing) {
+  if (!existing) {
     return {
       success: false,
       error:  "Stock item not found or has been deleted",
@@ -331,10 +397,12 @@ export async function adjustStockItem(
     };
   }
 
+  // adjustStock already handles syncProductAvailability
+  // and restoreProductAvailability internally
   const result = await adjustStock({
     outletId,
     stockItemId,
-    newQuantity: input.newQuantity,
+    newQuantity: input.newQuantity, 
     note:        input.note,
     createdBy,
   });
@@ -342,15 +410,14 @@ export async function adjustStockItem(
   return { success: true, data: result };
 }
 
-
 // ─────────────────────────────────────────────
 // MOVEMENT HISTORY (audit trail)
 // ─────────────────────────────────────────────
 export async function getStockMovements(
-  outletId:    string,
+  outletId: string,
   stockItemId: string,
-  limit:       number,
-  offset:      number
+  limit: number,
+  offset: number,
 ) {
   const existing = await db.query.stockItems.findFirst({
     where: (s, { eq, and }) =>
@@ -359,22 +426,23 @@ export async function getStockMovements(
   });
 
   if (!existing) {
-    return { success: false, error: "Stock item not found", status: 404 } as const;
+    return {
+      success: false,
+      error: "Stock item not found",
+      status: 404,
+    } as const;
   }
 
   const [rows, totalResult] = await Promise.all([
     db.query.stockMovements.findMany({
       where: (m, { eq, and }) =>
-        and(
-          eq(m.stockItemId, stockItemId),
-          eq(m.outletId,    outletId)
-        ),
+        and(eq(m.stockItemId, stockItemId), eq(m.outletId, outletId)),
       columns: {
-        id:        true,
-        type:      true,
-        quantity:  true,
-        note:      true,
-        orderId:   true,
+        id: true,
+        type: true,
+        quantity: true,
+        note: true,
+        orderId: true,
         createdAt: true,
       },
       with: {
@@ -393,8 +461,8 @@ export async function getStockMovements(
       .where(
         and(
           eq(stockMovements.stockItemId, stockItemId),
-          eq(stockMovements.outletId,    outletId)
-        )
+          eq(stockMovements.outletId, outletId),
+        ),
       ),
   ]);
 
@@ -404,7 +472,7 @@ export async function getStockMovements(
       stockItem: existing,
       movements: rows.map((m) => ({
         ...m,
-        quantity:    Number(m.quantity),
+        quantity: Number(m.quantity),
         createdByName: (m.createdBy as any)?.name ?? "System",
       })),
       total: Number(totalResult[0]?.count ?? 0),

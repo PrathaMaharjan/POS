@@ -1,10 +1,10 @@
 // ─────────────────────────────────────────────
 // TYPES
-
 import { db } from "@/db";
+import { products } from "@/db/schema";
 // import { stockItems, stockMovements } from "@/db/schema";
-import { stockItems,stockMovements } from "@/db/schema/stock";
-import { and, eq, sql } from "drizzle-orm";
+import { stockItems, stockMovements } from "@/db/schema/stock";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 // ─────────────────────────────────────────────
 interface OrderItemInput {
@@ -16,6 +16,48 @@ interface OrderItemInput {
 interface DeductionResult {
   success: boolean;
   stockWarnings: string[];
+}
+
+// ─────────────────────────────────────────────
+// HELPER — mark product unavailable if stock hits 0
+// ─────────────────────────────────────────────
+async function syncProductAvailability(outletId: string, stockItemId: string) {
+  // get updated stock level
+  const stockItem = await db.query.stockItems.findFirst({
+    where: (s, { eq }) => eq(s.id, stockItemId),
+    columns: { currentStock: true },
+  });
+
+  const currentStock = Number(stockItem?.currentStock ?? 0);
+
+  // find all recipes that use this stock item
+  const affectedRecipes = await db.query.recipeItems.findMany({
+    where: (ri, { eq }) => eq(ri.stockItemId, stockItemId),
+    with: {
+      recipe: {
+        columns: { productId: true, outletId: true },
+      },
+    },
+  });
+
+  // filter recipes belonging to this outlet
+  const outletRecipes = affectedRecipes.filter(
+    (ri) => ri.recipe.outletId === outletId,
+  );
+
+  if (outletRecipes.length === 0) return;
+
+  const productIds = outletRecipes.map((ri) => ri.recipe.productId);
+
+  if (currentStock <= 0) {
+    // stock hit 0 → mark all affected products unavailable
+    await db
+      .update(products)
+      .set({ isAvailable: false, updatedAt: new Date() })
+      .where(
+        and(eq(products.outletId, outletId), inArray(products.id, productIds)),
+      );
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -63,15 +105,6 @@ async function logStockMovement(input: {
 //     [quantity.toFixed(3), stockItemId],
 //   );
 // }
-async function deductFromStock(stockItemId: string, quantity: number) {
-  await db
-    .update(stockItems)
-    .set({
-      currentStock: sql`GREATEST(current_stock - ${quantity.toFixed(3)}::numeric, 0)`,
-      updatedAt: new Date(),
-    })
-    .where(eq(stockItems.id, stockItemId));
-}
 
 // ─────────────────────────────────────────────
 // MAIN — deduct stock for an entire order
@@ -80,6 +113,22 @@ async function deductFromStock(stockItemId: string, quantity: number) {
 /*
 Why created: This is the most important one — called automatically every time an order is placed. Without this, inventory never decreases when food is sold.
 */
+async function deductFromStock(
+  stockItemId: string,
+  outletId: string, // ← add outletId
+  quantity: number,
+) {
+  await db
+    .update(stockItems)
+    .set({
+      currentStock: sql`GREATEST(current_stock - ${quantity.toFixed(3)}::numeric, 0)`,
+      updatedAt: new Date(),
+    })
+    .where(eq(stockItems.id, stockItemId));
+
+  // ← check and update product availability
+  await syncProductAvailability(outletId, stockItemId);
+}
 export async function deductStockForOrder(
   outletId: string,
   orderId: string,
@@ -157,7 +206,7 @@ export async function deductStockForOrder(
         );
       }
       // ── deduct stock regardless (allow but flag) ──
-      await deductFromStock(stockItem.id, requiredAmount);
+      await deductFromStock(stockItem.id, outletId, requiredAmount);
 
       // ── log movement ──
       await logStockMovement({
