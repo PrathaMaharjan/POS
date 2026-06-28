@@ -1,23 +1,53 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifySuperAdminToken } from "@/lib/auth/superAdminJwt";
 
 const ROUTE_ROLE_MAP: Record<string, string[]> = {
-  org: ["Owner"],
-  manager: ["Manager"],
+  org:           ["Owner"],
+  manager:       ["Manager"],
   "pos/cashier": ["Cashier"],
-  "pos/waiter": ["Waiter"],
+  "pos/waiter":  ["Waiter"],
   "pos/kitchen": ["Kitchen Crew"],
 };
 
 const ROLE_HOME: Record<string, string> = {
-  Owner: "org",
-  Manager: "manager",
-  Cashier: "pos/cashier",
-  Waiter: "pos/waiter",
+  Owner:          "org",
+  Manager:        "manager",
+  Cashier:        "pos/cashier",
+  Waiter:         "pos/waiter",
   "Kitchen Crew": "pos/kitchen",
 };
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // ─────────────────────────────────────────────
+  // SUPER ADMIN ROUTES — /admin/*
+  // ─────────────────────────────────────────────
+  if (pathname.startsWith("/platfrom")) {
+
+    // allow login page through
+    if (pathname === "/platfrom/login") {
+      const token   = req.cookies.get("superAdminToken")?.value;
+      const payload = token ? verifySuperAdminToken(token) : null;
+
+      // already logged in → redirect to dashboard
+      if (payload) {
+        return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+      }
+      return NextResponse.next();
+    }
+
+    // protect all other /admin/* routes
+    const token   = req.cookies.get("superAdminToken")?.value;
+    const payload = token ? verifySuperAdminToken(token) : null;
+
+    if (!payload) {
+      return NextResponse.redirect(new URL("/admin/login", req.url));
+    }
+
+    return NextResponse.next();
+  }
+
   /**
    * Use a Regular Expression to check if the path matches a multi-tenant pattern.
    * It looks for paths starting with "/t/", extracts the tenant name, and captures the remaining path.
@@ -35,6 +65,7 @@ export function middleware(req: NextRequest) {
   if (!role) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
+
   /**
    * Find which defined route rule matches the current requested path ('rest').
    * 1. Object.keys(ROUTE_ROLE_MAP) gets all protected route prefixes (['admin', 'kitchen', ...]).
@@ -49,7 +80,7 @@ export function middleware(req: NextRequest) {
   if (matchedRoute) {
     const allowedRoles = ROUTE_ROLE_MAP[matchedRoute];
     if (!allowedRoles.includes(role)) {
-      const home = ROLE_HOME[role] ?? "admin";
+      const home = ROLE_HOME[role] ?? "org";
       return NextResponse.redirect(
         new URL(`/t/${tenantSlug}/${home}`, req.url),
       );
@@ -60,5 +91,8 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/t/:path*"],
+  matcher: [
+    "/platfrom/:path*", // ← super admin routes
+    "/t/:path*",     // ← tenant routes
+  ],
 };

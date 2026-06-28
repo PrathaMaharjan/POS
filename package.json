@@ -14,7 +14,8 @@
     "db:seed": "tsx src/db/seed/permission.ts",
     "db:seed:dev": "tsx src/db/seed/cashier.ts",
     "db:seed:waiter-kitchen": "tsx src/db/seed/dev-waiter-kitchen.ts",
-    "db:seed:manager": "tsx src/db/seed/dev-manager.ts"
+    "db:seed:manager": "tsx src/db/seed/dev-manager.ts",
+    "seed:admin":"tsx src/db/seed/seedSuperAdmin.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",

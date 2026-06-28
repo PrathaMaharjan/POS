@@ -22,6 +22,7 @@ export const organizations = pgTable("organizations", {
   name: varchar("name", { length: 255 }).notNull(),
   slug: varchar("slug", { length: 100 }).notNull().unique(),
   logo: text("logo"), // nullable, stores URL/path to logo image, default null
+  isActive: boolean("is_active").notNull().default(true),
   status: orgStatusEnum("status").default("trial").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -115,6 +116,15 @@ export const refreshTokens = pgTable(
   },
   (table) => [index("refresh_tokens_user_idx").on(table.userId as any)],
 );
+export const superAdmins = pgTable("super_admins", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
 
 export const organizationsRelations = relations(organizations, ({ many }) => ({
   users: many(users),
