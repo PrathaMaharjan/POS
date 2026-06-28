@@ -315,7 +315,7 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
                     const rawOrder = rawOrderData.find((o: any) => o.id === order.id);
                     const tickets = rawOrder?.kotTickets ?? [];
                     const isFoodReady = tickets.length > 0 && tickets.every((t: any) => t.status === 'ready' || t.status === 'served');
-                    const showDeliveryButton = role !== 'waiter' || isFoodReady || isDelivered;
+                    const showDeliveryButton = isFoodReady || isDelivered;
 
                     const hasPreparing = tickets.some((t: any) => t.status === 'preparing');
                     const hasPending = tickets.some((t: any) => t.status === 'pending');

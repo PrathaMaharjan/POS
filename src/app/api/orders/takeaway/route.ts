@@ -6,17 +6,17 @@ import { placeAndPayTakeawayOrder } from "@/controller/orderController";
 import { requiredPermission } from "@/lib/permissions/requirePermission";
 
 const schema = z.object({
-  customerName:  z.string().optional(),
+  customerName: z.string().optional(),
   customerPhone: z.string().optional(),
   items: z.array(
     z.object({
       productId: z.string().uuid(),
-      quantity:  z.number().int().min(1),
-      notes:     z.string().optional(),
+      quantity: z.number().int().min(1),
+      notes: z.string().optional(),
     })
   ).min(1, "At least one item is required"),
   payment: z.object({
-    method:         z.enum(["cash", "card", "qr"]),
+    method: z.enum(["cash", "card", "qr"]),
     amountTendered: z.number().positive("Amount must be greater than 0"),
   }),
 });

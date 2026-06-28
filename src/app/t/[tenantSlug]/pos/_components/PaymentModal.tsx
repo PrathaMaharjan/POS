@@ -95,12 +95,13 @@ export default function PaymentModal({
         };
 
         const res = await api.post('/orders/takeaway', payload);
+
         setPaymentResult(res.data);
         setIsSuccess(true);
         return;
       }
 
-      // Existing DINE_IN logic:
+
       const targetOrders = ordersList && ordersList.length > 0
         ? ordersList
         : (orderId ? [{ id: orderId, total: grandTotal }] : []);
@@ -121,7 +122,6 @@ export default function PaymentModal({
           const o = targetOrders[i];
           const orderTotal = Number(o.total);
 
-          // Pay the full total if we have enough cash, else pay whatever is left
           const payAmount = Math.min(cashLeft, orderTotal);
 
           const res = await api.post(`/orders/${o.id}/payment`, {
@@ -132,7 +132,7 @@ export default function PaymentModal({
           cashLeft = Math.max(cashLeft - payAmount, 0);
         }
 
-        // Change due is the remaining cash after paying all orders
+
         totalChangeDue = Number(cashLeft.toFixed(2));
         if (lastResData) {
           lastResData.changeDue = totalChangeDue;
@@ -275,8 +275,8 @@ export default function PaymentModal({
                       type="button"
                       onClick={() => setPaymentMethod(id)}
                       className={`py-3 rounded-xl text-sm font-semibold border transition-all duration-150 flex items-center justify-center gap-2 ${isSelected
-                          ? 'bg-[#e5b83b] text-[#0c0c0d] border-[#e5b83b]'
-                          : 'bg-[#0c0c0d] text-neutral-400 border-neutral-800 hover:border-neutral-600 hover:text-white'
+                        ? 'bg-[#e5b83b] text-[#0c0c0d] border-[#e5b83b]'
+                        : 'bg-[#0c0c0d] text-neutral-400 border-neutral-800 hover:border-neutral-600 hover:text-white'
                         }`}
                     >
                       <span className={isSelected ? 'text-[#0c0c0d]' : 'text-[#e5b83b]'}>
