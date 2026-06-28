@@ -133,7 +133,7 @@ function TableCard({
   const isRound = table.shape === 'round';
 
   const renderStatusIcon = () => {
-    if (isReadyToServe) return <CheckCircle2 className="w-7 h-7 text-[#22c55e]" strokeWidth={1.75} />;
+    if (isReadyToServe) return <CheckCircle2 className="w-7 h-7 text-[#f97316]" strokeWidth={1.75} />;
     switch (table.status) {
       case 'occupied': return <Users className={`w-7 h-7 ${cfg.iconColor}`} strokeWidth={1.75} />;
       case 'reserved': return <Bookmark className={`w-7 h-7 ${cfg.iconColor}`} strokeWidth={1.75} />;
@@ -164,12 +164,12 @@ function TableCard({
         ${isDragging
           ? 'shadow-[0_8px_32px_rgba(0,0,0,0.5)] scale-105 opacity-90'
           : isReadyToServe
-            ? 'border-[#22c55e] shadow-[0_0_20px_rgba(34,197,94,0.35)] animate-[pulse_1.8s_infinite] scale-[1.02]'
+            ? 'border-[#f97316] shadow-[0_0_20px_rgba(249,115,22,0.35)] animate-[pulse_1.8s_infinite] scale-[1.02]'
             : `${cfg.borderColor} ${cfg.shadowColor}`}
       `}
     >
       {isReadyToServe && !isDragging && (
-        <span className="absolute -top-2 bg-[#22c55e] text-[#0a1a0f] text-[9px] font-black tracking-wider px-2 py-0.5 rounded-md uppercase shadow-lg">
+        <span className="absolute -top-2 bg-[#f97316] text-white text-[9px] font-black tracking-wider px-2 py-0.5 rounded-md uppercase shadow-lg">
           READY
         </span>
       )}
@@ -420,7 +420,6 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
   const occupancyPct = total > 0 ? Math.round((occupied / total) * 100) : 0;
 
   const checkTableReadyState = (tableLabel: string) => {
-    if (role !== 'waiter') return false;
     return activeOrders.some(
       order => order.tableName === tableLabel && order.ticketState === 'DONE' && order.type === 'DINE_IN'
     );

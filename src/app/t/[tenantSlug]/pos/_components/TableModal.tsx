@@ -184,34 +184,34 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
   }
 
   async function toggleDelivery(orderId: string) {
-  const isCurrentlyDelivered = !!deliveredOrders[orderId];
-  const newDeliveredState = !isCurrentlyDelivered;
+    const isCurrentlyDelivered = !!deliveredOrders[orderId];
+    const newDeliveredState = !isCurrentlyDelivered;
 
-  setDeliveredOrders(prev => ({ ...prev, [orderId]: newDeliveredState }));
+    setDeliveredOrders(prev => ({ ...prev, [orderId]: newDeliveredState }));
 
-  try {
-    const currentOrder = rawOrderData.find((o: any) => o.id === orderId);
-    if (currentOrder && currentOrder.kotTickets) {
-      const nextStatus = newDeliveredState ? 'served' : 'ready';
-      
-      // 1. Update all tickets on the server concurrently and wait for completion
-      await Promise.all(
-        currentOrder.kotTickets.map((ticket: any) =>
-          api.patch(`/kot/${ticket.id}`, { status: nextStatus })
-        )
-      );
+    try {
+      const currentOrder = rawOrderData.find((o: any) => o.id === orderId);
+      if (currentOrder && currentOrder.kotTickets) {
+        const nextStatus = newDeliveredState ? 'served' : 'ready';
 
-      // 2. Once server updates succeed, update local status and trigger parent notification
-      for (const ticket of currentOrder.kotTickets) {
-        ticket.status = nextStatus;
-        onKotStatusChange?.(ticket.id, nextStatus);
+        // 1. Update all tickets on the server concurrently and wait for completion
+        await Promise.all(
+          currentOrder.kotTickets.map((ticket: any) =>
+            api.patch(`/kot/${ticket.id}`, { status: nextStatus })
+          )
+        );
+
+        // 2. Once server updates succeed, update local status and trigger parent notification
+        for (const ticket of currentOrder.kotTickets) {
+          ticket.status = nextStatus;
+          onKotStatusChange?.(ticket.id, nextStatus);
+        }
       }
+    } catch (err) {
+      console.error("Failed to update status from TableModal:", err);
+      setDeliveredOrders(prev => ({ ...prev, [orderId]: isCurrentlyDelivered }));
     }
-  } catch (err) {
-    console.error("Failed to update status from TableModal:", err);
-    setDeliveredOrders(prev => ({ ...prev, [orderId]: isCurrentlyDelivered }));
   }
-}
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
@@ -334,19 +334,19 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
                                 {isDelivered ? 'Delivered' : 'Pending Delivery'}
                               </span>
 
-<button
-  type="button"
-  disabled={isDeleting}
-  onClick={() => deleteOrder(order.id)}
-  className="ml-1 p-1 rounded-md text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150 disabled:opacity-40"
-  title="Cancel Order"
->
-  {isDeleting ? (
-    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-  ) : (
-    <Trash2 className="w-3.5 h-3.5" />
-  )}
-</button>
+                              <button
+                                type="button"
+                                disabled={isDeleting}
+                                onClick={() => deleteOrder(order.id)}
+                                className="ml-1 p-1 rounded-md text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150 disabled:opacity-40"
+                                title="Cancel Order"
+                              >
+                                {isDeleting ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                )}
+                              </button>
                             </div>
                             <p className="text-[11px] text-neutral-500 mt-0.5">
                               {new Date(order.createdAt).toLocaleString()}
@@ -364,8 +364,23 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
                           ))}
                         </div>
 
-                        <div className="pt-2 border-t border-neutral-900/40 flex justify-end">
-                          {role !== 'cashier' && showDeliveryButton ? (
+                        <div className="pt-2 border-t border-neutral-900/40 flex items-center justify-between gap-2">
+                          <div>
+                            {!isDelivered && (
+                              <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wide uppercase px-2.5 py-1.5 rounded-lg border border-neutral-900 bg-neutral-950/20 text-neutral-500">
+                                <span className={`w-1.5 h-1.5 rounded-full ${
+                                  isFoodReady 
+                                    ? 'bg-[#f97316]' 
+                                    : hasPreparing 
+                                      ? 'bg-blue-500 animate-pulse' 
+                                      : 'bg-[#e5b83b]/60'
+                                }`} />
+                                Kitchen: {isFoodReady ? 'Ready' : (hasPreparing ? 'Preparing' : (hasPending ? 'Pending' : 'Queueing'))}
+                              </div>
+                            )}
+                          </div>
+
+                          {showDeliveryButton && (
                             <button
                               type="button"
                               onClick={() => toggleDelivery(order.id)}
@@ -376,13 +391,6 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
                             >
                               {isDelivered ? 'Mark Undelivered' : 'Mark Delivered'}
                             </button>
-                          ) : (
-                            role === 'cashier' && isDelivered ? null : (
-                              <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wide uppercase px-2.5 py-1.5 rounded-lg border border-neutral-900 bg-neutral-950/20 text-neutral-500">
-                                <span className={`w-1.5 h-1.5 rounded-full ${hasPreparing ? 'bg-blue-500 animate-pulse' : 'bg-[#e5b83b]/60'}`} />
-                                Kitchen: {hasPreparing ? 'Preparing' : (hasPending ? 'Pending' : 'Queueing')}
-                              </div>
-                            )
                           )}
                         </div>
                       </div>
