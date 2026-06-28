@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, Fragment } from "react";
 import {
   Plus, X, Pencil, Trash2, Search,
   Package, PackageCheck, PackageX, AlertTriangle,
-  ChevronDown, Scale, Loader2
+  ChevronDown, Scale, Loader2, Sliders, History
 } from "lucide-react";
 import api from "@/lib/api";
 
@@ -53,6 +53,19 @@ export default function ManagerInventoryPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 8;
+
+  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+  const [adjustingMaterial, setAdjustingMaterial] = useState<Material | null>(null);
+  const [adjustForm, setAdjustForm] = useState({ newQuantity: "" as number | "", note: "" });
+  const [adjusting, setAdjusting] = useState(false);
+
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicateName, setDuplicateName] = useState("");
+
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [movements, setMovements] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyDateFilter, setHistoryDateFilter] = useState("");
 
   const fetchMaterials = useCallback(async () => {
     setLoading(true);
@@ -105,6 +118,19 @@ export default function ManagerInventoryPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) return;
+
+
+    const normalizedNewName = form.name.trim().toLowerCase();
+    const isDuplicate = materials.some(m =>
+      m.name.toLowerCase() === normalizedNewName &&
+      (!editingMaterial || m.id !== editingMaterial.id)
+    );
+    if (isDuplicate) {
+      setDuplicateName(form.name.trim());
+      setShowDuplicateModal(true);
+      return;
+    }
+
     setSaving(true);
     try {
       if (editingMaterial) {
@@ -122,8 +148,13 @@ export default function ManagerInventoryPage() {
       }
       await fetchMaterials();
       closeModal();
-    } catch (error) {
-      console.error("Error saving inventory item:", error);
+    } catch (error: any) {
+      if (error.response?.status === 409) {
+        setDuplicateName(form.name.trim());
+        setShowDuplicateModal(true);
+      } else {
+        console.error("Error saving inventory item:", error);
+      }
     } finally {
       setSaving(false);
     }
@@ -142,26 +173,59 @@ export default function ManagerInventoryPage() {
     }
   }
 
-  async function handlePurchase(id: string) {
+  function openAdjust(m: Material) {
+    setAdjustingMaterial(m);
+    setAdjustForm({ newQuantity: m.currentStock, note: "" });
+    setIsAdjustModalOpen(true);
+  }
+
+  function closeAdjustModal() {
+    setIsAdjustModalOpen(false);
+    setAdjustingMaterial(null);
+    setAdjustForm({ newQuantity: "", note: "" });
+  }
+
+  async function handleSaveAdjust(e: React.FormEvent) {
+    e.preventDefault();
+    if (!adjustingMaterial || adjustForm.newQuantity === "") return;
+    setAdjusting(true);
     try {
-      const res = await api.post(`/inventory/${id}/purchase`, { quantity: 1 });
+      const res = await api.post(`/inventory/${adjustingMaterial.id}/adjustment`, {
+        newQuantity: Number(adjustForm.newQuantity),
+        note: adjustForm.note.trim() || undefined,
+      });
       const { newStock } = res.data;
       setMaterials(prev => prev.map(m =>
-        m.id === id
+        m.id === adjustingMaterial.id
           ? { ...m, currentStock: newStock, isOutOfStock: newStock <= 0, isLowStock: newStock <= m.minStockLevel && m.minStockLevel > 0 }
           : m
       ));
+      closeAdjustModal();
     } catch (error) {
-      console.error("Error purchasing stock item:", error);
+      console.error("Error adjusting stock item:", error);
+    } finally {
+      setAdjusting(false);
     }
   }
 
-  function handleDecrement(id: string) {
-    setMaterials(prev => prev.map(m => {
-      if (m.id !== id) return m;
-      const newStock = Math.max(0, Number((m.currentStock - 1).toFixed(3)));
-      return { ...m, currentStock: newStock, isOutOfStock: newStock <= 0, isLowStock: newStock <= m.minStockLevel && m.minStockLevel > 0 };
-    }));
+  async function toggleExpandRow(itemId: string) {
+    if (expandedItemId === itemId) {
+      setExpandedItemId(null);
+      setMovements([]);
+      setHistoryDateFilter("");
+      return;
+    }
+    setExpandedItemId(itemId);
+    setHistoryDateFilter("");
+    setLoadingHistory(true);
+    try {
+      const res = await api.get(`/inventory/${itemId}/movement`);
+      setMovements(res.data.movements ?? []);
+    } catch (error) {
+      console.error("Error fetching movement history:", error);
+    } finally {
+      setLoadingHistory(false);
+    }
   }
 
   return (
@@ -170,7 +234,7 @@ export default function ManagerInventoryPage() {
       <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Raw Materials Inventory</h1>
-          <p className="text-sm text-emerald-100/80 mt-1">Track store ingredients, weight metrics, and kitchen stock constraints</p>
+
         </div>
         <button
           onClick={openAdd}
@@ -181,52 +245,51 @@ export default function ManagerInventoryPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Total Commodities", value: stats.total, icon: <Package className="h-5 w-5" />, iconBg: "bg-slate-50 text-slate-600" },
-          { label: "Optimal Stock", value: stats.inStock, icon: <PackageCheck className="h-5 w-5" />, iconBg: "bg-emerald-50 text-emerald-600" },
-          { label: "Critical Stock", value: stats.lowStock, icon: <AlertTriangle className="h-5 w-5" />, iconBg: "bg-amber-50 text-amber-600" },
-          { label: "Depleted Items", value: stats.outOfStock, icon: <PackageX className="h-5 w-5" />, iconBg: "bg-red-50 text-red-500" },
+          { label: "Total Ingredients", value: stats.total, border: "border-l-slate-400", iconBg: "bg-slate-50 text-slate-600", icon: <Package className="h-5 w-5 sm:h-6 sm:w-6" /> },
+          { label: "Optimal Stock", value: stats.inStock, border: "border-l-emerald-500", iconBg: "bg-emerald-50 text-emerald-600", icon: <PackageCheck className="h-5 w-5 sm:h-6 sm:w-6" /> },
+          { label: "Critical Stock", value: stats.lowStock, border: "border-l-amber-500", iconBg: "bg-amber-50 text-amber-600", icon: <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6" /> },
+          { label: "No stock", value: stats.outOfStock, border: "border-l-red-500", iconBg: "bg-red-50 text-red-500", icon: <PackageX className="h-5 w-5 sm:h-6 sm:w-6" /> },
         ].map(s => (
-          <div key={s.label} className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${s.iconBg}`}>{s.icon}</div>
+          <div key={s.label} className={`rounded-xl border-l-4 ${s.border} border border-slate-200 bg-white p-4 sm:p-5 shadow-sm flex items-center justify-between`}>
             <div>
-              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{s.label}</p>
-              <p className="text-xl font-bold text-slate-800">{s.value}</p>
+              <p className="text-[10px] sm:text-xs font-medium text-slate-400 uppercase tracking-wider">{s.label}</p>
+              <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1 break-all">{s.value}</p>
+            </div>
+            <div className={`flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl ${s.iconBg}`}>
+              {s.icon}
             </div>
           </div>
         ))}
       </div>
 
-
+      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search ingredients (sugar, milk...)"
+            placeholder="Search ingredients"
             value={search}
             onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
             className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
         </div>
-        <div className="flex gap-2 flex-wrap">
-          {(["ALL", "in_stock", "low_stock", "out_of_stock"] as const).map(s => (
-            <button
-              key={s}
-              onClick={() => { setStockFilter(s); setCurrentPage(1); }}
-              className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${stockFilter === s
-                ? "bg-emerald-600 text-white border-emerald-600"
-                : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"
-                }`}
-            >
-              {s === "ALL" ? "All Volumes" : s === "in_stock" ? "Stable" : s === "low_stock" ? "Low Alert" : "Depleted"}
-            </button>
-          ))}
-        </div>
+        <select
+          value={stockFilter}
+          onChange={e => { setStockFilter(e.target.value as typeof stockFilter); setCurrentPage(1); }}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-600 focus:border-emerald-500 focus:outline-none"
+        >
+          <option value="ALL">All Volumes</option>
+          <option value="in_stock">Stable</option>
+          <option value="low_stock">Low Alert</option>
+          <option value="out_of_stock">Depleted</option>
+        </select>
       </div>
 
-
+      {/* Table */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -257,51 +320,150 @@ export default function ManagerInventoryPage() {
                 const stockLevel = getStockLevel(material);
                 const stockStyle = STOCK_STYLE[stockLevel];
                 return (
-                  <tr key={material.id} className="hover:bg-slate-50/50 transition-colors text-slate-700">
-                    {/* Name only — no ID */}
-                    <td className="py-3 px-4">
-                      <p className="font-semibold text-slate-800">{material.name}</p>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleDecrement(material.id)}
-                          className="w-6 h-6 flex items-center justify-center rounded-md border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 font-bold transition-colors"
-                        >-</button>
-                        <span className="font-bold text-slate-800 min-w-12 text-center">
+                  <Fragment key={material.id}>
+                    <tr
+                      onClick={() => toggleExpandRow(material.id)}
+                      className={`hover:bg-slate-50/50 transition-colors text-slate-700 cursor-pointer ${expandedItemId === material.id ? "bg-slate-50/50 border-l-2 border-emerald-500" : ""
+                        }`}
+                    >
+
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ${expandedItemId === material.id ? "rotate-180 text-emerald-600 animate-pulse" : ""
+                            }`} />
+                          <span className="font-semibold text-slate-800">{material.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="font-bold text-slate-800">
                           {material.currentStock} <span className="text-xs font-normal text-slate-400">{material.unit}</span>
                         </span>
-                        <button
-                          onClick={() => handlePurchase(material.id)}
-                          className="w-6 h-6 flex items-center justify-center rounded-md border border-slate-200 text-slate-400 hover:text-emerald-500 hover:border-emerald-200 font-bold transition-colors"
-                        >+</button>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 font-medium text-slate-500">
-                      &lt; {material.minStockLevel} {material.unit}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${stockStyle.bg} ${stockStyle.text}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${stockStyle.dot}`} />
-                        {stockStyle.label}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-xs text-slate-500 font-medium">
-                      {new Date(material.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => openEdit(material)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => setDeleteConfirmId(material.id)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="py-3 px-4 font-medium text-slate-500">
+                        &lt; {material.minStockLevel} {material.unit}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${stockStyle.bg} ${stockStyle.text}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${stockStyle.dot}`} />
+                          {stockStyle.label}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-xs text-slate-500 font-medium">
+                        {new Date(material.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={(e) => { e.stopPropagation(); openAdjust(material); }}
+                            title="Adjust Stock"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors">
+                            <Sliders className="w-4 h-4" />
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); openEdit(material); }}
+                            title="Edit Details"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(material.id); }}
+                            title="Delete"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedItemId === material.id && (
+                      <tr className="bg-slate-50/30">
+                        <td colSpan={6} className="px-4 py-4 border-b border-slate-100">
+                          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm w-full animate-in slide-in-from-top-2 duration-200">
+
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                <History className="w-3.5 h-3.5" /> Stock Movement History
+                              </h4>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400 font-semibold">Filter by Date:</span>
+                                <input
+                                  type="date"
+                                  value={historyDateFilter}
+                                  onChange={e => setHistoryDateFilter(e.target.value)}
+                                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 focus:border-emerald-500 focus:outline-none"
+                                />
+                                {historyDateFilter && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setHistoryDateFilter("")}
+                                    className="text-xs text-slate-400 hover:text-red-500 font-semibold transition-colors"
+                                  >
+                                    Clear
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {loadingHistory ? (
+                              <div className="py-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin text-emerald-500" /> Loading logs...
+                              </div>
+                            ) : movements.length === 0 ? (
+                              <p className="text-xs text-slate-400 py-2">No stock movements recorded for this item.</p>
+                            ) : (() => {
+                              const filteredMovements = movements.filter((m: any) => {
+                                if (!historyDateFilter) return true;
+                                const mDate = new Date(m.createdAt).toISOString().split("T")[0];
+                                return mDate === historyDateFilter;
+                              });
+
+                              if (filteredMovements.length === 0) {
+                                return <p className="text-xs text-slate-400 py-2">No stock movements recorded on this date.</p>;
+                              }
+
+                              return (
+                                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                                  {filteredMovements.map((m: any) => {
+                                    let badgeColor = "bg-slate-100 text-slate-600 border-slate-200";
+                                    if (m.type === "purchase") badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
+                                    if (m.type === "wastage") badgeColor = "bg-red-50 text-red-700 border-red-100";
+                                    if (m.type === "adjustment") badgeColor = "bg-amber-50 text-amber-700 border-amber-100";
+
+                                    return (
+                                      <div key={m.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors text-xs">
+                                        <div className="flex items-start gap-2.5">
+                                          <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase border shrink-0 ${badgeColor}`}>
+                                            {m.type}
+                                          </span>
+                                          <div>
+                                            <p className="font-semibold text-slate-800">
+                                              {m.type === "purchase" ? "+" : m.type === "wastage" ? "-" : ""}
+                                              {m.quantity} <span className="text-[10px] font-normal text-slate-400">{material.unit}</span>
+                                            </p>
+                                            {m.note && (
+                                              <p className="text-slate-500 mt-0.5 font-medium">
+                                                Note: {m.note}
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="text-right flex flex-col items-end shrink-0 text-[10px]">
+                                          <p className="text-slate-400">
+                                            {new Date(m.createdAt).toLocaleString()}
+                                          </p>
+                                          {m.createdBy?.name && (
+                                            <p className="font-semibold text-slate-500 mt-0.5">
+                                              by {m.createdBy.name}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -335,7 +497,7 @@ export default function ManagerInventoryPage() {
         )}
       </div>
 
-
+      {/* Delete Confirmation */}
       {deleteConfirmId && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 w-full max-w-sm rounded-xl shadow-xl overflow-hidden">
@@ -361,7 +523,7 @@ export default function ManagerInventoryPage() {
         </div>
       )}
 
-
+      {/* Add / Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={closeModal}>
           <div className="bg-white border border-slate-200 w-full max-w-lg rounded-xl shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -379,7 +541,7 @@ export default function ManagerInventoryPage() {
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Ingredient Name</label>
                   <input
-                    type="text" required placeholder="e.g. Sugar, Milk, Coffee Beans"
+                    type="text" required placeholder=""
                     value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
                   />
@@ -389,7 +551,7 @@ export default function ManagerInventoryPage() {
                     <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Stock Quantity</label>
                     <input
                       type="number" step="0.01" min={0}
-                      placeholder="e.g. 25"
+                      placeholder=""
                       disabled={!!editingMaterial}
                       value={form.currentStock}
                       onChange={e => setForm(p => ({ ...p, currentStock: e.target.value === "" ? "" : Number(e.target.value) }))}
@@ -415,7 +577,7 @@ export default function ManagerInventoryPage() {
                   <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Low Stock Warning Threshold</label>
                   <input
                     type="number" step="0.1" min={0}
-                    placeholder="e.g. 10"
+                    placeholder=""
                     value={form.minStockLevel}
                     onChange={e => setForm(p => ({ ...p, minStockLevel: e.target.value === "" ? "" : Number(e.target.value) }))}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
@@ -435,6 +597,94 @@ export default function ManagerInventoryPage() {
           </div>
         </div>
       )}
+
+
+
+      {isAdjustModalOpen && adjustingMaterial && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={closeAdjustModal}>
+          <div className="bg-white border border-slate-200 w-full max-w-lg rounded-xl shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="relative flex flex-col items-center p-6 bg-emerald-600 text-white">
+              <Sliders className="h-7 w-7 mb-1" />
+              <h3 className="text-xl font-semibold">
+                Adjust Stock Level
+              </h3>
+
+              <button onClick={closeAdjustModal} className="absolute right-6 top-6 rounded-md p-1.5 text-emerald-100 hover:bg-white/10 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <form onSubmit={handleSaveAdjust} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">New Stock Count</label>
+                    <input
+                      type="number" step="0.001" min={0} required
+                      placeholder="e.g. 17.5"
+                      value={adjustForm.newQuantity}
+                      onChange={e => setAdjustForm(p => ({ ...p, newQuantity: e.target.value === "" ? "" : Number(e.target.value) }))}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Unit</label>
+                    <input
+                      type="text" disabled
+                      value={adjustingMaterial.unit}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-400 bg-slate-50 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Adjustment Reason / Note</label>
+                  <input
+                    type="text" placeholder=""
+                    value={adjustForm.note} onChange={e => setAdjustForm(p => ({ ...p, note: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <div className="flex gap-3 pt-4 border-t border-slate-100">
+                  <button type="button" onClick={closeAdjustModal}
+                    className="flex-1 rounded-lg border border-slate-200 bg-slate-50 py-2.5 text-sm font-medium text-slate-600">Cancel</button>
+                  <button type="submit" disabled={adjusting}
+                    className="flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 py-2.5 text-sm font-medium text-white shadow-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+                    {adjusting && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {adjusting ? "Adjusting..." : "Apply Adjustment"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate Alert Modal */}
+      {showDuplicateModal && (
+        <div className="fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 w-full max-w-sm rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="flex flex-col items-center text-center gap-3 p-6 border-b border-slate-100">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-500">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Already Exists</h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  A raw material named <span className="font-semibold text-slate-800">&quot;{duplicateName}&quot;</span> already exists in your inventory.
+                </p>
+              </div>
+            </div>
+            <div className="p-4 bg-slate-50 flex justify-end">
+              <button
+                onClick={() => setShowDuplicateModal(false)}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm py-2.5 rounded-lg transition-colors"
+              >
+                Okay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
