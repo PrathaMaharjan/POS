@@ -21,6 +21,7 @@ interface MenuItem {
   categoryId: string;
   price: number;
   imageUrl: string | null;
+  description?: string | null;
 }
 
 interface FormDraft {
@@ -171,7 +172,7 @@ export default function MenuManagement() {
       name: item.name,
       categoryId: item.categoryId,
       price: String(item.price),
-      description: "",
+      description: item.description ?? "",
     });
     setImageFile(null);
     setImagePreview(null);
@@ -427,9 +428,14 @@ export default function MenuManagement() {
                 </div>
 
                 <div className="p-3 flex flex-col gap-2.5 flex-1 justify-between">
-                  <div className="flex justify-between items-start gap-2">
-                    <h4 className="text-sm font-semibold text-slate-800 line-clamp-2 break-words">{item.name}</h4>
-                    <span className="text-sm font-bold text-emerald-600 shrink-0 whitespace-nowrap">Rs.{Number(item.price).toFixed(2)}</span>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between items-start gap-2">
+                      <h4 className="text-sm font-semibold text-slate-800 line-clamp-2 break-words">{item.name}</h4>
+                      <span className="text-sm font-bold text-emerald-600 shrink-0 whitespace-nowrap">Rs.{Number(item.price).toFixed(2)}</span>
+                    </div>
+                    {item.description && (
+                      <p className="text-xs text-slate-500 line-clamp-2 break-words mt-0.5">{item.description}</p>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => openEdit(item)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-slate-100 hover:bg-emerald-600 text-slate-500 hover:text-white text-xs font-semibold transition-colors">

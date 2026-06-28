@@ -421,6 +421,11 @@ export default function Order({
                       </div>
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[13px] font-semibold truncate" style={{ color: textPrim }}>{product.name}</span>
+                        {product.description && (
+                          <span className="text-[11px] line-clamp-2 break-words" style={{ color: textMuted }}>
+                            {product.description}
+                          </span>
+                        )}
                         <span className="text-sm font-bold" style={{ color: accent }}>Rs.{priceNum.toFixed(2)}</span>
                       </div>
                     </div>

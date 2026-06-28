@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 export interface AccessTokenPayload {
   userId: string;
   organizationId: string;
-   role: string | null;  
+  role: string | null;
   activeOutletId: string | null;
   permissions: string[];
 }
@@ -19,7 +19,7 @@ const ACCESS_EXPIRES_IN = process.env.JWT_ACCESS_EXPIRES_IN || "15m";
 const REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || "7d";
 
 export function signAccessToken(payload: AccessTokenPayload) {
-  return jwt.sign(payload, ACCESS_SECRET, { expiresIn: ACCESS_EXPIRES_IN });
+  return jwt.sign(payload, ACCESS_SECRET, { expiresIn: ACCESS_EXPIRES_IN as any });
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
@@ -27,7 +27,7 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
 }
 
 export function signRefreshToken(payload: RefreshTokenPayload) {
-  return jwt.sign(payload, REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES_IN });
+  return jwt.sign(payload, REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES_IN as any });
 }
 
 export function verifyRefreshToken(token: string): RefreshTokenPayload {

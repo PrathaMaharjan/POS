@@ -1,486 +1,650 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   TrendingUp,
   ShoppingBag,
   DollarSign,
   Users,
-  Calendar,
   Store,
-  ArrowUpRight,
   PieChart,
-  BarChart3,
   UtensilsCrossed,
   Award,
-  ChevronDown
+  ChevronDown,
+  GitCompare,
+  Loader2,
 } from "lucide-react";
+import api from "@/lib/api";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell,
+  RadialBarChart,
+  RadialBar,
+} from "recharts";
 
-// Mock Outlets
-const OUTLETS = [
-  { id: "all", name: "All Branches Combined" },
-  { id: "1", name: "Kathmandu Main Branch" },
-  { id: "2", name: "Lalitpur Hub" },
-  { id: "3", name: "Pokhara Lakeside" }
+
+
+interface OutletOption {
+  id: string;
+  name: string;
+}
+
+interface DashboardSummary {
+  totalRevenue: number;
+  totalOrders: number;
+  avgOrderValue: number;
+  activeStaff: number;
+}
+
+interface SalesTrendItem {
+  label: string;
+  total: number;
+  count: number;
+}
+
+interface PaymentShareDetails {
+  total: number;
+  count: number;
+  percentage: number;
+}
+
+interface PaymentShare {
+  netSettledAmount: number;
+  breakdown: {
+    cash?: PaymentShareDetails;
+    card?: PaymentShareDetails;
+    qr?: PaymentShareDetails;
+  };
+}
+
+interface PopularMenuItem {
+  name: string;
+  categoryName: string;
+  totalSold: number;
+  grossSales: number;
+}
+
+interface StaffLeaderboardItem {
+  rank: number;
+  staffName: string;
+  totalOrders: number;
+  totalVolume: number;
+}
+
+interface OrgReportData {
+  period: string;
+  outletId: string | null;
+  summary: DashboardSummary;
+  salesTrend: SalesTrendItem[];
+  paymentShare: PaymentShare;
+  popularItems: PopularMenuItem[];
+  leaderboard: StaffLeaderboardItem[];
+}
+
+interface UIPaymentItem {
+  method: string;
+  percent: number;
+  amount: number;
+  color: string;
+  text: string;
+  orders: number;
+  barColor: string;
+}
+
+interface UIPopularMenuItem {
+  name: string;
+  category: string;
+  sold: number;
+  revenue: number;
+}
+
+interface UIStaffItem {
+  name: string;
+  orders: number;
+  revenue: number;
+  rank: number;
+}
+
+interface UIReportData {
+  revenue: number;
+  orders: number;
+  aov: number;
+  staffCount: number;
+  trendData: { label: string; revenue: number; orders: number }[];
+  items: UIPopularMenuItem[];
+  staff: UIStaffItem[];
+  payments: UIPaymentItem[];
+}
+
+interface BranchComparisonItem {
+  name: string;
+  revenue: number;
+  orders: number;
+  fill: string;
+}
+
+
+const BRANCH_COLORS = [
+  "#10b981",
+  "#6366f1",
+  "#f59e0b",
+  "#ef4444",
+  "#3b82f6",
+  "#a855f7",
+  "#14b8a6",
+  "#f97316",
 ];
 
-// Simulated Data sets based on Outlet & Period
-const DATA_STORE: Record<string, any> = {
-  all: {
-    "7days": {
-      revenue: 1071500,
-      orders: 3180,
-      aov: 336.95,
-      staffCount: 8,
-      trend: [138000, 152000, 125000, 169000, 144000, 175000, 168500],
-      trendLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-      items: [
-        { name: "Buff Momo", category: "Appetizer", sold: 1020, revenue: 153000 },
-        { name: "Chicken Biryani", category: "Main Course", sold: 650, revenue: 227500 },
-        { name: "Iced Latte", category: "Beverage", sold: 880, revenue: 220000 },
-        { name: "Iced Matcha", category: "Beverage", sold: 560, revenue: 140000 }
-      ],
-      staff: [
-        { name: "Prakash Thapa", orders: 1290, revenue: 435000, rank: 1 },
-        { name: "Kang Roy", orders: 1010, revenue: 375000, rank: 2 },
-        { name: "Aisha Karki", orders: 880, revenue: 261500, rank: 3 }
-      ],
-      payments: [
-        { method: "QR Payment", percent: 45, amount: 482175, color: "bg-purple-500", text: "text-purple-600" },
-        { method: "Cash", percent: 30, amount: 321450, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" },
-        { method: "Card", percent: 25, amount: 267875, color: "bg-blue-500", text: "text-blue-600" }
-      ]
-    },
-    month: {
-      revenue: 4380200,
-      orders: 12950,
-      aov: 338.24,
-      staffCount: 8,
-      trend: [850000, 980000, 1120000, 1430200],
-      trendLabels: ["Week 1", "Week 2", "Week 3", "Week 4"],
-      items: [
-        { name: "Buff Momo", category: "Appetizer", sold: 4150, revenue: 622500 },
-        { name: "Chicken Biryani", category: "Main Course", sold: 2850, revenue: 997500 },
-        { name: "Iced Latte", category: "Beverage", sold: 3450, revenue: 862500 },
-        { name: "Iced Matcha", category: "Beverage", sold: 2180, revenue: 545000 }
-      ],
-      staff: [
-        { name: "Prakash Thapa", orders: 5120, revenue: 1720000, rank: 1 },
-        { name: "Kang Roy", orders: 4210, revenue: 1450200, rank: 2 },
-        { name: "Aisha Karki", orders: 3620, revenue: 1210000, rank: 3 }
-      ],
-      payments: [
-        { method: "QR Payment", percent: 48, amount: 2102496, color: "bg-purple-500", text: "text-purple-600" },
-        { method: "Cash", percent: 27, amount: 1182654, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" },
-        { method: "Card", percent: 25, amount: 1095050, color: "bg-blue-500", text: "text-blue-600" }
-      ]
-    }
-  },
-  "1": {
-    "7days": {
-      revenue: 425800,
-      orders: 1240,
-      aov: 343.38,
-      staffCount: 8,
-      trend: [55000, 62000, 48000, 71000, 58000, 69000, 62800],
-      trendLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-      items: [
-        { name: "Chicken Biryani", category: "Main Course", sold: 280, revenue: 98000 },
-        { name: "Iced Latte", category: "Beverage", sold: 310, revenue: 77500 },
-        { name: "Buff Momo", category: "Appetizer", sold: 420, revenue: 63000 },
-        { name: "Iced Matcha", category: "Beverage", sold: 190, revenue: 47500 }
-      ],
-      staff: [
-        { name: "Kang Roy", orders: 490, revenue: 165000, rank: 1 },
-        { name: "Aisha Karki", orders: 410, revenue: 140000, rank: 2 },
-        { name: "Prakash Thapa", orders: 340, revenue: 120800, rank: 3 }
-      ],
-      payments: [
-        { method: "QR Payment", percent: 40, amount: 170320, color: "bg-purple-500", text: "text-purple-600" },
-        { method: "Cash", percent: 35, amount: 149030, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" },
-        { method: "Card", percent: 25, amount: 106450, color: "bg-blue-500", text: "text-blue-600" }
-      ]
-    },
-    month: {
-      revenue: 1780500,
-      orders: 5120,
-      aov: 347.75,
-      staffCount: 8,
-      trend: [390000, 420000, 480000, 490500],
-      trendLabels: ["Week 1", "Week 2", "Week 3", "Week 4"],
-      items: [
-        { name: "Chicken Biryani", category: "Main Course", sold: 1150, revenue: 402500 },
-        { name: "Iced Latte", category: "Beverage", sold: 1290, revenue: 322500 },
-        { name: "Buff Momo", category: "Appetizer", sold: 1710, revenue: 256500 },
-        { name: "Iced Matcha", category: "Beverage", sold: 790, revenue: 197500 }
-      ],
-      staff: [
-        { name: "Kang Roy", orders: 2020, revenue: 690500, rank: 1 },
-        { name: "Aisha Karki", orders: 1710, revenue: 590000, rank: 2 },
-        { name: "Prakash Thapa", orders: 1390, revenue: 500000, rank: 3 }
-      ],
-      payments: [
-        { method: "QR Payment", percent: 43, amount: 765615, color: "bg-purple-500", text: "text-purple-600" },
-        { method: "Cash", percent: 33, amount: 587565, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" },
-        { method: "Card", percent: 24, amount: 427320, color: "bg-blue-500", text: "text-blue-600" }
-      ]
-    }
-  },
-  "2": {
-    "7days": {
-      revenue: 289500,
-      orders: 890,
-      aov: 325.28,
-      staffCount: 5,
-      trend: [38000, 41000, 35000, 45000, 39000, 48000, 43500],
-      trendLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-      items: [
-        { name: "Chicken Biryani", category: "Main Course", sold: 190, revenue: 66500 },
-        { name: "Iced Latte", category: "Beverage", sold: 180, revenue: 45000 },
-        { name: "Buff Momo", category: "Appetizer", sold: 290, revenue: 43500 },
-        { name: "Iced Matcha", category: "Beverage", sold: 150, revenue: 37500 }
-      ],
-      staff: [
-        { name: "Aisha Karki", orders: 510, revenue: 165000, rank: 1 },
-        { name: "Prakash Thapa", orders: 380, revenue: 124500, rank: 2 }
-      ],
-      payments: [
-        { method: "QR Payment", percent: 50, amount: 144750, color: "bg-purple-500", text: "text-purple-600" },
-        { method: "Card", percent: 30, amount: 86850, color: "bg-blue-500", text: "text-blue-600" },
-        { method: "Cash", percent: 20, amount: 57900, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" }
-      ]
-    },
-    month: {
-      revenue: 1195000,
-      orders: 3650,
-      aov: 327.4,
-      staffCount: 5,
-      trend: [260000, 290000, 310000, 335000],
-      trendLabels: ["Week 1", "Week 2", "Week 3", "Week 4"],
-      items: [
-        { name: "Chicken Biryani", category: "Main Course", sold: 780, revenue: 273000 },
-        { name: "Iced Latte", category: "Beverage", sold: 760, revenue: 190000 },
-        { name: "Buff Momo", category: "Appetizer", sold: 1210, revenue: 181500 },
-        { name: "Iced Matcha", category: "Beverage", sold: 610, revenue: 152500 }
-      ],
-      staff: [
-        { name: "Aisha Karki", orders: 2050, revenue: 685000, rank: 1 },
-        { name: "Prakash Thapa", orders: 1600, revenue: 510000, rank: 2 }
-      ],
-      payments: [
-        { method: "QR Payment", percent: 52, amount: 621400, color: "bg-purple-500", text: "text-purple-600" },
-        { method: "Card", percent: 28, amount: 334600, color: "bg-blue-500", text: "text-blue-600" },
-        { method: "Cash", percent: 20, amount: 239000, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" }
-      ]
-    }
-  },
-  "3": {
-    "7days": {
-      revenue: 356200,
-      orders: 1050,
-      aov: 339.23,
-      staffCount: 6,
-      trend: [45000, 49000, 42000, 53000, 47000, 58000, 62200],
-      trendLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-      items: [
-        { name: "Iced Latte", category: "Beverage", sold: 390, revenue: 97500 },
-        { name: "Iced Matcha", category: "Beverage", sold: 220, revenue: 55000 },
-        { name: "Buff Momo", category: "Appetizer", sold: 310, revenue: 46500 },
-        { name: "Chicken Biryani", category: "Main Course", sold: 180, revenue: 63000 }
-      ],
-      staff: [
-        { name: "Prakash Thapa", orders: 630, revenue: 216200, rank: 1 },
-        { name: "Kang Roy", orders: 420, revenue: 140000, rank: 2 }
-      ],
-      payments: [
-        { method: "QR Payment", percent: 40, amount: 142480, color: "bg-purple-500", text: "text-purple-600" },
-        { method: "Card", percent: 35, amount: 124670, color: "bg-blue-500", text: "text-blue-600" },
-        { method: "Cash", percent: 25, amount: 89050, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" }
-      ]
-    },
-    month: {
-      revenue: 1404700,
-      orders: 4180,
-      aov: 336.05,
-      staffCount: 6,
-      trend: [310000, 340000, 360000, 394700],
-      trendLabels: ["Week 1", "Week 2", "Week 3", "Week 4"],
-      items: [
-        { name: "Iced Latte", category: "Beverage", sold: 1540, revenue: 385000 },
-        { name: "Iced Matcha", category: "Beverage", sold: 880, revenue: 220000 },
-        { name: "Buff Momo", category: "Appetizer", sold: 1230, revenue: 184500 },
-        { name: "Chicken Biryani", category: "Main Course", sold: 580, revenue: 203000 }
-      ],
-      staff: [
-        { name: "Prakash Thapa", orders: 2480, revenue: 840000, rank: 1 },
-        { name: "Kang Roy", orders: 1700, revenue: 564700, rank: 2 }
-      ],
-      payments: [
-        { method: "QR Payment", percent: 41, amount: 575927, color: "bg-purple-500", text: "text-purple-600" },
-        { method: "Card", percent: 34, amount: 477598, color: "bg-blue-500", text: "text-blue-600" },
-        { method: "Cash", percent: 25, amount: 351175, color: "bg-[#0f6b4a]", text: "text-[#0f6b4a]" }
-      ]
-    }
-  }
-};
+
+
+function TrendTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-slate-800 text-white text-xs rounded-lg px-3 py-2 shadow-xl border border-slate-700">
+      <p className="font-bold mb-1 text-slate-300">{label}</p>
+      <p className="text-emerald-400 font-mono font-bold">
+        Rs. {Number(payload[0]?.value ?? 0).toLocaleString()}
+      </p>
+      {payload[1] && (
+        <p className="text-blue-300 font-mono">{payload[1].value} orders</p>
+      )}
+    </div>
+  );
+}
+
+function PaymentTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-slate-800 text-white text-xs rounded-lg px-3 py-2 shadow-xl border border-slate-700">
+      <p className="font-bold mb-1 text-slate-300">{label}</p>
+      <p className="text-emerald-400 font-mono">
+        Rs. {Number(payload[0]?.value ?? 0).toLocaleString()}
+      </p>
+    </div>
+  );
+}
+
+function BranchTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0]?.payload;
+  if (!d) return null;
+  return (
+    <div className="bg-slate-800 text-white text-xs rounded-lg px-3 py-2 shadow-xl border border-slate-700">
+      <p className="font-bold mb-1" style={{ color: d.fill }}>{d.name}</p>
+      <p className="text-emerald-400 font-mono">Rs. {Number(d.revenue).toLocaleString()}</p>
+      <p className="text-slate-300 font-mono">{d.orders} orders</p>
+    </div>
+  );
+}
+
+
+
+function PaymentPanel({ payments, revenue }: { payments: UIPaymentItem[]; revenue: number }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm flex flex-col">
+      <div className="border-b border-slate-100 pb-4 mb-4">
+        <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <PieChart className="w-4 h-4 text-emerald-600" />
+          Payment Methods
+        </h2>
+        <p className="text-xs text-slate-400 mt-0.5">Revenue split by payment type</p>
+      </div>
+
+      <div className="flex-1 flex flex-col justify-center gap-5 py-2">
+        {payments.map(p => (
+          <div key={p.method} className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <div className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${p.color}`} />
+                <span className="text-slate-600">{p.method}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-slate-400 font-normal">{p.orders} orders</span>
+                <span className={`font-bold font-mono ${p.text}`}>{p.percent}%</span>
+              </div>
+            </div>
+            <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{
+                  width: `${p.percent}%`,
+                  backgroundColor: p.barColor,
+                }}
+              />
+            </div>
+            <div className="text-[10px] text-slate-400 text-right font-mono">
+              Rs. {p.amount.toLocaleString()}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="border-t border-slate-100 pt-3 mt-3 text-center">
+        <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Net Settled</span>
+        <p className="text-lg font-bold text-emerald-700 mt-0.5">
+          Rs. {revenue.toLocaleString()}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
 
 export default function ReportsPage() {
+  const [outlets, setOutlets] = useState<OutletOption[]>([
+    { id: "all", name: "All Branches Combined" },
+  ]);
   const [selectedOutlet, setSelectedOutlet] = useState("all");
-  const [timePeriod, setTimePeriod] = useState<"7days" | "month">("7days");
+  const [timePeriod, setTimePeriod] = useState<"7d" | "30d" | "90d">("7d");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<OrgReportData | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const reportData = useMemo(() => {
-    return DATA_STORE[selectedOutlet]?.[timePeriod] || DATA_STORE.all["7days"];
-  }, [selectedOutlet, timePeriod]);
+  const [branchData, setBranchData] = useState<BranchComparisonItem[]>([]);
+  const [branchLoading, setBranchLoading] = useState(false);
 
-  // SVG Chart Dimensions & Computations
-  const chartHeight = 180;
-  const chartWidth = 500;
-  const points = useMemo(() => {
-    const trend: number[] = reportData.trend;
-    const maxVal = Math.max(...trend) * 1.15;
-    const minVal = Math.min(...trend) * 0.85;
-    const range = maxVal - minVal;
 
-    return trend.map((val, index) => {
-      const x = (index / (trend.length - 1)) * (chartWidth - 40) + 20;
-      const y = chartHeight - ((val - minVal) / range) * (chartHeight - 40) - 20;
-      return { x, y, value: val };
+  useEffect(() => {
+    async function fetchOutlets() {
+      try {
+        const res = await api.get("/outlets");
+        if (res.data?.outlets) {
+          setOutlets([
+            { id: "all", name: "All Branches Combined" },
+            ...res.data.outlets.map((o: { id: string; name: string }) => ({
+              id: o.id,
+              name: o.name,
+            })),
+          ]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch outlets:", err);
+      }
+    }
+    fetchOutlets();
+  }, []);
+
+
+  useEffect(() => {
+    async function fetchReportData() {
+      setLoading(true);
+      setError(null);
+      try {
+        const params: Record<string, string> = { period: timePeriod };
+        if (selectedOutlet !== "all") params.outletId = selectedOutlet;
+        const res = await api.get("/org/dashboardData", { params });
+        setData(res.data);
+      } catch (err: any) {
+        setError(err?.response?.data?.error ?? "Failed to load report data");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchReportData();
+  }, [selectedOutlet, timePeriod, refreshTrigger]);
+
+
+  useEffect(() => {
+    if (selectedOutlet !== "all") {
+      setBranchData([]);
+      return;
+    }
+    const realOutlets = outlets.filter(o => o.id !== "all");
+    if (realOutlets.length === 0) return;
+
+    async function fetchBranchComparison() {
+      setBranchLoading(true);
+      try {
+        const results = await Promise.allSettled(
+          realOutlets.map(outlet =>
+            api.get("/org/dashboardData", {
+              params: { period: timePeriod, outletId: outlet.id },
+            }).then(res => ({
+              name: outlet.name,
+              summary: res.data?.summary ?? {},
+            }))
+          )
+        );
+        setBranchData(
+          results
+            .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
+            .map((r, idx) => ({
+              name: r.value.name.length > 12 ? r.value.name.slice(0, 12) + "…" : r.value.name,
+              revenue: Number(r.value.summary.totalRevenue ?? 0),
+              orders:  Number(r.value.summary.totalOrders  ?? 0),
+              fill:    BRANCH_COLORS[idx % BRANCH_COLORS.length],
+            }))
+        );
+      } catch (err) {
+        console.error("Failed to fetch branch comparison:", err);
+      } finally {
+        setBranchLoading(false);
+      }
+    }
+    fetchBranchComparison();
+  }, [selectedOutlet, outlets, timePeriod]);
+
+  const reportData = useMemo<UIReportData | null>(() => {
+    if (!data) return null;
+
+    const summary      = data.summary      ?? { totalRevenue: 0, totalOrders: 0, avgOrderValue: 0, activeStaff: 0 };
+    const salesTrend   = data.salesTrend   ?? [];
+    const paymentShare = data.paymentShare ?? { netSettledAmount: 0, breakdown: {} };
+    const popularItems = data.popularItems ?? [];
+    const leaderboard  = data.leaderboard  ?? [];
+
+    const trendData = salesTrend.map(t => {
+      const isWeekday = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].includes(t.label);
+      return {
+        label:   isWeekday ? t.label.slice(0, 3) : t.label,
+        revenue: t.total ?? 0,
+        orders:  t.count ?? 0,
+      };
     });
-  }, [reportData]);
 
-  // Generate SVG Path
-  const linePath = useMemo(() => {
-    if (points.length === 0) return "";
-    return points.reduce((acc, p, i) => {
-      return i === 0 ? `M ${p.x} ${p.y}` : `${acc} L ${p.x} ${p.y}`;
-    }, "");
-  }, [points]);
+    const items = popularItems.map(item => ({
+      name:     item.name,
+      category: item.categoryName ?? "Uncategorized",
+      sold:     item.totalSold    ?? 0,
+      revenue:  item.grossSales   ?? 0,
+    }));
 
-  // Generate Area SVG Path (closed loop for gradient fill)
-  const areaPath = useMemo(() => {
-    if (points.length === 0) return "";
-    const start = points[0];
-    const end = points[points.length - 1];
-    return `M ${start.x} ${chartHeight} L ${start.x} ${start.y} ${linePath.substring(linePath.indexOf("L"))} L ${end.x} ${chartHeight} Z`;
-  }, [points, linePath]);
+    const staff = leaderboard.map(st => ({
+      name:    st.staffName,
+      orders:  st.totalOrders ?? 0,
+      revenue: st.totalVolume ?? 0,
+      rank:    st.rank,
+    }));
+
+    const bd = paymentShare.breakdown ?? {};
+    const payments: UIPaymentItem[] = [
+      { method: "Cash", percent: bd.cash?.percentage ?? 0, amount: bd.cash?.total ?? 0, color: "bg-emerald-500", text: "text-emerald-600", orders: bd.cash?.count ?? 0, barColor: "#10b981" },
+      { method: "Card", percent: bd.card?.percentage ?? 0, amount: bd.card?.total ?? 0, color: "bg-blue-500",    text: "text-blue-600",    orders: bd.card?.count ?? 0, barColor: "#3b82f6" },
+      { method: "QR",   percent: bd.qr?.percentage   ?? 0, amount: bd.qr?.total   ?? 0, color: "bg-purple-500", text: "text-purple-600", orders: bd.qr?.count   ?? 0, barColor: "#a855f7" },
+    ];
+
+    return {
+      revenue:    summary.totalRevenue  ?? 0,
+      orders:     summary.totalOrders   ?? 0,
+      aov:        summary.avgOrderValue ?? 0,
+      staffCount: summary.activeStaff   ?? 0,
+      trendData,
+      items,
+      staff,
+      payments,
+    };
+  }, [data]);
+
+  const maxRevenue = Math.max(...branchData.map(b => b.revenue), 1);
+  const radialData = branchData.map(b => ({
+    ...b,
+    value: Math.round((b.revenue / maxRevenue) * 100),
+  }));
+
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6 md:gap-8 animate-pulse">
+        <div className="h-24 rounded-xl bg-slate-200" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => <div key={i} className="h-24 rounded-xl bg-slate-200" />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 h-72 rounded-xl bg-slate-200" />
+          <div className="h-72 rounded-xl bg-slate-200" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="h-64 rounded-xl bg-slate-200" />
+          <div className="h-64 rounded-xl bg-slate-200" />
+        </div>
+      </div>
+    );
+  }
+
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-100 bg-red-50 p-8 text-center shadow-sm">
+        <h3 className="text-sm font-semibold text-red-800 mb-1">Failed to load report data</h3>
+        <p className="text-xs text-red-600 mb-4">{error}</p>
+        <button
+          onClick={() => setRefreshTrigger(p => p + 1)}
+          className="rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-700"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+
+  if (!reportData) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <Store className="h-8 w-8 text-slate-300 mx-auto mb-3" />
+        <h3 className="text-sm font-semibold text-slate-700">No sales data found</h3>
+        <p className="text-xs text-slate-400 mt-1">No transactions recorded for the selected period.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-6 md:gap-8 p-4 sm:p-0">
+    <div className="flex flex-col gap-6 md:gap-8">
 
-      {/* Header Widget */}
+      {/* Header */}
       <div className="rounded-xl bg-emerald-600 px-4 py-4 md:px-6 md:py-5 text-white shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Organization Reports</h1>
-          <p className="text-xs md:text-sm text-emerald-100 mt-1">
-            Aggregate and analyze business performance analytics switchable per outlet branch.
-          </p>
+         
         </div>
-
-        {/* Dropdown Filters */}
         <div className="flex flex-col sm:flex-row gap-3">
-          {/* Outlet Selection */}
           <div className="relative">
             <select
               value={selectedOutlet}
-              onChange={(e) => setSelectedOutlet(e.target.value)}
-              className="w-full sm:w-56 appearance-none rounded-lg bg-emerald-700/80 px-4 py-2.5 pr-10 text-sm font-semibold text-white border border-emerald-500/30 focus:outline-none focus:ring-2 focus:ring-white/20 cursor-pointer"
+              onChange={e => setSelectedOutlet(e.target.value)}
+              className="w-full sm:w-56 appearance-none rounded-lg bg-emerald-700/80 px-4 py-2.5 pr-10 text-sm font-semibold text-white border border-emerald-500/30 focus:outline-none cursor-pointer"
             >
-              {OUTLETS.map((o) => (
-                <option key={o.id} value={o.id} className="text-slate-800 bg-white">
-                  {o.name}
-                </option>
+              {outlets.map(o => (
+                <option key={o.id} value={o.id} className="text-slate-800 bg-white">{o.name}</option>
               ))}
             </select>
             <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-200" />
           </div>
-
-          {/* Time range selection */}
           <div className="relative">
             <select
               value={timePeriod}
-              onChange={(e) => setTimePeriod(e.target.value as "7days" | "month")}
-              className="w-full sm:w-40 appearance-none rounded-lg bg-emerald-700/80 px-4 py-2.5 pr-10 text-sm font-semibold text-white border border-emerald-500/30 focus:outline-none focus:ring-2 focus:ring-white/20 cursor-pointer"
+              onChange={e => setTimePeriod(e.target.value as "7d" | "30d" | "90d")}
+              className="w-full sm:w-40 appearance-none rounded-lg bg-emerald-700/80 px-4 py-2.5 pr-10 text-sm font-semibold text-white border border-emerald-500/30 focus:outline-none cursor-pointer"
             >
-              <option value="7days" className="text-slate-800 bg-white">Last 7 Days</option>
-              <option value="month" className="text-slate-800 bg-white">This Month</option>
+              <option value="7d"  className="text-slate-800 bg-white">Last 7 Days</option>
+              <option value="30d" className="text-slate-800 bg-white">Last 30 Days</option>
+              <option value="90d" className="text-slate-800 bg-white">Last 90 Days</option>
             </select>
             <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-200" />
           </div>
         </div>
       </div>
 
-      {/* Stats Cards Section */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Net Revenue", value: `Rs. ${reportData.revenue.toLocaleString()}`, border: "border-l-[#18a172]", iconBg: "bg-[#f0fdf4] text-[#0f6b4a]", icon: <DollarSign className="h-5 w-5 sm:h-6 sm:w-6" /> },
-          { label: "Total Orders", value: reportData.orders.toLocaleString(), border: "border-l-indigo-500", iconBg: "bg-indigo-50 text-indigo-600", icon: <ShoppingBag className="h-5 w-5 sm:h-6 sm:w-6" /> },
-          { label: "Average Order Value", value: `Rs. ${reportData.aov.toFixed(2)}`, border: "border-l-amber-500", iconBg: "bg-amber-50 text-amber-600", icon: <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6" /> },
-          { label: "Active Staff", value: reportData.staffCount, border: "border-l-slate-400", iconBg: "bg-slate-50 text-slate-600", icon: <Users className="h-5 w-5 sm:h-6 sm:w-6" /> }
-        ].map((s) => (
-          <div
-            key={s.label}
-            className={`rounded-xl border-l-4 ${s.border} border border-slate-200 bg-white p-4 sm:p-5 shadow-sm flex items-center justify-between transition-transform duration-200 hover:-translate-y-0.5`}
-          >
+          { label: "Net Revenue",     value: `Rs. ${reportData.revenue.toLocaleString()}`, border: "border-l-emerald-500", iconBg: "bg-emerald-50 text-emerald-600", icon: <DollarSign className="h-5 w-5" /> },
+          { label: "Total Orders",    value: reportData.orders.toLocaleString(),            border: "border-l-indigo-500",  iconBg: "bg-indigo-50 text-indigo-600",   icon: <ShoppingBag className="h-5 w-5" /> },
+          { label: "Avg Order Value", value: `Rs. ${reportData.aov.toFixed(2)}`,            border: "border-l-amber-500",   iconBg: "bg-amber-50 text-amber-600",     icon: <TrendingUp className="h-5 w-5" /> },
+          { label: "Active Staff",    value: reportData.staffCount,                          border: "border-l-slate-400",   iconBg: "bg-slate-50 text-slate-600",     icon: <Users className="h-5 w-5" /> },
+        ].map(s => (
+          <div key={s.label} className={`rounded-xl border-l-4 ${s.border} border border-slate-200 bg-white p-4 sm:p-5 shadow-sm flex items-center justify-between`}>
             <div>
-              <p className="text-[10px] sm:text-xs font-medium text-slate-400 uppercase tracking-wider">{s.label}</p>
-              <p className="text-xl sm:text-2xl font-semibold text-slate-800 mt-1 break-all">{s.value}</p>
+              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{s.label}</p>
+              <p className="text-xl sm:text-2xl font-bold text-slate-800 mt-1">{s.value}</p>
             </div>
-            <div className={`flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl ${s.iconBg}`}>
+            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${s.iconBg}`}>
               {s.icon}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Grid: Sales Trend Graph + Payment Methods */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* Sales Trend (Large SVG Chart) */}
-        <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-700">Sales Progression Trend</h2>
-              <p className="text-xs text-slate-400 mt-0.5">Track revenue performance over the current period</p>
+      {selectedOutlet === "all" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+
+          <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <GitCompare className="w-4 h-4 text-emerald-600" />
+                  Branch Revenue Comparison
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Revenue performance across all outlet branches
+                </p>
+              </div>
+              {branchLoading && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
             </div>
-            <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
-              <ArrowUpRight className="w-3.5 h-3.5" />
-              +12.4% vs prev
-            </span>
-          </div>
 
-          {/* SVG Canvas Chart */}
-          <div className="relative w-full overflow-hidden flex items-center justify-center my-4 h-[200px]">
-            <svg
-              viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-              className="w-full h-full text-emerald-500 overflow-visible"
-              preserveAspectRatio="none"
-            >
-              <defs>
-                <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
-
-              {/* Grid Lines */}
-              <line x1="20" y1={chartHeight - 20} x2={chartWidth - 20} y2={chartHeight - 20} stroke="#f1f5f9" strokeWidth="2" />
-              <line x1="20" y1={chartHeight / 2} x2={chartWidth - 20} y2={chartHeight / 2} stroke="#f1f5f9" strokeDasharray="4 4" />
-              <line x1="20" y1="20" x2={chartWidth - 20} y2="20" stroke="#f1f5f9" strokeDasharray="4 4" />
-
-              {/* Path Area under Curve */}
-              <path d={areaPath} fill="url(#chartGrad)" />
-
-              {/* Curve Stroke */}
-              <path d={linePath} fill="none" stroke="#0f6b4a" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-
-              {/* Point Circles & labels */}
-              {points.map((p, idx) => (
-                <g key={idx} className="group/dot">
-                  <circle
-                    cx={p.x}
-                    cy={p.y}
-                    r="4.5"
-                    className="fill-white stroke-[#0f6b4a] stroke-[3px] cursor-pointer transition-all duration-150 hover:r-6"
-                  />
-                  {/* Subtle hover bubble overlay */}
-                  <g className="opacity-0 group-hover/dot:opacity-100 transition-opacity duration-150 pointer-events-none">
-                    <rect
-                      x={p.x - 35}
-                      y={p.y - 30}
-                      width="70"
-                      height="20"
-                      rx="4"
-                      className="fill-slate-800 shadow"
-                    />
-                    <text
-                      x={p.x}
-                      y={p.y - 16}
-                      textAnchor="middle"
-                      className="fill-white text-[9px] font-mono font-bold"
+            {branchLoading ? (
+              <div className="h-64 flex items-center justify-center gap-2 text-slate-400">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span className="text-sm">Fetching branch data...</span>
+              </div>
+            ) : branchData.length === 0 ? (
+              <div className="h-40 flex items-center justify-center text-xs text-slate-400">
+                No branch data available
+              </div>
+            ) : (
+              <div className="flex flex-col lg:flex-row items-center gap-6">
+                <div className="w-full lg:w-1/2">
+                  <ResponsiveContainer width="100%" height={280}>
+                    <RadialBarChart
+                      cx="50%" cy="50%"
+                      innerRadius="20%" outerRadius="90%"
+                      data={radialData}
+                      startAngle={180} endAngle={-180}
                     >
-                      Rs. {Math.round(p.value).toLocaleString()}
-                    </text>
-                  </g>
-                </g>
-              ))}
-            </svg>
-          </div>
-
-          {/* Graph X Axis Labels */}
-          <div className="flex justify-between items-center px-4 pt-2 text-[10px] sm:text-xs font-semibold text-slate-400 tracking-wider">
-            {reportData.trendLabels.map((lbl: string, i: number) => (
-              <span key={i}>{lbl}</span>
-            ))}
-          </div>
-        </div>
-
-        {/* Payment Breakdown Widget */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm flex flex-col justify-between">
-          <div className="border-b border-slate-100 pb-4 mb-4">
-            <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <PieChart className="w-4 h-4 text-emerald-600" />
-              Payment Gateway Share
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">Distribution across transaction methods</p>
-          </div>
-
-          {/* Progress Bars Stack */}
-          <div className="flex-1 flex flex-col justify-center gap-6 py-4">
-            {reportData.payments.map((p: any) => (
-              <div key={p.method} className="space-y-2">
-                <div className="flex items-center justify-between text-xs sm:text-sm font-semibold">
-                  <span className="text-slate-600">{p.method}</span>
-                  <span className={`${p.text} font-mono font-bold`}>
-                    {p.percent}% <span className="text-slate-400 font-normal">({Math.round(p.percent * reportData.orders / 100)} orders)</span>
-                  </span>
+                      <RadialBar dataKey="value" cornerRadius={6} background={{ fill: "#f1f5f9" }} label={false} />
+                      <Tooltip content={<BranchTooltip />} />
+                    </RadialBarChart>
+                  </ResponsiveContainer>
                 </div>
-                {/* Visual bar */}
-                <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div className={`h-full ${p.color} rounded-full transition-all duration-500`} style={{ width: `${p.percent}%` }} />
-                </div>
-                <div className="text-[10px] text-slate-400 text-right font-mono">
-                  Rs. {p.amount.toLocaleString()}
+                <div className="w-full lg:w-1/2 flex flex-col gap-3">
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">
+                    Revenue Breakdown
+                  </p>
+                  {branchData.map((branch, idx) => (
+                    <div key={idx} className="flex items-center gap-3">
+                      <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: branch.fill }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold text-slate-700 truncate">{branch.name}</span>
+                          <span className="text-xs font-bold font-mono text-slate-800 ml-2 shrink-0">
+                            Rs. {branch.revenue.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-700"
+                            style={{
+                              width: `${Math.round((branch.revenue / maxRevenue) * 100)}%`,
+                              backgroundColor: branch.fill,
+                            }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{branch.orders} orders</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
+            )}
           </div>
 
-          {/* Bottom Total Amount box */}
-          <div className="border-t border-slate-100 pt-4 mt-2 text-center">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Net Settled Amount</span>
-            <p className="text-xl font-bold text-[#0f6b4a] mt-0.5">Rs. {reportData.revenue.toLocaleString()}</p>
-          </div>
+          {/* Payment Methods */}
+          <PaymentPanel payments={reportData.payments} revenue={reportData.revenue} />
         </div>
+      )}
 
-      </div>
+      {selectedOutlet !== "all" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-      {/* Grid: Popular Menu Items & Staff Performance */}
+          {/* Sales Trend */}
+          <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-700">Sales Trend</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Revenue over the selected period</p>
+              </div>
+            </div>
+            {reportData.trendData.length === 0 ? (
+              <div className="h-56 flex items-center justify-center text-xs text-slate-400">
+                No trend data available
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={reportData.trendData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor="#10b981" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="ordersGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor="#6366f1" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8", fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} tickFormatter={v => `Rs.${(v / 1000).toFixed(0)}k`} width={52} />
+                  <Tooltip content={<TrendTooltip />} />
+                  <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#0f6b4a" strokeWidth={2.5} fill="url(#revenueGrad)" dot={{ r: 3, fill: "#0f6b4a", strokeWidth: 2, stroke: "#fff" }} activeDot={{ r: 5 }} />
+                  <Area type="monotone" dataKey="orders"  name="Orders"  stroke="#6366f1" strokeWidth={1.5} fill="url(#ordersGrad)" dot={false} strokeDasharray="4 2" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          {/* Payment Methods */}
+          <PaymentPanel payments={reportData.payments} revenue={reportData.revenue} />
+        </div>
+      )}
+
+     
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Popular Menu Items */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm overflow-hidden flex flex-col justify-between">
-          <div className="border-b border-slate-100 pb-4 mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                <UtensilsCrossed className="w-4 h-4 text-emerald-600" />
-                Popular Menu Items
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">Best performing items by quantity sold</p>
-            </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
+          <div className="border-b border-slate-100 pb-4 mb-4">
+            <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <UtensilsCrossed className="w-4 h-4 text-emerald-600" />
+              Popular Menu Items
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">Best performing items by quantity sold</p>
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse text-left">
+          {reportData.items.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-8 italic">No items data available</p>
+          ) : (
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  <th className="py-2.5 px-3">Item Name</th>
+                <tr className="border-b border-slate-100 text-[10px] font-semibold uppercase tracking-wider text-slate-400 text-left">
+                  <th className="py-2.5 px-3">Item</th>
                   <th className="py-2.5 px-3">Category</th>
-                  <th className="py-2.5 px-3 text-center">Qty Sold</th>
-                  <th className="py-2.5 px-3 text-right">Gross Sales</th>
+                  <th className="py-2.5 px-3 text-center">Qty</th>
+                  <th className="py-2.5 px-3 text-right">Sales</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {reportData.items.map((item: any, idx: number) => (
+                {reportData.items.map((item, idx) => (
                   <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                     <td className="py-3 px-3 font-semibold text-slate-800">{item.name}</td>
                     <td className="py-3 px-3">
@@ -489,63 +653,62 @@ export default function ReportsPage() {
                       </span>
                     </td>
                     <td className="py-3 px-3 text-center font-mono font-medium text-slate-700">{item.sold}</td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-[#0f6b4a]">
+                    <td className="py-3 px-3 text-right font-mono font-bold text-emerald-700">
                       Rs. {item.revenue.toLocaleString()}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          )}
         </div>
 
-        {/* Staff Sales Performance */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm overflow-hidden flex flex-col justify-between">
+        {/* Staff Leaderboard */}
+        <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
           <div className="border-b border-slate-100 pb-4 mb-4">
             <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
               <Award className="w-4 h-4 text-emerald-600" />
               Staff Sales Leaderboard
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">Staff rankings based on processed sales volumes</p>
+            <p className="text-xs text-slate-400 mt-0.5">Rankings based on processed sales volume</p>
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse text-left">
+          {reportData.staff.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-8 italic">No staff data available</p>
+          ) : (
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                <tr className="border-b border-slate-100 text-[10px] font-semibold uppercase tracking-wider text-slate-400 text-left">
                   <th className="py-2.5 px-3 text-center w-12">Rank</th>
-                  <th className="py-2.5 px-3">Sales Agent</th>
+                  <th className="py-2.5 px-3">Agent</th>
                   <th className="py-2.5 px-3 text-center">Orders</th>
                   <th className="py-2.5 px-3 text-right">Volume</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {reportData.staff.map((st: any, idx: number) => (
+                {reportData.staff.map((st, idx) => (
                   <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                     <td className="py-3 px-3 text-center">
-                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${idx === 0
-                          ? "bg-yellow-100 text-yellow-800 border border-yellow-200"
-                          : idx === 1
-                            ? "bg-slate-100 text-slate-800 border border-slate-200"
-                            : "bg-orange-100 text-orange-800 border border-orange-200"
-                        }`}>
+                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                        idx === 0 ? "bg-yellow-100 text-yellow-800 border border-yellow-200"
+                        : idx === 1 ? "bg-slate-100 text-slate-600 border border-slate-200"
+                        : "bg-orange-100 text-orange-700 border border-orange-200"
+                      }`}>
                         {st.rank}
                       </span>
                     </td>
                     <td className="py-3 px-3 font-semibold text-slate-800">{st.name}</td>
                     <td className="py-3 px-3 text-center font-mono font-medium text-slate-700">{st.orders}</td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-[#0f6b4a]">
+                    <td className="py-3 px-3 text-right font-mono font-bold text-emerald-700">
                       Rs. {st.revenue.toLocaleString()}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          )}
         </div>
 
       </div>
-
     </div>
   );
 }

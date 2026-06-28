@@ -3,7 +3,7 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: "/api",
-  withCredentials: true, 
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
@@ -38,33 +38,34 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
+        const activeOutletId = localStorage.getItem("activeOutletId");
         const res = await axios.post(
           "/api/auth/refresh",
-          {},
+          { activeOutletId },
           { withCredentials: true }
         );
         const newToken = res.data.accessToken;
 
         localStorage.setItem("accessToken", newToken);
 
-     
+
         refreshQueue.forEach((cb) => cb(newToken));
         refreshQueue = [];
 
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
       } catch (refreshError) {
-  
+
         // localStorage.removeItem("accessToken");
         // localStorage.removeItem("user");
         // localStorage.removeItem("activeOutletId");
         // window.location.href = "/login";
-       
-       console.warn("Token refresh failed, but automatic logout is bypassed during design layout testing.");
-        
+
+        console.warn("Token refresh failed, but automatic logout is bypassed during design layout testing.");
+
 
         refreshQueue = [];
-       
+
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
