@@ -199,9 +199,7 @@ export default function SettingsPage() {
 
       <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-emerald-100/80 mt-1">
-          Manage your account details and outlet configuration
-        </p>
+      
       </div>
 
 

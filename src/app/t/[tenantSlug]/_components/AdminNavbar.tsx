@@ -22,6 +22,7 @@ import {
   ChevronDown,
   Receipt,
   ShieldCheck,
+  BookOpen,
 } from "lucide-react";
 
 interface NavbarProps {
@@ -65,6 +66,7 @@ export default function AdminNavbar({ role }: NavbarProps) {
     navItems.push({ label: "Orders", href: `${baseUrl}/orders`, icon: ShoppingBag });
     navItems.push({ label: "Payments", href: `${baseUrl}/payments`, icon: CreditCard });
     navItems.push({ label: "Inventory", href: `${baseUrl}/inventory`, icon: Package });
+    navItems.push({ label: "Recipes", href: `${baseUrl}/recipe`, icon: BookOpen });
   }
 
   if (role === "org") {

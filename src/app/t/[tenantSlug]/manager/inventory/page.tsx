@@ -56,7 +56,12 @@ export default function ManagerInventoryPage() {
 
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
   const [adjustingMaterial, setAdjustingMaterial] = useState<Material | null>(null);
-  const [adjustForm, setAdjustForm] = useState({ newQuantity: "" as number | "", note: "" });
+  const [adjustForm, setAdjustForm] = useState({
+    adjustType: "purchase" as "purchase" | "adjustment",
+    quantity: "" as number | "",
+    newQuantity: "" as number | "",
+    note: ""
+  });
   const [adjusting, setAdjusting] = useState(false);
 
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
@@ -175,25 +180,35 @@ export default function ManagerInventoryPage() {
 
   function openAdjust(m: Material) {
     setAdjustingMaterial(m);
-    setAdjustForm({ newQuantity: m.currentStock, note: "" });
+    setAdjustForm({ adjustType: "purchase", quantity: "", newQuantity: m.currentStock, note: "" });
     setIsAdjustModalOpen(true);
   }
 
   function closeAdjustModal() {
     setIsAdjustModalOpen(false);
     setAdjustingMaterial(null);
-    setAdjustForm({ newQuantity: "", note: "" });
+    setAdjustForm({ adjustType: "purchase", quantity: "", newQuantity: "", note: "" });
   }
 
   async function handleSaveAdjust(e: React.FormEvent) {
     e.preventDefault();
-    if (!adjustingMaterial || adjustForm.newQuantity === "") return;
+    if (!adjustingMaterial) return;
+
+    const isPurchase = adjustForm.adjustType === "purchase";
+    const amount = isPurchase ? adjustForm.quantity : adjustForm.newQuantity;
+    if (amount === "") return;
+
     setAdjusting(true);
     try {
-      const res = await api.post(`/inventory/${adjustingMaterial.id}/adjustment`, {
-        newQuantity: Number(adjustForm.newQuantity),
-        note: adjustForm.note.trim() || undefined,
-      });
+      const endpoint = isPurchase
+        ? `/inventory/${adjustingMaterial.id}/purchase`
+        : `/inventory/${adjustingMaterial.id}/adjustment`;
+
+      const payload = isPurchase
+        ? { quantity: Number(amount), note: adjustForm.note.trim() || undefined }
+        : { newQuantity: Number(amount), note: adjustForm.note.trim() || undefined };
+
+      const res = await api.post(endpoint, payload);
       const { newStock } = res.data;
       setMaterials(prev => prev.map(m =>
         m.id === adjustingMaterial.id
@@ -546,32 +561,19 @@ export default function ManagerInventoryPage() {
                     className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Stock Quantity</label>
-                    <input
-                      type="number" step="0.01" min={0}
-                      placeholder=""
-                      disabled={!!editingMaterial}
-                      value={form.currentStock}
-                      onChange={e => setForm(p => ({ ...p, currentStock: e.target.value === "" ? "" : Number(e.target.value) }))}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Unit</label>
-                    <select
-                      disabled={!!editingMaterial}
-                      value={form.unit} onChange={e => setForm(p => ({ ...p, unit: e.target.value as typeof EMPTY_FORM["unit"] }))}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400"
-                    >
-                      <option value="kg">Kilograms (kg)</option>
-                      <option value="L">Liters (L)</option>
-                      <option value="pieces">Pieces</option>
-                      <option value="g">Grams (g)</option>
-                      <option value="ml">Milliliters (ml)</option>
-                    </select>
-                  </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Unit</label>
+                  <select
+                    disabled={!!editingMaterial}
+                    value={form.unit} onChange={e => setForm(p => ({ ...p, unit: e.target.value as typeof EMPTY_FORM["unit"] }))}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400"
+                  >
+                    <option value="kg">Kilograms (kg)</option>
+                    <option value="L">Liters (L)</option>
+                    <option value="pieces">Pieces</option>
+                    <option value="g">Grams (g)</option>
+                    <option value="ml">Milliliters (ml)</option>
+                  </select>
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Low Stock Warning Threshold</label>
@@ -606,7 +608,7 @@ export default function ManagerInventoryPage() {
             <div className="relative flex flex-col items-center p-6 bg-emerald-600 text-white">
               <Sliders className="h-7 w-7 mb-1" />
               <h3 className="text-xl font-semibold">
-                Adjust Stock Level
+                Stock Level
               </h3>
 
               <button onClick={closeAdjustModal} className="absolute right-6 top-6 rounded-md p-1.5 text-emerald-100 hover:bg-white/10 hover:text-white">
@@ -615,17 +617,56 @@ export default function ManagerInventoryPage() {
             </div>
             <div className="p-6">
               <form onSubmit={handleSaveAdjust} className="space-y-4">
+                {/* Mode Selector */}
+                <div className="flex p-1 bg-slate-100 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setAdjustForm(p => ({ ...p, adjustType: "purchase" }))}
+                    className={`flex-1 text-center py-2 text-xs font-semibold rounded-md transition-all ${
+                      adjustForm.adjustType === "purchase"
+                        ? "bg-white text-slate-800 shadow-sm"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    Restock (Purchase)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdjustForm(p => ({ ...p, adjustType: "adjustment" }))}
+                    className={`flex-1 text-center py-2 text-xs font-semibold rounded-md transition-all ${
+                      adjustForm.adjustType === "adjustment"
+                        ? "bg-white text-slate-800 shadow-sm"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    Manual Adjustment
+                  </button>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">New Stock Count</label>
-                    <input
-                      type="number" step="0.001" min={0} required
-                      placeholder="e.g. 17.5"
-                      value={adjustForm.newQuantity}
-                      onChange={e => setAdjustForm(p => ({ ...p, newQuantity: e.target.value === "" ? "" : Number(e.target.value) }))}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
-                    />
-                  </div>
+                  {adjustForm.adjustType === "purchase" ? (
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Purchase Quantity</label>
+                      <input
+                        type="number" step="0.001" min={0.001} required
+                        placeholder="e.g. 5.0"
+                        value={adjustForm.quantity}
+                        onChange={e => setAdjustForm(p => ({ ...p, quantity: e.target.value === "" ? "" : Number(e.target.value) }))}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">New Stock Count</label>
+                      <input
+                        type="number" step="0.001" min={0} required
+                        placeholder="e.g. 17.5"
+                        value={adjustForm.newQuantity}
+                        onChange={e => setAdjustForm(p => ({ ...p, newQuantity: e.target.value === "" ? "" : Number(e.target.value) }))}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Unit</label>
                     <input
@@ -635,21 +676,29 @@ export default function ManagerInventoryPage() {
                     />
                   </div>
                 </div>
+
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Adjustment Reason / Note</label>
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    {adjustForm.adjustType === "purchase" ? "Purchase Note / Invoice Reference" : "Adjustment Reason / Note"}
+                  </label>
                   <input
                     type="text" placeholder=""
                     value={adjustForm.note} onChange={e => setAdjustForm(p => ({ ...p, note: e.target.value }))}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
                   />
                 </div>
+
                 <div className="flex gap-3 pt-4 border-t border-slate-100">
                   <button type="button" onClick={closeAdjustModal}
                     className="flex-1 rounded-lg border border-slate-200 bg-slate-50 py-2.5 text-sm font-medium text-slate-600">Cancel</button>
                   <button type="submit" disabled={adjusting}
                     className="flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 py-2.5 text-sm font-medium text-white shadow-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
                     {adjusting && <Loader2 className="h-4 w-4 animate-spin" />}
-                    {adjusting ? "Adjusting..." : "Apply Adjustment"}
+                    {adjusting
+                      ? "Saving..."
+                      : adjustForm.adjustType === "purchase"
+                        ? "Save Purchase"
+                        : "Apply Adjustment"}
                   </button>
                 </div>
               </form>
