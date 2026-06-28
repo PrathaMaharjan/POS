@@ -1,3 +1,5 @@
+export * from "./stock"
+
 export * from "./core";
 export * from "./rbac";
 export * from "./inventory"
