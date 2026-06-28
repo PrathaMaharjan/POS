@@ -59,12 +59,11 @@ interface RecipeItemDraft {
 export default function RecipeManagementPage() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
 
-  // Data states
+
   const [products, setProducts] = useState<Product[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [recipesMap, setRecipesMap] = useState<Record<string, Recipe | null>>({});
 
-  // UI states
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -72,7 +71,7 @@ export default function RecipeManagementPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
-  // Modal Editor state
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [formItems, setFormItems] = useState<RecipeItemDraft[]>([]);
@@ -132,7 +131,6 @@ export default function RecipeManagementPage() {
     loadDashboardData();
   }, []);
 
-  // Filter and search logic for products
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -144,7 +142,6 @@ export default function RecipeManagementPage() {
     });
   }, [products, searchQuery, filterType, recipesMap]);
 
-  // Paginated products
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
   const paginatedProducts = useMemo(() => {
     return filteredProducts.slice(
@@ -153,7 +150,6 @@ export default function RecipeManagementPage() {
     );
   }, [filteredProducts, currentPage]);
 
-  // Open recipe builder modal
   const openRecipeModal = (productId: string) => {
     setSelectedProductId(productId);
     const existingRecipe = recipesMap[productId];
@@ -173,7 +169,6 @@ export default function RecipeManagementPage() {
     setIsModalOpen(true);
   };
 
-  // Close recipe builder modal
   const closeRecipeModal = () => {
     setIsModalOpen(false);
     setSelectedProductId(null);
@@ -181,18 +176,18 @@ export default function RecipeManagementPage() {
     setSaveError(null);
   };
 
-  // Get selected product object
+
   const selectedProduct = useMemo(() => {
     return products.find((p) => p.id === selectedProductId) || null;
   }, [products, selectedProductId]);
 
-  // Check if selected product has an existing recipe
+  
   const hasSelectedRecipe = useMemo(() => {
     if (!selectedProductId) return false;
     return recipesMap[selectedProductId] !== undefined && recipesMap[selectedProductId] !== null;
   }, [recipesMap, selectedProductId]);
 
-  // Handle dynamic form actions
+
   function handleAddIngredientRow() {
     setFormItems([...formItems, { stockItemId: "", quantity: "" }]);
   }
@@ -210,7 +205,7 @@ export default function RecipeManagementPage() {
     setSaveError(null);
   }
 
-  // Save/Create Recipe Form Submission
+ 
   async function handleSaveRecipe(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedProductId) return;
@@ -244,14 +239,14 @@ export default function RecipeManagementPage() {
     try {
       let res;
       if (hasSelectedRecipe) {
-        // Update existing recipe (PATCH)
+
         res = await api.patch(`/recipe/${selectedProductId}`, payload);
       } else {
-        // Create new recipe (POST)
+     
         res = await api.post(`/recipe/${selectedProductId}`, payload);
       }
 
-      // Update local state map
+
       setRecipesMap((prev) => ({
         ...prev,
         [selectedProductId]: res.data,
@@ -266,7 +261,7 @@ export default function RecipeManagementPage() {
     }
   }
 
-  // Delete recipe confirmation trigger
+
   async function handleDeleteRecipe() {
     if (!deleteConfirmId) return;
     setDeleting(true);
@@ -285,7 +280,6 @@ export default function RecipeManagementPage() {
     }
   }
 
-  // Trigger recipe delete directly from inside the editor modal
   function triggerDeleteFromModal() {
     if (!selectedProductId) return;
     const prodId = selectedProductId;
@@ -293,13 +287,12 @@ export default function RecipeManagementPage() {
     setDeleteConfirmId(prodId);
   }
 
-  // Helper: Get stock item unit by ID
   function getStockUnit(stockItemId: string): string {
     const item = stockItems.find((s) => s.id === stockItemId);
     return item ? item.unit : "";
   }
 
-  // Helper: Get stock item list not yet selected in other fields (to avoid duplicates in dropdowns)
+
   function getAvailableStockItems(currentIndex: number) {
     const selectedIds = formItems
       .map((item, idx) => (idx !== currentIndex ? item.stockItemId : ""))
@@ -351,7 +344,7 @@ export default function RecipeManagementPage() {
         </div>
       )}
 
-      {/* Search + Filter */}
+    
       <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
         <div className="relative flex-1 max-w-full lg:max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -490,7 +483,6 @@ export default function RecipeManagementPage() {
         </div>
       </div>
 
-      {/* ── RECIPE BUILDER MODAL OVERLAY (Aligned styling with other system popups) ── */}
       {isModalOpen && selectedProduct && (
         <div
           className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
@@ -500,7 +492,7 @@ export default function RecipeManagementPage() {
             className="bg-white border border-slate-200 w-full sm:max-w-md md:max-w-xl rounded-t-2xl sm:rounded-xl shadow-xl overflow-y-auto max-h-[92vh] sm:max-h-[90vh] animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-0 fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal Header banner - Centered matching the inventory/menu templates */}
+
             <div className="relative flex items-center justify-center py-5 px-6 bg-emerald-600">
               <div className="flex flex-col items-center text-center">
                 <BookOpen className="h-6 w-6 text-white mb-1" />
