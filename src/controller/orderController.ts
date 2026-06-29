@@ -8,7 +8,10 @@ import {
   kotTickets,
   kotItems,
 } from "@/db/schema";
-import { deductStockForOrder, restoreStockForOrder } from "./inventory/inventoy";
+import {
+  deductStockForOrder,
+  restoreStockForOrder,
+} from "./inventory/inventoy";
 
 export type ControllerResult<T> =
   | { success: true; data: T }
@@ -321,8 +324,13 @@ export async function getOrderByTable(outletId: string, tableId: string) {
       return { ...order, kotTickets: kotTicketsList };
     }),
   );
+  // // ── deduplicate by order id ──
+  // const uniqueOrders = ordersWithKot.filter(
+  //   (order, index, self) => index === self.findIndex((o) => o.id === order.id),
+  // );
 
   return { success: true, data: { table, orders: ordersWithKot } } as const;
+
 }
 
 // ─────────────────────────────────────────────
