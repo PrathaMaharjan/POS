@@ -22,6 +22,7 @@ export const organizations = pgTable("organizations", {
   name: varchar("name", { length: 255 }).notNull(),
   slug: varchar("slug", { length: 100 }).notNull().unique(),
   logo: text("logo"), // nullable, stores URL/path to logo image, default null
+  imagePublicId: text("image_public_id"),
   isActive: boolean("is_active").notNull().default(true),
   status: orgStatusEnum("status").default("trial").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

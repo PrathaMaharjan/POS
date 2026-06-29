@@ -1,16 +1,10 @@
 import { createStaff, listStaff } from "@/controller/staff";
 import { requiredToken } from "@/lib/auth/requireAuth";
+import { sendStaffWelcomeEmail } from "@/lib/email/sendStaffWelcomeEmail";
 import { requiredPermission } from "@/lib/permissions/requirePermission";
 import { NextRequest, NextResponse } from "next/server";
 import z from "zod";
 
-// const createSchema = z.object({
-//   name: z.string().min(2),
-//   email: z.string().email(),
-//   phone: z.string().optional(),
-//   role: z.enum(["Cashier", "Waiter", "Kitchen Crew"]),
-//   password: z.string().min(8),
-// });
 
 export async function POST(req: NextRequest) {
   const auth = await requiredToken(req);
@@ -64,6 +58,13 @@ export async function POST(req: NextRequest) {
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
+    sendStaffWelcomeEmail(
+    parsed.data.email,
+    parsed.data.name,
+    parsed.data.password,
+    outletId,    
+    parsed.data.role
+  ).catch((err) => console.error("Staff welcome email failed:", err));
 
   return NextResponse.json(result.data, { status: 201 });
 }

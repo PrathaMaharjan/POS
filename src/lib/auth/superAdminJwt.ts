@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 
 const SECRET = process.env.SUPER_ADMIN_JWT_SECRET!;
-const ACCESS_EXPIRY = "15m";
+const ACCESS_EXPIRY = "3d";
 const REFRESH_EXPIRY = "7d";
 
 export interface SuperAdminPayload {
