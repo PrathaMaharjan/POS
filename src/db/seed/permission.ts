@@ -165,7 +165,12 @@ async function seedSystemRoles() {
   const kitchenCrew = await findOrCreateRole("Kitchen Crew");
   await setRolePermissions(
     kitchenCrew.id,
-    pick(["restaurant.kot.read", "restaurant.kot.update"]),
+    pick([
+      "restaurant.kot.read",
+      "restaurant.kot.update",
+      "inventory.stock.read",
+      "inventory.stock.update",
+    ]),
   );
 
   console.log(

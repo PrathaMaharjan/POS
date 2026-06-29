@@ -43,11 +43,12 @@ export default function SuperAdminNavbar() {
   async function handleLogout() {
     setIsLoggingOut(true);
     try {
-      await api.post("/auth/logout");
+      await api.post("/superadmin/logout");
     } catch (err) {
       console.error("Failed to invalidate session on backend:", err);
     } finally {
-      router.push("/login");
+      localStorage.removeItem("superAdmin");
+      router.push("/platform/login");
     }
   }
 

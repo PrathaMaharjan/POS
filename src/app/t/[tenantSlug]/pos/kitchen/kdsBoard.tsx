@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import { useKotTickets } from '@/lib/hooks/useKotTickets';
 import SettingsDrawer from '../_components/SettingsDrawer';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
+import { Loader2 } from 'lucide-react';
 
 type TicketState = 'PENDING' | 'PREPARING' | 'DONE';
 type OrderType = 'TAKEAWAY' | 'DINE_IN';
@@ -141,8 +142,8 @@ function OrderModal({ order, onClose, onPreparing, onDone }: {
             <button
               onClick={() => { onDone(order.id); onClose(); }}
               className={`flex-1 py-3 rounded-xl border text-[12px] font-bold text-center transition-all group flex items-center justify-center gap-1 ${isDark
-                  ? 'bg-[#22c55e]/10 hover:bg-red-500/10 border-[#22c55e]/30 hover:border-red-500/30 text-[#4ade80] hover:text-red-400'
-                  : 'bg-green-50 hover:bg-red-50 border-green-200 hover:border-red-200 text-green-700 hover:text-red-600'
+                ? 'bg-[#22c55e]/10 hover:bg-red-500/10 border-[#22c55e]/30 hover:border-red-500/30 text-[#4ade80] hover:text-red-400'
+                : 'bg-green-50 hover:bg-red-50 border-green-200 hover:border-red-200 text-green-700 hover:text-red-600'
                 }`}
             >
               <span className="group-hover:hidden">✓ Done</span>
@@ -158,10 +159,10 @@ function OrderModal({ order, onClose, onPreparing, onDone }: {
               <button
                 onClick={() => { onPreparing(order.id); onClose(); }}
                 className={`flex-1 py-3 rounded-xl text-[12px] font-bold transition-all active:scale-[0.97] ${order.ticketState === 'PREPARING'
-                    ? 'bg-blue-600 text-white'
-                    : isDark
-                      ? 'bg-[#27272a] border border-[#3f3f46] text-[#a1a1aa] hover:bg-[#3f3f46]'
-                      : 'bg-neutral-100 border border-neutral-300 text-neutral-700 hover:bg-neutral-200'
+                  ? 'bg-blue-600 text-white'
+                  : isDark
+                    ? 'bg-[#27272a] border border-[#3f3f46] text-[#a1a1aa] hover:bg-[#3f3f46]'
+                    : 'bg-neutral-100 border border-neutral-300 text-neutral-700 hover:bg-neutral-200'
                   }`}
               >
                 {order.ticketState === 'PREPARING' ? '● Preparing' : 'Start Preparing'}
@@ -278,8 +279,8 @@ function TicketCard({
           <button
             onClick={() => onDone(order.id)}
             className={`flex-1 py-2 rounded-lg border text-[10px] font-bold text-center transition-all group flex items-center justify-center gap-1 ${isDark
-                ? 'bg-[#22c55e]/10 hover:bg-red-500/10 border-[#22c55e]/30 hover:border-red-500/30 text-[#4ade80] hover:text-red-400'
-                : 'bg-green-50 hover:bg-red-50 border-green-200 hover:border-red-200 text-green-700 hover:text-red-600'
+              ? 'bg-[#22c55e]/10 hover:bg-red-500/10 border-[#22c55e]/30 hover:border-red-500/30 text-[#4ade80] hover:text-red-400'
+              : 'bg-green-50 hover:bg-red-50 border-green-200 hover:border-red-200 text-green-700 hover:text-red-600'
               }`}
           >
             <span className="group-hover:hidden">✓ Done</span>
@@ -295,10 +296,10 @@ function TicketCard({
             <button
               onClick={() => onPreparing(order.id)}
               className={`flex-1 py-2 rounded-lg text-[10px] font-bold transition-all active:scale-[0.97] ${order.ticketState === 'PREPARING'
-                  ? 'bg-blue-600 text-white'
-                  : isDark
-                    ? 'bg-black/20 border border-white/10 text-[#a1a1aa] hover:bg-black/40'
-                    : 'bg-white/60 border border-black/10 text-neutral-700 hover:bg-white/90 shadow-sm'
+                ? 'bg-blue-600 text-white'
+                : isDark
+                  ? 'bg-black/20 border border-white/10 text-[#a1a1aa] hover:bg-black/40'
+                  : 'bg-white/60 border border-black/10 text-neutral-700 hover:bg-white/90 shadow-sm'
                 }`}
             >
               {order.ticketState === 'PREPARING' ? (
@@ -334,8 +335,44 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Mobile active tab view toggle status
+
   const [activeTab, setActiveTab] = useState<TicketState>('PENDING');
+
+  const [isWastageModalOpen, setIsWastageModalOpen] = useState(false);
+  const [showWastageSuccess, setShowWastageSuccess] = useState(false);
+  const [stockItems, setStockItems] = useState<any[]>([]);
+  const [isLoadingStock, setIsLoadingStock] = useState(false);
+  const [isSubmittingWastage, setIsSubmittingWastage] = useState(false);
+  const [wastageError, setWastageError] = useState<string | null>(null);
+  const [wastageForm, setWastageForm] = useState({
+    stockItemId: "",
+    quantity: "",
+    note: "",
+  });
+
+  useEffect(() => {
+    if (!isWastageModalOpen) return;
+
+    const fetchStock = async () => {
+      setIsLoadingStock(true);
+      setWastageError(null);
+      try {
+        const res = await api.get("/inventory");
+        if (res.data && res.data.stockItems) {
+          setStockItems(res.data.stockItems);
+        }
+      } catch (err: any) {
+        console.error("Failed to load stock items:", err);
+        setWastageError("Failed to load inventory items.");
+      } finally {
+        setIsLoadingStock(false);
+      }
+    };
+
+    fetchStock();
+  }, [isWastageModalOpen]);
+
+  const selectedStockItem = stockItems.find(item => item.id === wastageForm.stockItemId);
 
   const { tickets: rawTickets, refetch } = useKotTickets(10000);
 
@@ -515,10 +552,24 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
 
           <div className="flex items-center gap-2 shrink-0">
             <button
+              onClick={() => setIsWastageModalOpen(true)}
+              className={`flex items-center gap-1.5 border px-2.5 py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold transition-all ${isDark
+                ? 'bg-[#27272a] hover:bg-[#3f3f46] border-[#3f3f46] text-[#a1a1aa] hover:text-white'
+                : 'bg-white hover:bg-neutral-100 border-neutral-200 text-neutral-600 hover:text-neutral-900 shadow-sm'
+                }`}
+              title="Report Wastage"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
+              </svg>
+              <span className="hidden sm:inline">Report Wastage</span>
+            </button>
+
+            <button
               onClick={() => setIsSettingsOpen(true)}
               className={`flex items-center gap-1.5 border px-2.5 py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold transition-all ${isDark
-                  ? 'bg-[#27272a] hover:bg-[#3f3f46] border-[#3f3f46] text-[#a1a1aa] hover:text-white'
-                  : 'bg-white hover:bg-neutral-100 border-neutral-200 text-neutral-600 hover:text-neutral-900 shadow-sm'
+                ? 'bg-[#27272a] hover:bg-[#3f3f46] border-[#3f3f46] text-[#a1a1aa] hover:text-white'
+                : 'bg-white hover:bg-neutral-100 border-neutral-200 text-neutral-600 hover:text-neutral-900 shadow-sm'
                 }`}
               title="Open Settings"
             >
@@ -532,8 +583,8 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
             <button
               onClick={toggleFullscreen}
               className={`flex items-center gap-1.5 border px-2.5 py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold transition-all ${isDark
-                  ? 'bg-[#27272a] hover:bg-[#3f3f46] border-[#3f3f46] text-[#a1a1aa] hover:text-white'
-                  : 'bg-white hover:bg-neutral-100 border-neutral-200 text-neutral-600 hover:text-neutral-900 shadow-sm'
+                ? 'bg-[#27272a] hover:bg-[#3f3f46] border-[#3f3f46] text-[#a1a1aa] hover:text-white'
+                : 'bg-white hover:bg-neutral-100 border-neutral-200 text-neutral-600 hover:text-neutral-900 shadow-sm'
                 }`}
               title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
             >
@@ -565,8 +616,8 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
                 }
               }}
               className={`flex items-center gap-1.5 border px-2.5 py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold transition-all ${isDark
-                  ? 'bg-[#27272a] hover:bg-red-950/40 border-[#3f3f46] hover:border-red-900/50 text-[#a1a1aa] hover:text-red-400'
-                  : 'bg-white hover:bg-red-50 border-neutral-200 hover:border-red-200 text-neutral-600 hover:text-red-600 shadow-sm'
+                ? 'bg-[#27272a] hover:bg-red-950/40 border-[#3f3f46] hover:border-red-900/50 text-[#a1a1aa] hover:text-red-400'
+                : 'bg-white hover:bg-red-50 border-neutral-200 hover:border-red-200 text-neutral-600 hover:text-red-600 shadow-sm'
                 }`}
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -587,16 +638,16 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
                 key={col.state}
                 onClick={() => setActiveTab(col.state)}
                 className={`flex-1 flex items-center justify-center gap-2 py-2 px-1 rounded-xl text-[12px] font-bold border transition-all ${isActive
-                    ? isDark
-                      ? 'bg-[#27272a] text-white border-[#3f3f46]'
-                      : 'bg-white text-neutral-900 border-neutral-300 shadow-sm'
-                    : 'bg-transparent text-[#71717a] border-transparent'
+                  ? isDark
+                    ? 'bg-[#27272a] text-white border-[#3f3f46]'
+                    : 'bg-white text-neutral-900 border-neutral-300 shadow-sm'
+                  : 'bg-transparent text-[#71717a] border-transparent'
                   }`}
               >
                 <span>{col.label.split(' ')[0]}</span>
                 <span className={`px-1.5 py-0.2 text-[10px] rounded-md border ${isDark
-                    ? 'bg-white/5 border-white/10 text-[#a1a1aa]'
-                    : 'bg-neutral-200/50 border-neutral-300 text-neutral-600'
+                  ? 'bg-white/5 border-white/10 text-[#a1a1aa]'
+                  : 'bg-neutral-200/50 border-neutral-300 text-neutral-600'
                   }`}>
                   {count}
                 </span>
@@ -675,6 +726,197 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
           onPreparing={handlePreparing}
           onDone={handleDone}
         />
+      )}
+
+      {/* Settings Drawer */}
+      <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+
+      {/* Wastage Modal */}
+      {isWastageModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+          onClick={() => !isSubmittingWastage && setIsWastageModalOpen(false)}
+        >
+          <div
+            className={`rounded-2xl border w-full max-w-md overflow-hidden shadow-2xl flex flex-col transition-colors duration-200 ${isDark ? 'bg-[#1c1c1f] border-[#3f3f46]' : 'bg-white border-neutral-200'}`}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className={`px-5 pt-4 pb-3.5 border-b shrink-0 flex items-center justify-between ${isDark ? 'bg-[#27272a]/60 border-[#27272a]' : 'bg-neutral-50 border-neutral-200'}`}>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
+                </svg>
+                <h3 className={`text-[15px] font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Report Inventory Wastage</h3>
+              </div>
+              <button
+                disabled={isSubmittingWastage}
+                onClick={() => setIsWastageModalOpen(false)}
+                className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all ${isDark ? 'hover:bg-[#27272a] text-[#71717a] hover:text-white' : 'hover:bg-neutral-100 text-neutral-400 hover:text-neutral-700'} disabled:opacity-55`}
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!wastageForm.stockItemId || !wastageForm.quantity) {
+                  setWastageError("Please select an item and enter a quantity");
+                  return;
+                }
+                const qtyVal = Number(wastageForm.quantity);
+                if (isNaN(qtyVal) || qtyVal <= 0) {
+                  setWastageError("Quantity must be greater than zero");
+                  return;
+                }
+                if (selectedStockItem && qtyVal > Number(selectedStockItem.currentStock)) {
+                  setWastageError(`Wastage quantity cannot exceed current stock level (${selectedStockItem.currentStock} ${selectedStockItem.unit})`);
+                  return;
+                }
+                setIsSubmittingWastage(true);
+                setWastageError(null);
+                try {
+                  const res = await api.post(`/inventory/${wastageForm.stockItemId}/wastage`, {
+                    quantity: qtyVal,
+                    note: wastageForm.note || "Kitchen wastage",
+                  });
+                  if (res.data) {
+                    setShowWastageSuccess(true);
+                    setTimeout(() => setShowWastageSuccess(false), 3000);
+                    setIsWastageModalOpen(false);
+                    setWastageForm({
+                      stockItemId: "",
+                      quantity: "",
+                      note: "",
+                    });
+                  }
+                } catch (err: any) {
+                  console.error("Wastage report failure:", err);
+                  const errMsg = err.response?.data?.error ?? err.message ?? "Failed to submit wastage";
+                  setWastageError(typeof errMsg === "string" ? errMsg : "Failed to report wastage. Double check permissions.");
+                } finally {
+                  setIsSubmittingWastage(false);
+                }
+              }}
+              className="p-5 flex flex-col gap-4"
+            >
+              {wastageError && (
+                <div className="rounded-lg bg-red-500/10 border border-red-500/25 p-3 text-xs text-red-500 font-medium">
+                  {wastageError}
+                </div>
+              )}
+
+              <div>
+                <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1.5 ${isDark ? 'text-[#a1a1aa]' : 'text-neutral-500'}`}>
+                  Select Inventory Item *
+                </label>
+                {isLoadingStock ? (
+                  <div className="flex items-center gap-2 text-xs text-neutral-400 py-2.5">
+                    <Loader2 className="h-4.5 w-4.5 animate-spin text-neutral-500" />
+                    <span>Loading active stock items...</span>
+                  </div>
+                ) : (
+                  <select
+                    required
+                    disabled={isSubmittingWastage}
+                    value={wastageForm.stockItemId}
+                    onChange={(e) => setWastageForm({ ...wastageForm, stockItemId: e.target.value })}
+                    className={`w-full rounded-xl border px-3 py-2.5 text-xs focus:outline-none transition-all ${
+                      isDark
+                        ? 'bg-[#18181b] border-[#3f3f46] text-white focus:border-[#e5b83b]/60'
+                        : 'bg-white border-neutral-200 text-neutral-800 focus:border-neutral-400 shadow-sm'
+                    }`}
+                  >
+                    <option value="">-- Choose an item --</option>
+                    {stockItems.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} ({item.currentStock} {item.unit})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1.5 ${isDark ? 'text-[#a1a1aa]' : 'text-neutral-500'}`}>
+                    Quantity {selectedStockItem ? `(${selectedStockItem.unit})` : ""} *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0.001"
+                    step="0.001"
+                    disabled={isSubmittingWastage || !wastageForm.stockItemId}
+                    value={wastageForm.quantity}
+                    onChange={(e) => setWastageForm({ ...wastageForm, quantity: e.target.value })}
+                    placeholder={selectedStockItem ? `Max current stock is ${selectedStockItem.currentStock}` : "Select item first"}
+                    className={`w-full rounded-xl border px-3.5 py-2.5 text-xs focus:outline-none transition-all ${
+                      isDark
+                        ? 'bg-[#18181b] border-[#3f3f46] text-white focus:border-[#e5b83b]/60'
+                        : 'bg-white border-neutral-200 text-neutral-800 focus:border-neutral-400 shadow-sm'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1.5 ${isDark ? 'text-[#a1a1aa]' : 'text-neutral-500'}`}>
+                  Wastage Note
+                </label>
+                <textarea
+                  disabled={isSubmittingWastage}
+                  value={wastageForm.note}
+                  onChange={(e) => setWastageForm({ ...wastageForm, note: e.target.value })}
+                  placeholder="e.g. Expired, spilled during preparation, overcooked..."
+                  rows={3}
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs focus:outline-none transition-all resize-none ${
+                    isDark
+                      ? 'bg-[#18181b] border-[#3f3f46] text-white focus:border-[#e5b83b]/60'
+                      : 'bg-white border-neutral-200 text-neutral-800 focus:border-neutral-400 shadow-sm'
+                  }`}
+                />
+              </div>
+
+              <div className="flex gap-3 mt-2">
+                <button
+                  type="button"
+                  disabled={isSubmittingWastage}
+                  onClick={() => setIsWastageModalOpen(false)}
+                  className={`flex-1 py-3 rounded-xl border text-[12px] font-bold text-center transition-all ${
+                    isDark
+                      ? 'bg-transparent border-[#3f3f46] text-[#a1a1aa] hover:bg-[#27272a] hover:text-white'
+                      : 'bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingWastage || !wastageForm.stockItemId}
+                  className="flex-1 py-3 rounded-xl text-[12px] font-bold text-center transition-all text-white bg-red-600 hover:bg-red-700 shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {isSubmittingWastage && <Loader2 className="h-3 w-3 animate-spin text-white" />}
+                  Submit Wastage
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Success Toast Notification */}
+      {showWastageSuccess && (
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg animate-bounce">
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="text-xs font-bold">Wastage reported successfully!</span>
+        </div>
       )}
 
       {/* Settings Drawer */}

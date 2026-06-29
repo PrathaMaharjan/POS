@@ -40,7 +40,7 @@ export default function AdminLoginPage() {
 
       localStorage.setItem("superAdmin", JSON.stringify(res.data.superAdmin));
 
-      router.push("/");
+      router.push("/admin");
 
     } catch (err: any) {
       const message = err?.response?.data?.error;
