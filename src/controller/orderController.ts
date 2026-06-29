@@ -8,7 +8,7 @@ import {
   kotTickets,
   kotItems,
 } from "@/db/schema";
-import { deductStockForOrder } from "./inventory/inventoy";
+import { deductStockForOrder, restoreStockForOrder } from "./inventory/inventoy";
 
 export type ControllerResult<T> =
   | { success: true; data: T }
@@ -434,6 +434,9 @@ export async function cancelOrder(
           .where(eq(diningTables.id, order.tableId));
       }
     }
+    restoreStockForOrder(outletId, orderId).catch((err) =>
+      console.error("Stock restore failed for order", orderId, err),
+    );
     return { success: true, data: cancelledOrder };
   } catch (error) {
     console.error("cancelOrder error:", error);

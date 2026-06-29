@@ -225,6 +225,117 @@ export async function deductStockForOrder(
     stockWarnings: warnings,
   };
 }
+
+// ─────────────────────────────────────────────
+// HELPER — restore product availability after restock
+// ─────────────────────────────────────────────
+async function restoreProductAvailability(
+  outletId: string,
+  stockItemId: string,
+) {
+  // find all recipes that use this stock item
+  const affectedRecipes = await db.query.recipeItems.findMany({
+    where: (ri, { eq }) => eq(ri.stockItemId, stockItemId),
+    with: {
+      recipe: {
+        columns: { productId: true, outletId: true },
+        with: {
+          recipeItems: {
+            with: {
+              stockItem: {
+                columns: { currentStock: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // filter recipes belonging to this outlet
+  const outletRecipes = affectedRecipes.filter(
+    (ri) => ri.recipe.outletId === outletId,
+  );
+
+  if (outletRecipes.length === 0) return;
+
+  // only restore products where ALL ingredients are back in stock
+  const productIdsToRestore: string[] = [];
+
+  for (const ri of outletRecipes) {
+    const allInStock = ri.recipe.recipeItems.every(
+      (item) => Number(item.stockItem.currentStock) > 0,
+    );
+    if (allInStock) {
+      productIdsToRestore.push(ri.recipe.productId);
+    }
+  }
+
+  if (productIdsToRestore.length === 0) return;
+
+  await db
+    .update(products)
+    .set({ isAvailable: true, updatedAt: new Date() })
+    .where(
+      and(
+        eq(products.outletId, outletId),
+        inArray(products.id, productIdsToRestore),
+      ),
+    );
+}
+
+// ─────────────────────────────────────────────
+// RESTORE STOCK ON ORDER CANCEL
+// ─────────────────────────────────────────────
+export async function restoreStockForOrder(
+  outletId: string,
+  orderId: string,
+): Promise<void> {
+  // find all deduction movements for this order
+  const movements = await db.query.stockMovements.findMany({
+    where: (m, { eq, and }) =>
+      and(
+        eq(m.orderId, orderId),
+        eq(m.outletId, outletId),
+        eq(m.type, "deduction"),
+      ),
+    columns: {
+      stockItemId: true,
+      quantity: true,
+    },
+  });
+
+  if (movements.length === 0) return;
+
+  for (const movement of movements) {
+    // ── restore stock ──
+    await db
+      .update(stockItems)
+      .set({
+        currentStock: sql`current_stock + ${Number(movement.quantity).toFixed(3)}::numeric`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(stockItems.id, movement.stockItemId),
+          eq(stockItems.outletId, outletId),
+        ),
+      );
+
+    // ── log restoration ──
+    await logStockMovement({
+      outletId,
+      stockItemId: movement.stockItemId,
+      type: "adjustment",
+      quantity: Number(movement.quantity),
+      orderId,
+      note: "Stock restored — order cancelled",
+    });
+
+    // ── restore product availability ──
+    await restoreProductAvailability(outletId, movement.stockItemId);
+  }
+}
 // ─────────────────────────────────────────────
 // ADD STOCK — purchase (delivery arrived)
 // ─────────────────────────────────────────────
@@ -232,31 +343,36 @@ export async function deductStockForOrder(
 Why created: When a new delivery arrives (flour, milk, coffee beans etc.), Manager needs to manually add stock. Without this, stock only ever goes down — it can never be refilled.
 */
 export async function addStockPurchase(input: {
-  outletId: string;
+  outletId:    string;
   stockItemId: string;
-  quantity: number;
-  note?: string;
-  createdBy?: string;
+  quantity:    number;
+  note?:       string;
+  createdBy?:  string;
 }): Promise<{ newStock: number }> {
   const { outletId, stockItemId, quantity, note, createdBy } = input;
+
   await db
     .update(stockItems)
     .set({
       currentStock: sql`current_stock + ${quantity.toFixed(3)}::numeric`,
-      updatedAt: new Date(),
+      updatedAt:    new Date(),
     })
     .where(
-      and(eq(stockItems.id, stockItemId), eq(stockItems.outletId, outletId)),
+      and(eq(stockItems.id, stockItemId), eq(stockItems.outletId, outletId))
     );
 
   await logStockMovement({
     outletId,
     stockItemId,
-    type: "purchase",
+    type:      "purchase",
     quantity,
-    note: note ?? "Stock purchase",
+    note:      note ?? "Stock purchase",
     createdBy,
   });
+
+  // ── restore product availability after restock ── ← ADD
+  await restoreProductAvailability(outletId, stockItemId);
+
   const updated = await db.query.stockItems.findFirst({
     where: (s, { eq }) => eq(s.id, stockItemId),
     columns: { currentStock: true },
@@ -373,41 +489,49 @@ wastage   → "I know exactly what was wasted, subtract it"
 adjustment → "I don't know what happened, just set it to the correct number"
 */
 export async function adjustStock(input: {
-  outletId: string;
+  outletId:    string;
   stockItemId: string;
-  newQuantity: number; // set stock TO this value
-  note?: string;
-  createdBy?: string;
+  newQuantity: number;
+  note?:       string;
+  createdBy?:  string;
 }): Promise<{ newStock: number }> {
   const { outletId, stockItemId, newQuantity, note, createdBy } = input;
 
-  // fetch current to calculate movement quantity
   const current = await db.query.stockItems.findFirst({
     where: (s, { eq }) => eq(s.id, stockItemId),
     columns: { currentStock: true },
   });
 
   const currentStock = Number(current?.currentStock ?? 0);
-  const difference = Math.abs(newQuantity - currentStock);
+  const difference   = Math.abs(newQuantity - currentStock);
 
   await db
     .update(stockItems)
     .set({
       currentStock: newQuantity.toFixed(3),
-      updatedAt: new Date(),
+      updatedAt:    new Date(),
     })
     .where(
-      and(eq(stockItems.id, stockItemId), eq(stockItems.outletId, outletId)),
+      and(eq(stockItems.id, stockItemId), eq(stockItems.outletId, outletId))
     );
 
   await logStockMovement({
     outletId,
     stockItemId,
-    type: "adjustment",
-    quantity: difference,
-    note: note ?? `Manual adjustment: ${currentStock} → ${newQuantity}`,
+    type:      "adjustment",
+    quantity:  difference,
+    note:      note ?? `Manual adjustment: ${currentStock} → ${newQuantity}`,
     createdBy,
   });
 
+  // ── sync availability based on new quantity ── ← ADD
+  if (newQuantity <= 0) {
+    await syncProductAvailability(outletId, stockItemId);
+  } else {
+    await restoreProductAvailability(outletId, stockItemId);
+  }
+
   return { newStock: newQuantity };
 }
+
+

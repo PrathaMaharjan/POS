@@ -58,13 +58,6 @@ export async function POST(req: NextRequest) {
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
-    sendStaffWelcomeEmail(
-    parsed.data.email,
-    parsed.data.name,
-    parsed.data.password,
-    outletId,    
-    parsed.data.role
-  ).catch((err) => console.error("Staff welcome email failed:", err));
 
   return NextResponse.json(result.data, { status: 201 });
 }
