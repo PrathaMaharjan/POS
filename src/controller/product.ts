@@ -227,7 +227,7 @@ export async function listProducts(
         isActive: true,
         isAvailable: true,
         categoryId: true,
-        isAvailable:true
+
       },
       orderBy: (p, { asc }) => asc(p.createdAt),
       limit,

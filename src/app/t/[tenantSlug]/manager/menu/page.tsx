@@ -54,6 +54,7 @@ export default function MenuManagement() {
   const [draft, setDraft] = useState<FormDraft>(EMPTY_DRAFT);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Image upload state
@@ -236,12 +237,14 @@ export default function MenuManagement() {
 
   const handleDeleteItem = async (id: string) => {
     try {
+      setIsDeleting(true);
       await api.delete(`/product/${id}`);
       setRefreshKey(prev => prev + 1);
       setMenuItems((prev) => prev.filter((m) => m.id !== id));
     } catch (err: any) {
       setErrorMsg(err?.response?.data?.error ?? "Failed to delete product.");
     } finally {
+      setIsDeleting(false);
       setDeleteConfirmId(null);
     }
   };
@@ -479,12 +482,27 @@ export default function MenuManagement() {
                 <p className="text-sm text-slate-500">This action cannot be undone.</p>
               </div>
             </div>
-            <div className="flex gap-3 p-5 md:p-6">
-              <button onClick={() => setDeleteConfirmId(null)} className="flex-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 font-medium text-sm py-2.5 rounded-lg transition-colors">
+             <div className="flex gap-3 p-5 md:p-6">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                disabled={isDeleting}
+                className="flex-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed text-slate-600 font-medium text-sm py-2.5 rounded-lg transition-colors"
+              >
                 Cancel
               </button>
-              <button onClick={() => handleDeleteItem(deleteConfirmId)} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold text-sm py-2.5 rounded-lg transition-colors">
-                Delete
+              <button
+                onClick={() => handleDeleteItem(deleteConfirmId)}
+                disabled={isDeleting}
+                className="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-red-400 disabled:cursor-not-allowed text-white font-semibold text-sm py-2.5 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete"
+                )}
               </button>
             </div>
           </div>

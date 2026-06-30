@@ -143,12 +143,11 @@ function WaiterDashboardInner({ tenantSlug }: { tenantSlug: string }) {
         <div className="flex justify-end items-center gap-3">
           <button
             onClick={toggleFullscreen}
-            style={{
-              borderColor: isDark ? '#27272a' : 'rgba(255,255,255,0.25)',
-              color: isDark ? '#a1a1aa' : '#ffffff',
-              backgroundColor: isDark ? 'transparent' : 'rgba(255,255,255,0.12)',
-            }}
-            className="flex items-center gap-2 border px-4 py-2 rounded-xl text-sm font-medium backdrop-blur-sm transition-all duration-150 shadow-sm hover:bg-white/20"
+            className={`flex items-center gap-2 border px-4 py-2 rounded-xl text-sm font-medium backdrop-blur-sm transition-all duration-150 shadow-sm ${
+              isDark 
+                ? 'border-neutral-800 text-neutral-400 bg-transparent hover:bg-neutral-800 hover:text-white' 
+                : 'border-white/20 text-white bg-white/10 hover:bg-white/20'
+            }`}
           >
             {isFullscreen
               ? <><Minimize2 className="w-4 h-4" strokeWidth={2} /> Exit Full</>
@@ -166,12 +165,11 @@ function WaiterDashboardInner({ tenantSlug }: { tenantSlug: string }) {
                 router.push("/login");
               }
             }}
-            style={{
-              borderColor: isDark ? '#27272a' : 'rgba(255,255,255,0.25)',
-              color: isDark ? '#a1a1aa' : '#ffffff',
-              backgroundColor: isDark ? 'transparent' : 'rgba(220,38,38,0.25)',
-            }}
-            className="flex items-center gap-2 border px-4 py-2 rounded-xl text-sm font-medium backdrop-blur-sm transition-all duration-150 shadow-sm hover:bg-red-500/30"
+            className={`flex items-center gap-2 border px-4 py-2 rounded-xl text-sm font-medium backdrop-blur-sm transition-all duration-150 shadow-sm ${
+              isDark 
+                ? 'border-neutral-800 text-neutral-400 bg-transparent hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400' 
+                : 'border-white/20 text-white bg-red-600/25 hover:bg-red-600/40'
+            }`}
           >
             <LogOut className="w-4 h-4" strokeWidth={2} />
             Logout

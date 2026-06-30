@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import TableModal from '../../_components/TableModal';
 import api from '@/lib/api';
+import { ThemeProvider, useTheme } from '../../context/ThemeContext';
 
 import {
   Armchair,
@@ -75,41 +76,129 @@ function defaultLayout(tables: Table[]): Record<string, { x: number; y: number }
   return layout;
 }
 
-// ── Status config ─────────────────────────────────────────────────────────────
-const STATUS_CONFIG: Record<TableStatus, {
+// ── Status config (Dark Theme) ────────────────────────────────────────────────
+const STATUS_CONFIG_DARK: Record<TableStatus, {
   borderColor: string;
   shadowColor: string;
   iconColor: string;
   label: string;
   dotColor: string;
+  bgColor: string;
+  bgSeats: string;
+  textSeats: string;
+  borderSeats: string;
+  textLabel: string;
 }> = {
   available: {
     borderColor: 'border-[#22c55e]/20 hover:border-[#22c55e]/50',
+    bgColor: 'bg-[#141416]',
     shadowColor: 'hover:shadow-[0_0_15px_rgba(34,197,94,0.1)]',
     iconColor: 'text-[#22c55e]',
     label: 'Available',
     dotColor: 'bg-[#22c55e]',
+    bgSeats: 'bg-neutral-900/60',
+    borderSeats: 'border-neutral-800',
+    textSeats: 'text-neutral-400',
+    textLabel: 'text-neutral-400 group-hover:text-white',
   },
   occupied: {
     borderColor: 'border-[#ef4444]/40 hover:border-[#ef4444]/70',
+    bgColor: 'bg-[#141416]',
     shadowColor: 'hover:shadow-[0_0_15px_rgba(239,68,68,0.15)]',
     iconColor: 'text-[#ef4444]',
     label: 'Occupied',
     dotColor: 'bg-[#ef4444]',
+    bgSeats: 'bg-neutral-900/60',
+    borderSeats: 'border-neutral-800',
+    textSeats: 'text-neutral-400',
+    textLabel: 'text-neutral-400 group-hover:text-white',
   },
   reserved: {
     borderColor: 'border-[#3b82f6]/30 hover:border-[#3b82f6]/60',
+    bgColor: 'bg-[#141416]',
     shadowColor: 'hover:shadow-[0_0_15px_rgba(59,130,246,0.15)]',
     iconColor: 'text-[#3b82f6]',
     label: 'Reserved',
     dotColor: 'bg-[#3b82f6]',
+    bgSeats: 'bg-neutral-900/60',
+    borderSeats: 'border-neutral-800',
+    textSeats: 'text-neutral-400',
+    textLabel: 'text-neutral-400 group-hover:text-white',
   },
   dirty: {
     borderColor: 'border-[#e5b83b]/30 hover:border-[#e5b83b]/60',
+    bgColor: 'bg-[#141416]',
     shadowColor: 'hover:shadow-[0_0_15px_rgba(229,184,59,0.15)]',
     iconColor: 'text-[#e5b83b]',
     label: 'Dirty',
     dotColor: 'bg-[#e5b83b]',
+    bgSeats: 'bg-neutral-900/60',
+    borderSeats: 'border-neutral-800',
+    textSeats: 'text-neutral-400',
+    textLabel: 'text-neutral-400 group-hover:text-white',
+  },
+};
+
+// ── Status config (Light Theme - Matched with Manager tables layout) ──────────
+const STATUS_CONFIG_LIGHT: Record<TableStatus, {
+  borderColor: string;
+  shadowColor: string;
+  iconColor: string;
+  label: string;
+  dotColor: string;
+  bgColor: string;
+  bgSeats: string;
+  textSeats: string;
+  borderSeats: string;
+  textLabel: string;
+}> = {
+  available: {
+    borderColor: 'border-emerald-300',
+    bgColor: 'bg-emerald-50',
+    shadowColor: 'hover:shadow-md hover:-translate-y-0.5',
+    iconColor: 'text-emerald-600',
+    label: 'Available',
+    dotColor: 'bg-emerald-500',
+    bgSeats: 'bg-white/60',
+    borderSeats: 'border-emerald-100',
+    textSeats: 'text-slate-500',
+    textLabel: 'text-emerald-700',
+  },
+  occupied: {
+    borderColor: 'border-amber-300',
+    bgColor: 'bg-amber-50',
+    shadowColor: 'hover:shadow-md hover:-translate-y-0.5',
+    iconColor: 'text-amber-600',
+    label: 'Occupied',
+    dotColor: 'bg-amber-500',
+    bgSeats: 'bg-white/60',
+    borderSeats: 'border-amber-100',
+    textSeats: 'text-slate-500',
+    textLabel: 'text-amber-700',
+  },
+  reserved: {
+    borderColor: 'border-blue-300',
+    bgColor: 'bg-blue-50',
+    shadowColor: 'hover:shadow-md hover:-translate-y-0.5',
+    iconColor: 'text-blue-600',
+    label: 'Reserved',
+    dotColor: 'bg-blue-500',
+    bgSeats: 'bg-white/60',
+    borderSeats: 'border-blue-100',
+    textSeats: 'text-slate-500',
+    textLabel: 'text-blue-700',
+  },
+  dirty: {
+    borderColor: 'border-slate-300',
+    bgColor: 'bg-slate-100',
+    shadowColor: 'hover:shadow-md hover:-translate-y-0.5',
+    iconColor: 'text-slate-500',
+    label: 'Dirty',
+    dotColor: 'bg-slate-400',
+    bgSeats: 'bg-white/60',
+    borderSeats: 'border-slate-200',
+    textSeats: 'text-slate-500',
+    textLabel: 'text-slate-600',
   },
 };
 
@@ -121,6 +210,7 @@ function TableCard({
   isDragging,
   onPointerDown,
   onClick,
+  isDark,
 }: {
   table: Table;
   position: { x: number; y: number };
@@ -128,8 +218,9 @@ function TableCard({
   isDragging: boolean;
   onPointerDown: (e: React.PointerEvent) => void;
   onClick: () => void;
+  isDark: boolean;
 }) {
-  const cfg = STATUS_CONFIG[table.status];
+  const cfg = isDark ? STATUS_CONFIG_DARK[table.status] : STATUS_CONFIG_LIGHT[table.status];
   const isRound = table.shape === 'round';
 
   const renderStatusIcon = () => {
@@ -158,27 +249,29 @@ function TableCard({
         touchAction: 'none',
       }}
       className={`
-        group flex flex-col items-center justify-center text-center
-        bg-[#141416] border transition-all duration-200 p-3 gap-2 select-none
+        group flex flex-col items-center justify-center text-center border transition-all duration-200 p-3 gap-2 select-none
         ${isRound ? 'rounded-full' : 'rounded-2xl'}
+        ${cfg.bgColor} ${cfg.borderColor}
         ${isDragging
-          ? 'shadow-[0_8px_32px_rgba(0,0,0,0.5)] scale-105 opacity-90'
+          ? isDark 
+            ? 'shadow-[0_8px_32px_rgba(0,0,0,0.5)] scale-105 opacity-90'
+            : 'shadow-xl scale-105 opacity-90'
           : isReadyToServe
             ? 'border-[#f97316] shadow-[0_0_20px_rgba(249,115,22,0.35)] animate-[pulse_1.8s_infinite] scale-[1.02]'
-            : `${cfg.borderColor} ${cfg.shadowColor}`}
+            : `${cfg.shadowColor}`}
       `}
     >
       {isReadyToServe && !isDragging && (
-        <span className="absolute -top-2 bg-[#f97316] text-white text-[9px] font-black tracking-wider px-2 py-0.5 rounded-md uppercase shadow-lg">
+        <span className="absolute -top-2 bg-[#f97316] text-white text-[9px] font-black tracking-wider px-2 py-0.5 rounded-md uppercase shadow-lg z-10">
           READY
         </span>
       )}
-      <span className="text-[11px] font-medium text-neutral-400 tracking-wider uppercase group-hover:text-white transition-colors leading-tight">
+      <span className={`text-[11px] font-bold tracking-wider uppercase transition-colors leading-tight ${cfg.textLabel}`}>
         {table.label}
       </span>
       {renderStatusIcon()}
-      <div className="flex items-center gap-1 px-2 py-0.5 bg-neutral-900/60 border border-neutral-800 rounded-full">
-        <span className="text-[10px] font-medium text-neutral-400 tracking-wide">
+      <div className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full border ${cfg.bgSeats} ${cfg.borderSeats}`}>
+        <span className={`text-[10px] font-bold ${cfg.textSeats}`}>
           {table.seats} Seats
         </span>
       </div>
@@ -186,8 +279,11 @@ function TableCard({
   );
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
-export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesProps) {
+// ── Internal Component ────────────────────────────────────────────────────────────
+function TablesInner({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesProps) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   const router = useRouter();
   const params = useParams<{ tenantSlug: string }>();
   const tenantSlug = propTenantSlug || params?.tenantSlug;
@@ -365,41 +461,41 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
   }, []);
 
   async function fetchTickets() {
-  try {
-    const res = await api.get('/kot');
-    const data = res.data;
+    try {
+      const res = await api.get('/kot');
+      const data = res.data;
 
-    const mapped: ActiveFoodStatus[] = (data.tickets ?? [])
-      .filter((ticket: any) => ticket.status !== 'served')
-      .map((ticket: any) => {
-        const dbOrder = ticket.order ?? {};
+      const mapped: ActiveFoodStatus[] = (data.tickets ?? [])
+        .filter((ticket: any) => ticket.status !== 'served')
+        .map((ticket: any) => {
+          const dbOrder = ticket.order ?? {};
 
-        const mappedItems: ActiveFoodItem[] = (ticket.items ?? []).map((item: any) => ({
-          id: item.id,
-          name: item.orderItem?.product?.name ?? 'Deleted Product', // ✅ correct path
-          quantity: item.orderItem?.quantity ?? 1,                  // ✅ also from orderItem
-          notes: item.orderItem?.notes ?? '',                       // ✅ also from orderItem
-        }));
+          const mappedItems: ActiveFoodItem[] = (ticket.items ?? []).map((item: any) => ({
+            id: item.id,
+            name: item.orderItem?.product?.name ?? 'Deleted Product', // ✅ correct path
+            quantity: item.orderItem?.quantity ?? 1,                  // ✅ also from orderItem
+            notes: item.orderItem?.notes ?? '',                       // ✅ also from orderItem
+          }));
 
-        return {
-          id: ticket.id,
-          orderNumber: dbOrder.orderNumber ?? 0,
-          tableName: dbOrder.table?.tableNumber
-            ?? dbOrder.customerName
-            ?? 'Takeaway',
-          type: dbOrder.orderType === 'takeaway' ? 'TAKEAWAY' : 'DINE_IN',
-          ticketState: (
-            ticket.status === 'ready' ? 'DONE' : ticket.status?.toUpperCase() ?? 'PENDING'
-          ) as ActiveFoodStatus['ticketState'],
-          items: mappedItems,
-        };
-      });
+          return {
+            id: ticket.id,
+            orderNumber: dbOrder.orderNumber ?? 0,
+            tableName: dbOrder.table?.tableNumber
+              ?? dbOrder.customerName
+              ?? 'Takeaway',
+            type: dbOrder.orderType === 'takeaway' ? 'TAKEAWAY' : 'DINE_IN',
+            ticketState: (
+              ticket.status === 'ready' ? 'DONE' : ticket.status?.toUpperCase() ?? 'PENDING'
+            ) as ActiveFoodStatus['ticketState'],
+            items: mappedItems,
+          };
+        });
 
-    setActiveOrders(mapped);
-  } catch (err) {
-    console.error("Failed to fetch KOT tickets:", err);
+      setActiveOrders(mapped);
+    } catch (err) {
+      console.error("Failed to fetch KOT tickets:", err);
+    }
   }
-}
 
   useEffect(() => {
     fetchTickets();
@@ -452,24 +548,39 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
   const safeSlug = tenantSlug && tenantSlug !== 'undefined' ? tenantSlug : 'default';
 
   return (
-    <div className="min-h-screen bg-[#0c0c0d] text-[#e4e4e7] flex flex-col font-sans select-none antialiased">
+    <div className={`min-h-screen flex flex-col font-sans select-none antialiased transition-colors duration-200 ${
+      isDark ? "bg-[#0c0c0d] text-[#e4e4e7]" : "bg-slate-50 text-slate-800"
+    }`}>
       <main className="flex-1 flex flex-col px-8 py-6 gap-6 max-w-[1400px] mx-auto w-full">
 
         {/* Top Status Indicators & Navigation */}
-        <div className="flex items-center justify-between flex-wrap gap-4 bg-[#141416]/40 border border-neutral-900/60 rounded-2xl px-5 py-3.5">
+        <div className={`flex items-center justify-between flex-wrap gap-4 rounded-2xl px-5 py-3.5 border ${
+          isDark 
+            ? "bg-[#141416] border-neutral-800" 
+            : "bg-[#059669] border-[#047857] text-white shadow-sm"
+        }`}>
           <div className="flex items-center flex-wrap gap-3">
-            {(Object.keys(STATUS_CONFIG) as TableStatus[]).map((s) => (
-              <div key={s} className="flex items-center gap-2 bg-[#0c0c0d]/60 px-3 py-1.5 rounded-lg border border-neutral-900/80">
-                <span className={`w-2 h-2 rounded-full ${STATUS_CONFIG[s].dotColor}`} />
-                <span className="text-xs font-semibold text-neutral-400 tracking-wide">{STATUS_CONFIG[s].label}</span>
-              </div>
-            ))}
+            {(Object.keys(isDark ? STATUS_CONFIG_DARK : STATUS_CONFIG_LIGHT) as TableStatus[]).map((s) => {
+              const cfg = isDark ? STATUS_CONFIG_DARK[s] : STATUS_CONFIG_LIGHT[s];
+              return (
+                <div key={s} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${
+                  isDark ? "bg-[#0c0c0d] border-neutral-900" : "bg-emerald-700/60 border-emerald-600/30"
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${cfg.dotColor}`} />
+                  <span className={`text-xs font-semibold tracking-wide ${isDark ? "text-neutral-400" : "text-emerald-50"}`}>{cfg.label}</span>
+                </div>
+              );
+            })}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={resetLayout}
               title="Reset table layout to default grid"
-              className="flex items-center gap-2 bg-[#141416] border border-neutral-800 hover:border-neutral-600 text-neutral-500 hover:text-neutral-300 px-4 py-2 rounded-xl text-xs font-semibold tracking-wide uppercase transition-all duration-150"
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold tracking-wide uppercase transition-all duration-150 border ${
+                isDark 
+                  ? "bg-[#141416] border border-neutral-800 hover:border-neutral-600 text-neutral-500 hover:text-neutral-300" 
+                  : "bg-emerald-700 hover:bg-emerald-800 border-emerald-600 text-white hover:text-emerald-100 shadow-sm"
+              }`}
             >
               <LayoutGrid className="w-4 h-4" strokeWidth={2} />
               Reset Layout
@@ -482,7 +593,11 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
                   router.push(`/t/${safeSlug}/pos/waiter`);
                 }
               }}
-              className="flex items-center gap-2 bg-[#141416] border border-neutral-800 hover:border-[#e5b83b]/60 text-neutral-400 hover:text-white px-4 py-2 rounded-xl text-xs font-semibold tracking-wide uppercase transition-all duration-150"
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold tracking-wide uppercase transition-all duration-150 border ${
+                isDark 
+                  ? "bg-[#141416] border border-neutral-800 hover:border-[#e5b83b]/60 text-neutral-400 hover:text-white" 
+                  : "bg-emerald-700 hover:bg-emerald-800 border-emerald-600 text-white hover:text-emerald-100 shadow-sm"
+              }`}
             >
               <ArrowLeft className="w-4 h-4" strokeWidth={2} />
               Go Back
@@ -492,8 +607,12 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
 
         {/* Cashier Takeaway Pickup Queue Panel */}
         {role === 'cashier' && readyTakeaways.length > 0 && (
-          <div className="bg-[#141416] border border-neutral-900 rounded-2xl p-5 flex flex-col gap-4">
-            <div className="flex items-center gap-2 text-xs font-black tracking-wider text-neutral-400 uppercase">
+          <div className={`border rounded-2xl p-5 flex flex-col gap-4 ${
+            isDark ? "bg-[#141416] border-neutral-900" : "bg-white border-slate-200 shadow-sm"
+          }`}>
+            <div className={`flex items-center gap-2 text-xs font-black tracking-wider uppercase ${
+              isDark ? "text-neutral-400" : "text-slate-400"
+            }`}>
               <span>Takeaway Pickup Queue ({readyTakeaways.length})</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -506,18 +625,22 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
                     onClick={() => setExpandedTakeawayId(isExpanded ? null : order.id)}
                     className={`flex flex-col border rounded-xl transition-all duration-200 cursor-pointer overflow-hidden ${
                       isConfirming
-                        ? 'bg-[#291414] border-red-500/30'
+                        ? isDark ? 'bg-[#291414] border-red-500/30' : 'bg-red-50 border-red-200'
                         : isExpanded
-                          ? 'bg-[#18181b] border-[#e5b83b]/40 shadow-md shadow-black/40'
-                          : 'bg-[#112414] border-[#22c55e]/20 hover:border-[#22c55e]/40'
+                          ? isDark ? 'bg-[#18181b] border-[#e5b83b]/40 shadow-md shadow-black/40' : 'bg-amber-50 border-amber-300 shadow-sm'
+                          : isDark ? 'bg-[#112414] border-[#22c55e]/20 hover:border-[#22c55e]/40' : 'bg-emerald-50 border-emerald-200 hover:border-emerald-300 shadow-sm'
                     }`}
                   >
                     <div className="flex items-center justify-between px-4 py-3 gap-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className={`text-sm font-black ${isConfirming ? 'text-red-400' : 'text-green-400'}`}>
+                        <span className={`text-sm font-black ${
+                          isConfirming 
+                            ? 'text-red-600 dark:text-red-400' 
+                            : isDark ? 'text-green-400' : 'text-emerald-600 font-bold'
+                        }`}>
                           #{order.orderNumber}
                         </span>
-                        <span className="text-xs text-neutral-300 font-medium truncate">
+                        <span className={`text-xs font-medium truncate ${isDark ? 'text-neutral-300' : 'text-slate-700'}`}>
                           {order.tableName}
                         </span>
                       </div>
@@ -532,7 +655,9 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
                             </button>
                             <button
                               onClick={() => setConfirmingTakeawayId(null)}
-                              className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-2 py-1 rounded-md font-bold text-[10px] uppercase transition-colors"
+                              className={`px-2 py-1 rounded-md font-bold text-[10px] uppercase transition-colors ${
+                                isDark ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300' : 'bg-slate-200 hover:bg-slate-300 text-slate-600'
+                              }`}
                             >
                               Cancel
                             </button>
@@ -540,31 +665,39 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
                         ) : (
                           <button
                             onClick={() => setConfirmingTakeawayId(order.id)}
-                            className="bg-[#22c55e] hover:bg-[#16a34a] text-[#0a1a0f] px-2.5 py-1 rounded-md font-black text-[10px] uppercase tracking-wider transition-colors"
+                            className={`px-2.5 py-1 rounded-md font-black text-[10px] uppercase tracking-wider transition-colors ${
+                              isDark ? 'bg-[#22c55e] hover:bg-[#16a34a] text-[#0a1a0f]' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                            }`}
                           >
                             Handout
                           </button>
                         )}
-                        <div className="text-neutral-400 pl-1">
+                        <div className={`${isDark ? 'text-neutral-400' : 'text-slate-400'} pl-1`}>
                           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                         </div>
                       </div>
                     </div>
                     {isExpanded && (
-                      <div className="border-t border-neutral-800/60 bg-black/20 px-4 py-3 flex flex-col gap-2">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Order Items</div>
+                      <div className={`border-t bg-black/5 dark:bg-black/20 px-4 py-3 flex flex-col gap-2 ${
+                        isDark ? 'border-neutral-800/60' : 'border-slate-200'
+                      }`}>
+                        <div className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-neutral-500' : 'text-slate-400'}`}>Order Items</div>
                         <div className="flex flex-col gap-1.5 max-h-[160px] overflow-y-auto">
                           {order.items.length === 0 ? (
                             <span className="text-xs text-neutral-500 italic">No item summary available</span>
                           ) : (
                             order.items.map((item, idx) => (
-                              <div key={idx} className="flex flex-col gap-0.5 text-xs text-neutral-200">
-                                <div className="flex items-center justify-between gap-2">
+                              <div key={idx} className="flex flex-col gap-0.5 text-xs">
+                                <div className={`flex items-center justify-between gap-2 ${isDark ? 'text-neutral-200' : 'text-slate-700'}`}>
                                   <span className="font-semibold">{item.name}</span>
-                                  <span className="text-neutral-400 font-mono">x{item.quantity}</span>
+                                  <span className="font-mono opacity-80">x{item.quantity}</span>
                                 </div>
                                 {item.notes && (
-                                  <div className="flex items-start gap-1 text-[11px] text-[#e5b83b]/80 bg-[#e5b83b]/5 px-1.5 py-0.5 rounded mt-0.5 border border-[#e5b83b]/10">
+                                  <div className={`flex items-start gap-1 text-[11px] px-1.5 py-0.5 rounded mt-0.5 border ${
+                                    isDark 
+                                      ? 'text-[#e5b83b]/80 bg-[#e5b83b]/5 border-[#e5b83b]/10' 
+                                      : 'text-amber-800 bg-amber-50 border-amber-200/60'
+                                  }`}>
                                     <MessageSquare className="w-3 h-3 mt-0.5 shrink-0" />
                                     <span className="italic">{item.notes}</span>
                                   </div>
@@ -601,13 +734,17 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
             onPointerUp={stopDrag}
             onPointerLeave={stopDrag}
             style={{ position: 'relative', height: canvasHeight, minHeight: 480 }}
-            className="w-full rounded-2xl border border-neutral-900/60 bg-[#0e0e10] overflow-hidden"
+            className={`w-full rounded-2xl border overflow-hidden ${
+              isDark ? "border-neutral-900/60 bg-[#0e0e10]" : "border-slate-200 bg-slate-50/60 shadow-sm"
+            }`}
           >
             {/* Subtle dot-grid background */}
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
-                backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px)',
+                backgroundImage: isDark
+                  ? 'radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px)'
+                  : 'radial-gradient(circle, rgba(0,0,0,0.07) 1px, transparent 1px)',
                 backgroundSize: '28px 28px',
               }}
             />
@@ -628,6 +765,7 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
                   onClick={() => {
                     if (!hasDragged.current) setSelectedTable(table);
                   }}
+                  isDark={isDark}
                 />
               );
             })}
@@ -635,23 +773,29 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
         )}
 
         {/* Live Capacity Footer */}
-        <div className="w-full mt-auto pt-4 border-t border-neutral-900">
-          <div className="bg-[#141416] border border-neutral-900/80 rounded-2xl p-5 flex flex-col justify-between">
+        <div className={`w-full mt-auto pt-4 border-t ${isDark ? "border-neutral-900" : "border-slate-200"}`}>
+          <div className={`border p-5 flex flex-col justify-between rounded-2xl transition-all duration-200 ${
+            isDark 
+              ? "bg-[#141416] border-neutral-900/80" 
+              : "bg-[#059669] border-[#047857] text-white shadow-sm"
+          }`}>
             <div>
               <div className="flex items-start justify-between mb-2">
-                <span className="text-[10px] font-bold tracking-widest text-neutral-500 uppercase">Live Capacity Meter</span>
-                <TrendingUp className="w-4 h-4 text-[#e5b83b]/70" strokeWidth={2} />
+                <span className={`text-[10px] font-bold tracking-widest uppercase ${
+                  isDark ? "text-neutral-500" : "text-emerald-100"
+                }`}>Live Capacity Meter</span>
+                <TrendingUp className={`w-4 h-4 ${isDark ? "text-[#e5b83b]/70" : "text-white"}`} strokeWidth={2} />
               </div>
-              <span className="text-3xl font-extrabold text-[#e5b83b]">{occupancyPct}%</span>
+              <span className={`text-3xl font-extrabold ${isDark ? "text-[#e5b83b]" : "text-white"}`}>{occupancyPct}%</span>
             </div>
             <div className="mt-4">
-              <div className="h-1.5 bg-neutral-900 rounded-full overflow-hidden">
+              <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? "bg-neutral-900" : "bg-emerald-800"}`}>
                 <div
-                  className="h-full bg-[#e5b83b] rounded-full transition-all duration-700"
+                  className={`h-full rounded-full transition-all duration-700 ${isDark ? "bg-[#e5b83b]" : "bg-white"}`}
                   style={{ width: `${occupancyPct}%` }}
                 />
               </div>
-              <p className="text-[11px] text-neutral-500 font-medium mt-2">
+              <p className={`text-[11px] font-medium mt-2 ${isDark ? "text-neutral-500" : "text-emerald-150"}`}>
                 {occupied} / {total} Active Tables Occupied
               </p>
             </div>
@@ -671,5 +815,13 @@ export default function Tables({ tenantSlug: propTenantSlug, role = 'cashier' }:
         />
       )}
     </div>
+  );
+}
+
+export default function Tables(props: TablesProps) {
+  return (
+    <ThemeProvider role="cashier">
+      <TablesInner {...props} />
+    </ThemeProvider>
   );
 }
