@@ -23,6 +23,7 @@ import {
   Receipt,
   ShieldCheck,
   BookOpen,
+  User,
 } from "lucide-react";
 
 interface NavbarProps {
@@ -82,6 +83,7 @@ export default function AdminNavbar({ role }: NavbarProps) {
   const settingsSubItems = [
     { label: "Billing and Subscription", href: `${baseUrl}/settings/billing`, icon: Receipt },
     { label: "Roles & Configuration", href: `${baseUrl}/settings/roles`, icon: ShieldCheck },
+    { label: "Profile Settings", href: `${baseUrl}/settings/profile`, icon: User },
   ];
 
 

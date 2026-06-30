@@ -67,8 +67,11 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
         const res = await api.get(`/orders/${table.id}`);
         const data = res.data;
         if (data && data.orders && data.orders.length > 0) {
-          setRawOrderData(data.orders);
-          const mappedOrders = data.orders.map((dbOrder: any) => {
+          const uniqueRawOrders = data.orders.filter(
+            (o: any, idx: number, self: any[]) => self.findIndex((item) => item.id === o.id) === idx
+          );
+          setRawOrderData(uniqueRawOrders);
+          const mappedOrders = uniqueRawOrders.map((dbOrder: any) => {
             const mappedOrder: CreatedOrder = {
               id: dbOrder.id,
               orderNumber: String(dbOrder.orderNumber),
@@ -141,7 +144,10 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
   }
 
   function handleOrderCreated(newOrder: CreatedOrder) {
-    setOrders(prev => [...prev, newOrder]);
+    setOrders(prev => {
+      if (prev.some(o => o.id === newOrder.id)) return prev;
+      return [...prev, newOrder];
+    });
     handleStatusClick('occupied');
     setActiveTab('Order List');
   }

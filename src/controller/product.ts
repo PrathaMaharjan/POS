@@ -225,6 +225,7 @@ export async function listProducts(
         price: true,
         imagePublicId: true,
         isActive: true,
+        isAvailable: true,
         categoryId: true,
       },
       orderBy: (p, { asc }) => asc(p.createdAt),

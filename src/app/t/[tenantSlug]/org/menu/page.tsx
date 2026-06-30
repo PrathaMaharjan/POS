@@ -27,6 +27,7 @@ interface MenuItem {
   price: number;
   imageUrl: string | null;
   description?: string | null;
+  isAvailable?: boolean;
 }
 
 interface FormDraft {
@@ -78,15 +79,15 @@ export default function MenuManagement() {
 
   const activeOutlet = outlets.find((o) => o.id === activeOutletId);
 
-  // 1. Fetch Outlets on mount
+
   useEffect(() => {
     async function initOutlets() {
       try {
         const res = await api.get("/outlets");
         const list = res.data.outlets ?? [];
         setOutlets(list);
-        
-        // Try to read from localStorage first
+
+
         const stored = localStorage.getItem("activeOutletId");
         if (stored && list.some((o: any) => o.id === stored)) {
           setActiveOutletId(stored);
@@ -100,7 +101,7 @@ export default function MenuManagement() {
     initOutlets();
   }, []);
 
-  // 2. Fetch categories when activeOutletId changes
+
   useEffect(() => {
     if (!activeOutletId) return;
 
@@ -113,7 +114,7 @@ export default function MenuManagement() {
         const res = await api.get(`/categories?outletId=${activeOutletId}`);
         const cats = res.data.categories ?? res.data ?? [];
         setCategories(cats);
-        // Reset category filter when switching outlets
+
         setActiveCategoryId("all");
       } catch (err: any) {
         setErrorMsg(err?.response?.data?.error ?? "Failed to load categories.");
@@ -124,7 +125,7 @@ export default function MenuManagement() {
     loadCategories();
   }, [activeOutletId, refreshKey]);
 
-  // 3. Fetch products when activeOutletId, activeCategoryId, categories or refreshKey changes
+
   useEffect(() => {
     if (!activeOutletId || categories.length === 0) {
       setMenuItems([]);
@@ -152,6 +153,7 @@ export default function MenuManagement() {
               price: Number(p.price),
               imageUrl: p.imageUrl ?? null,
               description: p.description ?? null,
+              isAvailable: p.isAvailable,
             };
           })
         );
@@ -164,7 +166,7 @@ export default function MenuManagement() {
     fetchProducts();
   }, [activeOutletId, activeCategoryId, categories, refreshKey]);
 
-  // Close outlet dropdown when clicking outside
+
   useEffect(() => {
     if (!outletDropdownOpen) return;
     const handler = () => setOutletDropdownOpen(false);
@@ -330,11 +332,11 @@ export default function MenuManagement() {
 
   return (
     <div className="flex flex-col gap-4 md:gap-6 h-full p-4 md:p-0">
-      {/* Header */}
+
       <div className="rounded-xl bg-emerald-600 px-4 py-4 md:px-6 md:py-5 text-white shadow-sm shrink-0 flex items-center justify-between gap-4">
         <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Menu Editor</h1>
 
-        {/* ── Outlet picker ── */}
+
         <div className="relative" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => setOutletDropdownOpen((prev) => !prev)}
@@ -361,8 +363,8 @@ export default function MenuManagement() {
                     key={outlet.id}
                     onClick={() => { setActiveOutletId(outlet.id); setOutletDropdownOpen(false); }}
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${activeOutletId === outlet.id
-                        ? "bg-emerald-50 text-emerald-700 font-semibold"
-                        : "text-slate-700 hover:bg-slate-50"
+                      ? "bg-emerald-50 text-emerald-700 font-semibold"
+                      : "text-slate-700 hover:bg-slate-50"
                       }`}
                   >
                     <span className={`w-2 h-2 rounded-full shrink-0 ${activeOutletId === outlet.id ? "bg-emerald-500" : "bg-slate-200"}`} />
@@ -382,7 +384,7 @@ export default function MenuManagement() {
         </div>
       )}
 
-      {/* Category Tabs + Search */}
+
       <div className="flex flex-col xl:flex-row justify-between items-stretch xl:items-center gap-4 shrink-0">
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-2 xl:pb-0 w-full xl:max-w-[calc(100%-17rem)] snap-x">
           {isLoadingCategories ? (
@@ -392,8 +394,8 @@ export default function MenuManagement() {
               <button
                 onClick={() => setActiveCategoryId("all")}
                 className={`snap-start shrink-0 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors ${activeCategoryId === "all"
-                    ? "bg-emerald-600 text-white shadow-sm"
-                    : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
                   }`}
               >
                 All Items
@@ -403,8 +405,8 @@ export default function MenuManagement() {
                 <div
                   key={cat.id}
                   className={`snap-start shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${activeCategoryId === cat.id
-                      ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
-                      : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                    ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                    : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
                     }`}
                 >
                   <button onClick={() => setActiveCategoryId(cat.id)} className="focus:outline-none">
@@ -433,8 +435,8 @@ export default function MenuManagement() {
               <button
                 onClick={() => setCategoryManageMode(!categoryManageMode)}
                 className={`snap-start shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${categoryManageMode
-                    ? "bg-amber-500 border-amber-500 text-white"
-                    : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                  ? "bg-amber-500 border-amber-500 text-white"
+                  : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
                   }`}
               >
                 <Settings2 className="w-3.5 h-3.5" />
@@ -456,7 +458,7 @@ export default function MenuManagement() {
         </div>
       </div>
 
-      {/* Product Grid */}
+
       <div className="overflow-y-auto flex-1 min-h-0">
         {isLoadingProducts ? (
           <div className="flex items-center justify-center py-20">
@@ -478,7 +480,7 @@ export default function MenuManagement() {
             </div>
 
             {filteredItems.map((item) => (
-              <div key={item.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow">
+              <div key={item.id} className={`bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow ${!item.isAvailable ? "opacity-75" : ""}`}>
                 <div className="relative h-36 md:h-40 w-full shrink-0 bg-slate-100">
                   {item.imageUrl ? (
                     <Image
@@ -497,6 +499,13 @@ export default function MenuManagement() {
                   <span className="absolute left-3 bottom-3 bg-white text-emerald-700 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md border border-emerald-100 shadow-sm z-10">
                     {item.category}
                   </span>
+                  {!item.isAvailable && (
+                    <div className="absolute inset-0 flex items-center justify-center backdrop-blur-[1.5px] z-20 animate-in fade-in duration-200" style={{ backgroundColor: 'rgba(15, 15, 17, 0.7)' }}>
+                      <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-neutral-200 bg-neutral-800/90 border border-neutral-700/50 shadow-sm">
+                        Out of Stock
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-3 flex flex-col gap-2.5 flex-1 justify-between">
@@ -545,15 +554,15 @@ export default function MenuManagement() {
               </div>
             </div>
             <div className="flex gap-3 p-5 md:p-6">
-              <button 
-                onClick={() => setDeleteConfirmId(null)} 
+              <button
+                onClick={() => setDeleteConfirmId(null)}
                 disabled={isDeleting}
                 className="flex-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 font-medium text-sm py-2.5 rounded-lg transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
-              <button 
-                onClick={() => handleDeleteItem(deleteConfirmId)} 
+              <button
+                onClick={() => handleDeleteItem(deleteConfirmId)}
                 disabled={isDeleting}
                 className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold text-sm py-2.5 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
@@ -571,7 +580,7 @@ export default function MenuManagement() {
         </div>
       )}
 
-      {/* Add / Edit Product Modal */}
+
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={closeModal}>
           <div

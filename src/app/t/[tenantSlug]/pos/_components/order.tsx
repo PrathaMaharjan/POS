@@ -350,9 +350,9 @@ export default function Order({
                   All Items
                 </button>
 
-                {categories.map(category => (
+                {categories.map((category, idx) => (
                   <button
-                    key={category.id}
+                    key={`${category.id}-${idx}`}
                     onClick={() => setActiveCategory(category.id)}
                     style={
                       activeCategory === category.id
@@ -384,19 +384,23 @@ export default function Order({
                   <span className="text-sm font-medium">No items found</span>
                 </div>
               ) : (
-                filteredProducts.map(product => {
+                filteredProducts.map((product, idx) => {
                   const isInCart = !!cart.find(item => item.product.id === product.id);
                   const priceNum = parseFloat(product.price);
                   return (
                     <div
-                      key={product.id}
-                      onClick={() => handleAddProduct(product)}
+                      key={`${product.id}-${idx}`}
+                      onClick={product.isAvailable ? () => handleAddProduct(product) : undefined}
                       style={{
                         backgroundColor: surfaceBg,
                         borderColor: isInCart ? accent : borderCol,
                         boxShadow: isInCart ? `0 0 0 1px ${accentRing}` : 'none',
                       }}
-                      className="relative border rounded-2xl p-3 flex flex-col gap-2 cursor-pointer overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:brightness-[1.03]"
+                      className={`relative border rounded-2xl p-3 flex flex-col gap-2 overflow-hidden transition-all duration-200 ${
+                        product.isAvailable
+                          ? "cursor-pointer hover:-translate-y-0.5 hover:brightness-[1.03]"
+                          : "cursor-not-allowed opacity-60"
+                      }`}
                     >
                       <div style={{ backgroundColor: skeletonBg }} className="relative w-full aspect-[4/3] rounded-xl overflow-hidden flex items-center justify-center">
                         {product.imageUrl ? (
@@ -416,6 +420,13 @@ export default function Order({
                             <div className="w-9 h-9 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: accent, color: accentText }}>
                               <Check className="w-4 h-4" strokeWidth={3} />
                             </div>
+                          </div>
+                        )}
+                        {!product.isAvailable && (
+                          <div className="absolute inset-0 flex items-center justify-center backdrop-blur-[1.5px]" style={{ backgroundColor: 'rgba(15, 15, 17, 0.7)' }}>
+                            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-neutral-200 bg-neutral-800/90 border border-neutral-700/50 shadow-sm">
+                              Out of Stock
+                            </span>
                           </div>
                         )}
                       </div>
@@ -465,14 +476,14 @@ export default function Order({
                 <span className="text-sm font-medium">Cart is empty</span>
               </div>
             ) : (
-              cart.map(item => {
+              cart.map((item, idx) => {
                 const priceNum = parseFloat(item.product.price);
                 const totalItemPrice = priceNum * item.quantity;
                 const isNoteSectionOpen = activeNoteProductId === item.product.id;
 
                 return (
                   <div
-                    key={item.product.id}
+                    key={`${item.product.id}-${idx}`}
                     style={{ backgroundColor: sidebarSurfaceBg, borderColor: sidebarBorderCol }}
                     className="group relative flex flex-col p-3 rounded-xl border transition-all duration-150 gap-2 cursor-pointer"
                     onClick={() => setActiveNoteProductId(isNoteSectionOpen ? null : item.product.id)}

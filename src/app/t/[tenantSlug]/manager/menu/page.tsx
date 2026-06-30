@@ -22,6 +22,7 @@ interface MenuItem {
   price: number;
   imageUrl: string | null;
   description?: string | null;
+  isAvailable?: boolean;
 }
 
 interface FormDraft {
@@ -406,7 +407,7 @@ export default function MenuManagement() {
             </div>
 
             {filteredItems.map((item) => (
-              <div key={item.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow">
+              <div key={item.id} className={`bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow ${!item.isAvailable ? "opacity-75" : ""}`}>
                 <div className="relative h-36 md:h-40 w-full shrink-0 bg-slate-100">
                   {item.imageUrl ? (
                     <Image
@@ -425,6 +426,13 @@ export default function MenuManagement() {
                   <span className="absolute left-3 bottom-3 bg-white text-emerald-700 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md border border-emerald-100 shadow-sm z-10">
                     {item.category}
                   </span>
+                  {!item.isAvailable && (
+                    <div className="absolute inset-0 flex items-center justify-center backdrop-blur-[1.5px] z-20 animate-in fade-in duration-200" style={{ backgroundColor: 'rgba(15, 15, 17, 0.7)' }}>
+                      <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-neutral-200 bg-neutral-800/90 border border-neutral-700/50 shadow-sm">
+                        Out of Stock
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-3 flex flex-col gap-2.5 flex-1 justify-between">
