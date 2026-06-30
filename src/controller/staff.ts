@@ -166,8 +166,15 @@ export async function getStaffById(outletId: string, userId: string) {
 
 
 
-export async function listStaff(outletId: string, limit: number, offset: number) {
-  const EXCLUDED_ROLES = ["Owner", "Manager"];
+export async function listStaff(
+  outletId: string,
+  limit: number,
+  offset: number,
+  includeManagers: boolean = false  // ← new param
+) {
+  const EXCLUDED_ROLES = includeManagers
+    ? ["Owner"]                // Owner sees everyone except Owner
+    : ["Owner", "Manager"];    // Manager sees frontline only
 
   const baseFilter = and(
     eq(userOutletRoles.outletId, outletId),
@@ -177,12 +184,12 @@ export async function listStaff(outletId: string, limit: number, offset: number)
   const [rows, totalResult] = await Promise.all([
     db
       .select({
-        userId: users.id,
-        name: users.name,
-        email: users.email,
-        phone: users.phone,
+        userId:   users.id,
+        name:     users.name,
+        email:    users.email,
+        phone:    users.phone,
         isActive: users.isActive,
-        role: roles.name,
+        role:     roles.name,
       })
       .from(userOutletRoles)
       .innerJoin(users, eq(userOutletRoles.userId, users.id))

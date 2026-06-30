@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "No outlet found" }, { status: 400 });
   }
 
-  const { staff, total } = await listStaff(outletId, limit, offset);
+  const { staff, total } = await listStaff(outletId, limit, offset,isOwner);
 
   return NextResponse.json({
     staff,

@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
 
   if (activeOutletId) {
     const [perms, roleRow] = await Promise.all([
-      getUserPermissionsForOutlet(user.id, activeOutletId),
+      getUserPermissionsForOutlet(user.id, activeOutletId,user.organizationId ),
       getUserRoleForOutlet(user.id, activeOutletId),
     ]);
     permissions = perms;
