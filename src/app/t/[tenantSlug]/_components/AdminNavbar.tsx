@@ -42,13 +42,13 @@ export default function AdminNavbar({ role }: NavbarProps) {
     setIsOpen(false);
   }, [pathname]);
 
-  // Auto-expand settings dropdown if user is on a settings sub-page
+
   useEffect(() => {
     const baseUrl = `/t/${tenantSlug}/${role}`;
     if (
-      pathname.startsWith(`${baseUrl}/settings`) ||
-      pathname.startsWith(`${baseUrl}/billing`) ||
-      pathname.startsWith(`${baseUrl}/roles`)
+      pathname.startsWith(`${baseUrl}/settings`)
+      // pathname.startsWith(`${baseUrl}/billing`) ||
+      // pathname.startsWith(`${baseUrl}/roles`)
     ) {
       setIsSettingsOpen(true);
     }
@@ -81,8 +81,8 @@ export default function AdminNavbar({ role }: NavbarProps) {
 
 
   const settingsSubItems = [
-    { label: "Billing and Subscription", href: `${baseUrl}/settings/billing`, icon: Receipt },
-    { label: "Roles & Configuration", href: `${baseUrl}/settings/roles`, icon: ShieldCheck },
+    // { label: "Billing and Subscription", href: `${baseUrl}/settings/billing`, icon: Receipt },
+    // { label: "Roles & Configuration", href: `${baseUrl}/settings/roles`, icon: ShieldCheck },
     { label: "Profile Settings", href: `${baseUrl}/settings/profile`, icon: User },
   ];
 
@@ -103,9 +103,9 @@ export default function AdminNavbar({ role }: NavbarProps) {
   }
 
   const isSettingsActive =
-    pathname.startsWith(`${baseUrl}/settings`) ||
-    pathname.startsWith(`${baseUrl}/billing`) ||
-    pathname.startsWith(`${baseUrl}/roles`);
+    pathname.startsWith(`${baseUrl}/settings`);
+  // pathname.startsWith(`${baseUrl}/billing`) ||
+  // pathname.startsWith(`${baseUrl}/roles`);
 
   return (
     <>
@@ -172,8 +172,8 @@ export default function AdminNavbar({ role }: NavbarProps) {
                   <Link
                     href={item.href}
                     className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${isActive
-                        ? "bg-emerald-600 text-white shadow-sm"
-                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                      ? "bg-emerald-600 text-white shadow-sm"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                       }`}
                   >
                     <IconComponent
@@ -193,8 +193,8 @@ export default function AdminNavbar({ role }: NavbarProps) {
                 <button
                   onClick={() => setIsSettingsOpen(prev => !prev)}
                   className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${isSettingsActive
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                     }`}
                 >
                   <Settings
@@ -219,8 +219,8 @@ export default function AdminNavbar({ role }: NavbarProps) {
                           <Link
                             href={sub.href}
                             className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${isSubActive
-                                ? "bg-emerald-600 text-white shadow-sm"
-                                : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                              ? "bg-emerald-600 text-white shadow-sm"
+                              : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                               }`}
                           >
                             <SubIcon

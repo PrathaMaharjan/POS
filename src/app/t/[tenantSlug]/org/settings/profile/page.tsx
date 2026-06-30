@@ -366,7 +366,7 @@ export default function ProfileSettingsPage() {
                 >
                   <Upload className="w-5 h-5 text-slate-400" />
                   <span className="text-xs font-bold">Drag & Drop Image Here</span>
-                  <span className="text-[10px] text-slate-400">PNG, JPG or WebP up to 2MB</span>
+
                 </div>
 
                 {logoUploading && (
