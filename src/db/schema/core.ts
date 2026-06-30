@@ -10,6 +10,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { permissions, roles } from "./rbac";
 
 export const orgStatusEnum = pgEnum("org_status", [
   "active",
@@ -127,6 +128,35 @@ export const superAdmins = pgTable("super_admins", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const orgRolePermissions = pgTable(
+  "org_role_permissions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    roleId: uuid("role_id")
+      .notNull()
+      .references(() => roles.id, { onDelete: "cascade" }),
+    permissionId: uuid("permission_id")
+      .notNull()
+      .references(() => permissions.id, { onDelete: "cascade" }),
+    isEnabled: boolean("is_enabled").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    // one row per org + role + permission combination
+    uniqueIndex("org_role_permissions_unique").on(
+      t.organizationId,
+      t.roleId,
+      t.permissionId,
+    ),
+    index("org_role_permissions_org_idx").on(t.organizationId),
+    index("org_role_permissions_role_idx").on(t.roleId),
+  ],
+);
+
 export const organizationsRelations = relations(organizations, ({ many }) => ({
   users: many(users),
   outlets: many(outlets),
@@ -164,3 +194,21 @@ export const userOutletsRelations = relations(userOutlets, ({ one }) => ({
     references: [outlets.id],
   }),
 }));
+
+export const orgRolePermissionsRelations = relations(
+  orgRolePermissions,
+  ({ one }) => ({
+    organization: one(organizations, {
+      fields:     [orgRolePermissions.organizationId],
+      references: [organizations.id],
+    }),
+    role: one(roles, {
+      fields:     [orgRolePermissions.roleId],
+      references: [roles.id],
+    }),
+    permission: one(permissions, {
+      fields:     [orgRolePermissions.permissionId],
+      references: [permissions.id],
+    }),
+  })
+);
