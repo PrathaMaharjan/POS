@@ -7,7 +7,7 @@ import Navbar from "./components/Navbar";
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#0f172a] text-slate-100 antialiased overflow-x-hidden">
+    <div className="min-h-screen bg-[#09090b] text-slate-100 antialiased overflow-x-hidden">
 
       <Navbar/>
 

@@ -1,16 +1,15 @@
 "use client";
 
 import { useRef } from "react";
+import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 
 export default function Hero() {
   const containerRef = useRef<HTMLDivElement>(null);
-  
-  
+  const router = useRouter();
 
   useGSAP(() => {
-  
     gsap.from(".editorial-fade", {
       opacity: 0,
       y: 30,
@@ -21,14 +20,11 @@ export default function Hero() {
   }, { scope: containerRef });
 
   return (
-    <section 
-      ref={containerRef} 
+    <section
+      ref={containerRef}
       className="relative min-h-screen bg-black pt-40 px-6 md:px-12 flex flex-col justify-between border-b border-zinc-900"
     >
-      
       <div className="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-
         <div className="lg:col-span-8 space-y-8">
           <span className="editorial-fade text-xs uppercase tracking-[0.3em] text-zinc-500 font-mono block">
             [BY ABSTRAKT]
@@ -45,15 +41,15 @@ export default function Hero() {
             Manage sales, inventory, and staff across all your locations with industrial precision and operational velocity.
           </p>
           <div className="editorial-fade flex items-center gap-6 pt-2">
-           <button className="relative text-sm uppercase tracking-widest font-medium px-8 py-4 bg-white text-black border border-white overflow-hidden transition-colors duration-300 before:absolute before:inset-0 before:translate-y-full before:bg-black hover:before:translate-y-0 before:transition-transform before:duration-300 hover:text-white z-0 before:-z-10">
+            <button
+              onClick={() => router.push("/login")}
+              className="relative text-sm uppercase tracking-widest font-medium px-8 py-4 bg-white text-black border border-white overflow-hidden transition-colors duration-300 before:absolute before:inset-0 before:translate-y-full before:bg-black hover:before:translate-y-0 before:transition-transform before:duration-300 hover:text-white z-0 before:-z-10"
+            >
               Start free trial
             </button>
-           
           </div>
         </div>
       </div>
-
-      
     </section>
   );
 }

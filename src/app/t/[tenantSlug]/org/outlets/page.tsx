@@ -24,6 +24,7 @@ interface Outlet {
   phone: string;
   address: string;
   status: "active" | "inactive";
+  skipKitchenWorkflow: boolean;
 }
 
 const ITEMS_PER_PAGE = 8;
@@ -56,6 +57,7 @@ export default function OutletsPage() {
         phone: o.phone || "",
         address: o.address || "",
         status: o.isActive ? "active" : "inactive",
+        skipKitchenWorkflow: !!o.skipKitchenWorkflow,
       }));
       setOutlets(mapped);
     } catch (err: any) {
@@ -157,6 +159,17 @@ export default function OutletsPage() {
     }
   }
 
+  async function toggleKitchenWorkflow(id: string, currentSkip: boolean) {
+    try {
+      await api.patch(`/outlets/${id}`, { skipKitchenWorkflow: !currentSkip });
+      await fetchOutlets();
+    } catch (err: any) {
+      console.error("Failed to toggle kitchen workflow:", err);
+      const message = err.response?.data?.error;
+      alert(typeof message === "string" ? message : "Failed to update kitchen setting. Please try again.");
+    }
+  }
+
   return (
     <div className="flex flex-col gap-8">
       {/* Header */}
@@ -233,6 +246,7 @@ export default function OutletsPage() {
                     <th className="py-3 px-4">Outlet Name</th>
                     <th className="py-3 px-4">Phone Number</th>
                     <th className="py-3 px-4">Address</th>
+                    <th className="py-3 px-4">Kitchen</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
@@ -261,6 +275,24 @@ export default function OutletsPage() {
                           <MapPin className="h-3.5 w-3.5 text-slate-400" />
                           <span>{outlet.address}</span>
                         </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={!outlet.skipKitchenWorkflow}
+                          onClick={() => toggleKitchenWorkflow(outlet.id, outlet.skipKitchenWorkflow)}
+                          title={!outlet.skipKitchenWorkflow ? "Kitchen Queue Active (Click to bypass)" : "Kitchen Bypassed (Click to enable)"}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            !outlet.skipKitchenWorkflow ? "bg-emerald-600" : "bg-slate-200"
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                              !outlet.skipKitchenWorkflow ? "translate-x-5" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
                       </td>
                       <td className="py-4 px-4">
                         <button
@@ -299,7 +331,7 @@ export default function OutletsPage() {
                   ))}
                   {paginatedOutlets.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-12 text-center text-sm text-slate-400">
+                      <td colSpan={6} className="py-12 text-center text-sm text-slate-400">
                         No outlets match your search parameters.
                       </td>
                     </tr>

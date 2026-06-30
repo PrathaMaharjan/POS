@@ -5,9 +5,9 @@ export default function Navbar() {
    
 
       <nav className="fixed top-0 left-0 w-full z-50 border-b bg-transparent border-slate-800/50 backdrop-blur-md px-6 py-4 flex justify-between items-center">
-        <div className="text-lg font-bold tracking-tight text-white font-mono">
+        <Link href="/" className="text-lg font-bold tracking-tight text-white font-mono hover:opacity-80 transition-opacity">
           ABSTRAKT
-        </div>
+        </Link>
         <div className="flex items-center gap-6">
 
         

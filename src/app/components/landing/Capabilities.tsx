@@ -4,6 +4,7 @@ import { useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
+import { CreditCard, Boxes, Flame } from "lucide-react";
 
 
 gsap.registerPlugin(ScrollTrigger);
@@ -12,16 +13,9 @@ export default function Capabilities() {
   const sectionRef = useRef<HTMLDivElement>(null);
 
   useGSAP(() => {
-
     gsap.from(".editorial-card", {
-      scrollTrigger: {
-        trigger: sectionRef.current,
-        start: "top 80%",
-        toggleActions: "play none none reverse", 
-      },
-      y: 40,
       opacity: 0,
-      duration: 1,
+      duration: 0.8,
       stagger: 0.15, 
       ease: "power2.out",
     });
@@ -31,17 +25,23 @@ export default function Capabilities() {
     {
       num: "01",
       title: "Point of Sale",
-      desc: "An optimized terminal core for rapid physical transactions under high-intensity merchant demands."
+      desc: "An optimized terminal core for rapid physical transactions under high-intensity merchant demands.",
+      icon: CreditCard,
+      color: "text-emerald-400"
     },
     {
       num: "02",
       title: "Smart Inventory",
-      desc: "Continuous real-time stock orchestration, automated low-count triggers, and predictive pipelines."
+      desc: "Continuous real-time stock orchestration, automated low-count triggers, and predictive pipelines.",
+      icon: Boxes,
+      color: "text-blue-400"
     },
     {
       num: "03",
       title: "Kitchen Systems",
-      desc: "Clean digital ticket processing connecting front-of-house lines straight to terminal kitchens seamlessly."
+      desc: "Clean digital ticket processing connecting front-of-house lines straight to terminal kitchens seamlessly.",
+      icon: Flame,
+      color: "text-amber-500"
     }
   ];
 
@@ -70,29 +70,32 @@ export default function Capabilities() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 border-t border-l border-zinc-900">
-          {capabilities.map((item, index) => (
-            <div 
-              key={index} 
-              className="reditoial-card p-8 md:p-12 border-r border-b border-zinc-900 flex flex-col justify-between aspect-[1/1] transition-colors duration-300 hover:bg-zinc-950 group"
-            >
-              <div className="flex justify-between items-start">
-                <span className="text-xs font-mono text-zinc-600 group-hover:text-zinc-400 transition-colors">
-                  [ {item.num} ]
-                </span>
-                <span className="text-2xl font-light text-zinc-800 font-mono group-hover:text-white transition-colors duration-500">
-                  ↓
-                </span>
+          {capabilities.map((item, index) => {
+            const Icon = item.icon;
+            return (
+              <div 
+                key={index} 
+                className="editorial-card p-8 md:p-12 border-r border-b border-zinc-900 flex flex-col justify-between aspect-[1/1] transition-[transform,background-color,border-color,box-shadow] duration-300 ease-out hover:-translate-y-4 hover:bg-zinc-950 hover:border-zinc-800 hover:shadow-[0_0_30px_rgba(255,255,255,0.015)] group"
+              >
+                <div className="flex justify-between items-start">
+                  <span className="text-xs font-mono text-zinc-655 group-hover:text-zinc-450 transition-colors">
+                    [ {item.num} ]
+                  </span>
+                  <div className={`${item.color} opacity-40 group-hover:opacity-100 transition-opacity duration-300`}>
+                    <Icon className="w-6 h-6 stroke-[1.5]" />
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <h3 className="text-2xl font-light text-white uppercase tracking-wide group-hover:text-emerald-400 transition-colors duration-300">
+                    {item.title}
+                  </h3>
+                  <p className="text-zinc-400 text-sm font-light leading-relaxed tracking-wide">
+                    {item.desc}
+                  </p>
+                </div>
               </div>
-              <div className="space-y-4">
-                <h3 className="text-2xl font-light text-white uppercase tracking-wide">
-                  {item.title}
-                </h3>
-                <p className="text-zinc-400 text-sm font-light leading-relaxed tracking-wide">
-                  {item.desc}
-                </p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
       </div>
