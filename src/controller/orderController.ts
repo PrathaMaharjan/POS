@@ -34,6 +34,17 @@ interface PricedItems {
   subtotal: number;
 }
 
+async function getInitialKotStatus(
+  outletId: string,
+): Promise<"pending" | "served"> {
+  const outlet = await db.query.outlets.findFirst({
+    where: (o, { eq }) => eq(o.id, outletId),
+    columns: { skipKitchenWorkflow: true },
+  });
+
+  return outlet?.skipKitchenWorkflow ? "served" : "pending";
+}
+
 // shared validate products belong to outlet.are active.available and snapsort price
 
 const priceItem = async (
@@ -163,12 +174,39 @@ export const createDineInOrder = async (
       })),
       userId,
     );
+
+    // const [kotTicket] = await db
+    //   .insert(kotTickets)
+    //   .values({
+    //     orderId: order.id,
+    //     outletId: outletId,
+    //     status: "pending",
+    //   })
+    //   .returning();
+
+    // await db.insert(kotItems).values(
+    //   insertedItems.map((item) => ({
+    //     kotTicketId: kotTicket.id,
+    //     orderItemId: item.id,
+    //   })),
+    // );
+
+    // return {
+    //   success: true,
+    //   data: {
+    //     order,
+    //     items: insertedItems,
+    //     stockWarnings,
+    //   },
+    // };
+    const kotStatus = await getInitialKotStatus(outletId); // ← NEW
+
     const [kotTicket] = await db
       .insert(kotTickets)
       .values({
         orderId: order.id,
         outletId: outletId,
-        status: "pending",
+        status: kotStatus, // ← was "pending", now dynamic
       })
       .returning();
 
@@ -181,11 +219,7 @@ export const createDineInOrder = async (
 
     return {
       success: true,
-      data: {
-        order,
-        items: insertedItems,
-        stockWarnings,
-      },
+      data: { order, items: insertedItems, stockWarnings },
     };
   } catch (error) {
     console.error("createDineInOrder error:", error);
@@ -330,11 +364,10 @@ export async function getOrderByTable(outletId: string, tableId: string) {
   // );
 
   return { success: true, data: { table, orders: ordersWithKot } } as const;
-
 }
 
 // ─────────────────────────────────────────────
-// ADD ITEMS TO AN EXISTING ORDER
+// ADD ITEMS TO AN EXISTING ORDER~
 // ─────────────────────────────────────────────
 
 // export async function addItemsToOrder(
@@ -559,33 +592,53 @@ export async function placeAndPayTakeawayOrder(
     );
 
     // ── 7. Mark order as completed (paid) ──
-    // const [completedOrder] = await db
-    //   .update(orders)
-    //   .set({ status: "completed", updatedAt: new Date() })
-    //   .where(eq(orders.id, order.id))
-    //   .returning();
-
-    // ── 8. Create KOT (kitchen needs to know) ──
-    const [kotTicket] = await db
-      .insert(kotTickets)
-      .values({ orderId: order.id, outletId, status: "pending" })
+    const [completedOrder] = await db
+      .update(orders)
+      .set({ status: "completed", updatedAt: new Date() })
+      .where(eq(orders.id, order.id))
       .returning();
 
-    await db.insert(kotItems).values(
-      insertedItems.map((item) => ({
-        kotTicketId: kotTicket.id,
-        orderItemId: item.id,
-      })),
-    );
+    // // ── 8. Create KOT (kitchen needs to know) ──
+    // const [kotTicket] = await db
+    //   .insert(kotTickets)
+    //   .values({ orderId: order.id, outletId, status: "pending" })
+    //   .returning();
 
-    return {
-      success: true,
-      data: {
-        payment: paymentRecord,
-        changeDue: Number(changeDue.toFixed(2)),
-        stockWarnings,
-      },
-    };
+    // await db.insert(kotItems).values(
+    //   insertedItems.map((item) => ({
+    //     kotTicketId: kotTicket.id,
+    //     orderItemId: item.id,
+    //   })),
+    // );
+
+    // return {
+    //   success: true,
+    //   data: {
+    //     payment: paymentRecord,
+    //     changeDue: Number(changeDue.toFixed(2)),
+    //     stockWarnings,
+    //   },
+    // };
+  // ── get kitchen workflow setting ──
+  const kotStatus = await getInitialKotStatus(outletId); // ← NEW
+
+  const [kotTicket] = await db
+    .insert(kotTickets)
+    .values({ orderId: order.id, outletId, status: kotStatus }) // ← was "pending"
+    .returning();
+
+  await db.insert(kotItems).values(
+    insertedItems.map((item) => ({
+      kotTicketId: kotTicket.id,
+      orderItemId: item.id,
+    }))
+  );
+
+  return {
+    success: true,
+    data: { order: completedOrder, payment: paymentRecord, changeDue, stockWarnings },
+  };
+
   } catch (error) {
     console.error("placeAndPayTakeawayOrder error:", error);
     return {

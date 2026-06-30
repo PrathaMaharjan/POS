@@ -25,18 +25,20 @@ function isFKViolation(error: unknown): boolean {
 }
 // -------------------GET OUTETS LIST -------------------------------
 export async function listOutlets(organizationId: string) {
-  return db.query.outlets.findMany({
+  const rows = await db.query.outlets.findMany({
     where: (o, { eq }) => eq(o.organizationId, organizationId),
     columns: {
-      id: true,
-      name: true,
-      address: true,
-      phone: true,
-      isActive: true,
-      createdAt: true,
+      id:                   true,
+      name:                 true,
+      address:              true,
+      phone:                true,
+      isActive:             true,
+      skipKitchenWorkflow:  true, 
+      createdAt:            true,
     },
-    orderBy: (o, { asc }) => asc(o.createdAt),
   });
+
+  return rows;
 }
 
 // ------------------------- create outlets --------------------------------
@@ -72,23 +74,35 @@ export async function createOutlet(
 
 export async function updateOutlet(
   organizationId: string,
-  outletId: string,
-  input: { name?: string; address?: string; phone?: string },
+  outletId:       string,
+  input: {
+    name?:                string;
+    address?:             string;
+    phone?:               string;
+    skipKitchenWorkflow?: boolean; // ← add this
+  }
 ): Promise<ControllerResult<{ id: string; name: string }>> {
+
   const updateValues: Record<string, unknown> = { updatedAt: new Date() };
-  if (input.name !== undefined) updateValues.name = input.name;
-  if (input.address !== undefined) updateValues.address = input.address;
-  if (input.phone !== undefined) updateValues.phone = input.phone;
+  if (input.name                !== undefined) updateValues.name                = input.name;
+  if (input.address             !== undefined) updateValues.address             = input.address;
+  if (input.phone               !== undefined) updateValues.phone               = input.phone;
+  if (input.skipKitchenWorkflow !== undefined) updateValues.skipKitchenWorkflow = input.skipKitchenWorkflow; // ← add this
+
+  if (Object.keys(updateValues).length === 1) {
+    return {
+      success: false,
+      error:  "Provide at least one field to update",
+      status: 400,
+    };
+  }
 
   try {
     const [updated] = await db
       .update(outlets)
       .set(updateValues)
       .where(
-        and(
-          eq(outlets.id, outletId),
-          eq(outlets.organizationId, organizationId),
-        ),
+        and(eq(outlets.id, outletId), eq(outlets.organizationId, organizationId))
       )
       .returning({ id: outlets.id, name: outlets.name });
 
@@ -98,13 +112,6 @@ export async function updateOutlet(
 
     return { success: true, data: updated };
   } catch (error) {
-    if (isUniqueViolation(error)) {
-      return {
-        success: false,
-        error: "An outlet with this name already exists",
-        status: 409,
-      };
-    }
     console.error("updateOutlet error:", error);
     return { success: false, error: "Failed to update outlet", status: 500 };
   }

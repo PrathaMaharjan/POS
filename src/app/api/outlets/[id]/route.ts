@@ -5,9 +5,10 @@ import { NextRequest, NextResponse } from "next/server";
 import z from "zod";
 
 const updateSchema = z.object({
-  name:    z.string().min(1).max(255).optional(),
-  address: z.string().optional(),
-  phone:   z.string().max(30).optional(),
+  name:                 z.string().min(1).max(255).optional(),
+  address:              z.string().optional(),
+  phone:                z.string().max(30).optional(),
+  skipKitchenWorkflow:  z.boolean().optional(), // ← add this
 });
 
 export async function PATCH(

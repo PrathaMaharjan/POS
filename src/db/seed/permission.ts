@@ -172,6 +172,45 @@ async function seedSystemRoles() {
       "inventory.stock.update",
     ]),
   );
+  const allRounder = await findOrCreateRole("All Rounder");
+  await setRolePermissions(
+    allRounder.id,
+    pick([
+      // products (read only)
+      "inventory.products.read",
+
+      // billing
+      "pos.billing.create",
+      "pos.billing.read",
+      "pos.billing.update",
+
+      // payments
+      "pos.payments.create",
+      "pos.payments.read",
+
+      // reports
+      "pos.shift_reports.create",
+      "pos.shift_reports.read",
+      "pos.shift_reports.update",
+
+      // tables
+      "restaurant.tables.read",
+      "restaurant.tables.update",
+
+      // orders (waiter duty)
+      "restaurant.orders.create",
+      "restaurant.orders.read",
+      "restaurant.orders.update",
+
+      // KOT (mark delivered themselves)
+      "restaurant.kot.read",
+      "restaurant.kot.update",
+
+      // bill splits
+      "restaurant.bill_splits.create",
+      "restaurant.bill_splits.read",
+    ]),
+  );
 
   console.log(
     "Seeded system roles: Owner, Manager, Cashier, Waiter, Kitchen Crew",

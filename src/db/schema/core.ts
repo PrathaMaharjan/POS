@@ -73,6 +73,9 @@ export const outlets = pgTable(
     name: varchar("name", { length: 255 }).notNull(),
     address: text("address"),
     phone: varchar("phone", { length: 30 }),
+    skipKitchenWorkflow: boolean("skip_kitchen_workflow")
+      .notNull()
+      .default(false),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -199,16 +202,16 @@ export const orgRolePermissionsRelations = relations(
   orgRolePermissions,
   ({ one }) => ({
     organization: one(organizations, {
-      fields:     [orgRolePermissions.organizationId],
+      fields: [orgRolePermissions.organizationId],
       references: [organizations.id],
     }),
     role: one(roles, {
-      fields:     [orgRolePermissions.roleId],
+      fields: [orgRolePermissions.roleId],
       references: [roles.id],
     }),
     permission: one(permissions, {
-      fields:     [orgRolePermissions.permissionId],
+      fields: [orgRolePermissions.permissionId],
       references: [permissions.id],
     }),
-  })
+  }),
 );

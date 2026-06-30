@@ -4,7 +4,7 @@ import { verifySuperAdminToken } from "@/lib/auth/superAdminJwt";
 const ROUTE_ROLE_MAP: Record<string, string[]> = {
   org:           ["Owner"],
   manager:       ["Manager"],
-  "pos/cashier": ["Cashier"],
+  "pos/cashier": ["Cashier","All Rounder"],
   "pos/waiter":  ["Waiter"],
   "pos/kitchen": ["Kitchen Crew"],
 };
@@ -15,6 +15,7 @@ const ROLE_HOME: Record<string, string> = {
   Cashier:        "pos/cashier",
   Waiter:         "pos/waiter",
   "Kitchen Crew": "pos/kitchen",
+  "All Rounder":  "pos/cashier",
 };
 
 export function middleware(req: NextRequest) {
