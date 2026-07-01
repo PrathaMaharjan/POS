@@ -56,7 +56,7 @@ export default function SuperAdminSettingsPage() {
         </div>
       )}
 
-      {/* Header */}
+
       <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Account Settings</h1>
@@ -64,7 +64,7 @@ export default function SuperAdminSettingsPage() {
         </div>
       </div>
 
-      {/* Settings Form Card */}
+
       <form onSubmit={handleSaveSettings} className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm flex flex-col gap-6">
         <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
@@ -76,7 +76,7 @@ export default function SuperAdminSettingsPage() {
           </div>
         </div>
 
-        {/* Form Fields */}
+
         <div className="flex flex-col gap-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -142,7 +142,7 @@ export default function SuperAdminSettingsPage() {
           </div>
         </div>
 
-        {/* Action Button */}
+
         <div className="flex justify-end pt-4 border-t border-slate-100 mt-2">
           <button
             type="submit"
