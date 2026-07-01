@@ -36,13 +36,13 @@ interface PricedItems {
 
 async function getInitialKotStatus(
   outletId: string,
-): Promise<"pending" | "served"> {
+): Promise<"pending" | "ready"> {
   const outlet = await db.query.outlets.findFirst({
     where: (o, { eq }) => eq(o.id, outletId),
     columns: { skipKitchenWorkflow: true },
   });
 
-  return outlet?.skipKitchenWorkflow ? "served" : "pending";
+  return outlet?.skipKitchenWorkflow ? "ready" : "pending";
 }
 
 // shared validate products belong to outlet.are active.available and snapsort price

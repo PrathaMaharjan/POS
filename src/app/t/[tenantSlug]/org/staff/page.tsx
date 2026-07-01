@@ -78,19 +78,45 @@ export default function OrgStaffPage() {
     if (!outletId) return;
     try {
       setIsLoading(true);
-      const res = await api.get(`/staff?outletId=${outletId}&limit=100`);
-      const outlet = outlets.find((o) => o.id === outletId);
-      const mapped: StaffMember[] = (res.data.staff ?? []).map((s: any) => ({
-        id: s.userId,
-        name: s.name,
-        role: s.role === "Manager" ? "Branch Manager" : s.role,
-        level: s.role === "Manager" ? ("manager" as const) : ("staff" as const),
-        branch: outlet?.name ?? "",
-        outletId: outletId,
-        email: s.email,
-        phone: s.phone || "",
-        status: s.isActive ? ("active" as const) : ("inactive" as const),
-      }));
+      let mapped: StaffMember[] = [];
+
+      if (outletId === "all") {
+        const promises = outlets.map(async (o) => {
+          try {
+            const res = await api.get(`/staff?outletId=${o.id}&limit=100`);
+            return (res.data.staff ?? []).map((s: any) => ({
+              id: s.userId,
+              name: s.name,
+              role: s.role === "Manager" ? "Branch Manager" : s.role,
+              level: s.role === "Manager" ? ("manager" as const) : ("staff" as const),
+              branch: o.name,
+              outletId: o.id,
+              email: s.email,
+              phone: s.phone || "",
+              status: s.isActive ? ("active" as const) : ("inactive" as const),
+            }));
+          } catch (err) {
+            console.error(`Failed to fetch staff for outlet ${o.name}:`, err);
+            return [];
+          }
+        });
+        const results = await Promise.all(promises);
+        mapped = results.flat();
+      } else {
+        const res = await api.get(`/staff?outletId=${outletId}&limit=100`);
+        const outlet = outlets.find((o) => o.id === outletId);
+        mapped = (res.data.staff ?? []).map((s: any) => ({
+          id: s.userId,
+          name: s.name,
+          role: s.role === "Manager" ? "Branch Manager" : s.role,
+          level: s.role === "Manager" ? ("manager" as const) : ("staff" as const),
+          branch: outlet?.name ?? "",
+          outletId: outletId,
+          email: s.email,
+          phone: s.phone || "",
+          status: s.isActive ? ("active" as const) : ("inactive" as const),
+        }));
+      }
       setStaff(mapped);
     } catch (err: any) {
       console.error("Failed to fetch staff:", err);
@@ -111,7 +137,7 @@ export default function OrgStaffPage() {
         if (fetchedOutlets.length > 0) {
           const stored = localStorage.getItem("activeOutletId");
           const initialId =
-            stored && fetchedOutlets.some((o: any) => o.id === stored)
+            stored && (stored === "all" || fetchedOutlets.some((o: any) => o.id === stored))
               ? stored
               : fetchedOutlets[0].id;
           setActiveOutletId(initialId);
@@ -126,14 +152,14 @@ export default function OrgStaffPage() {
 
   // 2. Fetch staff whenever activeOutletId changes
   useEffect(() => {
-    if (activeOutletId && outlets.length > 0) {
+    if (activeOutletId && (activeOutletId === "all" || outlets.length > 0)) {
       fetchAllData(activeOutletId);
     }
   }, [activeOutletId, outlets]);
 
   // 3. Set default form branchId
   useEffect(() => {
-    if (outlets.length > 0 && !form.branchId) {
+    if (outlets.length > 0 && (!form.branchId || form.branchId === "all")) {
       setForm((prev) => ({ ...prev, branchId: outlets[0].id }));
     }
   }, [outlets, form.branchId]);
@@ -324,7 +350,7 @@ export default function OrgStaffPage() {
           >
             <Store className="w-4 h-4 shrink-0" />
             <span className="max-w-[120px] truncate">
-              {activeOutlet?.name ?? "Select Outlet"}
+              {activeOutletId === "all" ? "All Outlets" : (activeOutlet?.name ?? "Select Outlet")}
             </span>
             <ChevronDown
               className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${outletDropdownOpen ? "rotate-180" : ""
@@ -340,6 +366,16 @@ export default function OrgStaffPage() {
                 </p>
               </div>
               <div className="py-1">
+                <button
+                  onClick={() => handleOutletChange("all")}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${activeOutletId === "all"
+                      ? "bg-emerald-50 text-emerald-700 font-semibold"
+                      : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                >
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${activeOutletId === "all" ? "bg-emerald-500" : "bg-slate-200"}`} />
+                  All Outlets
+                </button>
                 {outlets.map((outlet) => (
                   <button
                     key={outlet.id}
