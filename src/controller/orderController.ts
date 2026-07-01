@@ -113,103 +113,216 @@ export interface CreateDineInOrderInput {
   items: OrderItemInput[];
 }
 
+// export const createDineInOrder = async (
+//   outletId: string,
+//   userId: string,
+//   input: CreateDineInOrderInput,
+// ) => {
+//   const TAX_RATE = 0.08;
+//   const { items, tableId } = input;
+//   const table = await db.query.diningTables.findFirst({
+//     where: (t, { eq, and }) =>
+//       and(eq(t.id, tableId), eq(t.outletId, outletId), eq(t.isActive, true)),
+//   });
+//   if (!table) {
+//     return {
+//       success: false,
+//       error: "Invalid table for this outlet",
+//       status: 400,
+//     };
+//   }
+//   const priced = await priceItem(outletId, items);
+//   if (!priced.success) return priced;
+//   const { itemRows, subtotal } = priced.data;
+//   const tax = subtotal * TAX_RATE;
+//   const total = subtotal + tax;
+//   const orderNumber = await getNextOrderNumber(outletId);
+
+//   try {
+//     const [order] = await db
+//       .insert(orders)
+//       .values({
+//         outletId,
+//         orderType: "dine_in",
+//         tableId,
+//         orderNumber,
+//         status: "pending",
+//         subtotal: subtotal.toFixed(2),
+//         tax: tax.toFixed(2),
+//         total: total.toFixed(2),
+//         createdBy: userId,
+//       })
+//       .returning();
+
+//     const insertedItems = await db
+//       .insert(orderItems)
+//       .values(itemRows.map((row) => ({ ...row, orderId: order.id })))
+//       .returning();
+//     // Mark the table as occupied now that it has an active order
+//     await db
+//       .update(diningTables)
+//       .set({ status: "occupied" })
+//       .where(eq(diningTables.id, tableId));
+//     //stock decrement
+//     const { stockWarnings } = await deductStockForOrder(
+//       outletId,
+//       order.id,
+//       insertedItems.map((item) => ({
+//         id: item.id,
+//         productId: item.productId,
+//         quantity: item.quantity,
+//       })),
+//       userId,
+//     );
+
+//     // const [kotTicket] = await db
+//     //   .insert(kotTickets)
+//     //   .values({
+//     //     orderId: order.id,
+//     //     outletId: outletId,
+//     //     status: "pending",
+//     //   })
+//     //   .returning();
+
+//     // await db.insert(kotItems).values(
+//     //   insertedItems.map((item) => ({
+//     //     kotTicketId: kotTicket.id,
+//     //     orderItemId: item.id,
+//     //   })),
+//     // );
+
+//     // return {
+//     //   success: true,
+//     //   data: {
+//     //     order,
+//     //     items: insertedItems,
+//     //     stockWarnings,
+//     //   },
+//     // };
+//     const kotStatus = await getInitialKotStatus(outletId); // ← NEW
+
+//     const [kotTicket] = await db
+//       .insert(kotTickets)
+//       .values({
+//         orderId: order.id,
+//         outletId: outletId,
+//         status: kotStatus, // ← was "pending", now dynamic
+//       })
+//       .returning();
+
+//     await db.insert(kotItems).values(
+//       insertedItems.map((item) => ({
+//         kotTicketId: kotTicket.id,
+//         orderItemId: item.id,
+//       })),
+//     );
+
+//     return {
+//       success: true,
+//       data: { order, items: insertedItems, stockWarnings },
+//     };
+//   } catch (error) {
+//     console.error("createDineInOrder error:", error);
+//     return {
+//       success: false,
+//       error: "Failed to create dine-in order",
+//       status: 500,
+//     };
+//   }
+// };
+
+// takeaway ============
+
 export const createDineInOrder = async (
   outletId: string,
-  userId: string,
-  input: CreateDineInOrderInput,
+  userId:   string,
+  input:    CreateDineInOrderInput,
 ) => {
   const TAX_RATE = 0.08;
   const { items, tableId } = input;
-  const table = await db.query.diningTables.findFirst({
-    where: (t, { eq, and }) =>
-      and(eq(t.id, tableId), eq(t.outletId, outletId), eq(t.isActive, true)),
-  });
+
+  // ── STEP 1: fetch table + outlet IN PARALLEL (was sequential) ──
+  const [table, outlet] = await Promise.all([
+    db.query.diningTables.findFirst({
+      where: (t, { eq, and }) =>
+        and(
+          eq(t.id,       tableId),
+          eq(t.outletId, outletId),
+          eq(t.isActive, true)
+        ),
+      columns: { id: true, status: true }, // only what we need
+    }),
+    db.query.outlets.findFirst({
+      where: (o, { eq }) => eq(o.id, outletId),
+      columns: { skipKitchenWorkflow: true }, // replaces getInitialKotStatus() call
+    }),
+  ]);
+
   if (!table) {
     return {
       success: false,
-      error: "Invalid table for this outlet",
+      error:  "Invalid table for this outlet",
       status: 400,
     };
   }
-  const priced = await priceItem(outletId, items);
+
+  // ── STEP 2: price items + get order number IN PARALLEL ──
+  const [priced, orderNumber] = await Promise.all([
+    priceItem(outletId, items),
+    getNextOrderNumber(outletId),
+  ]);
+
   if (!priced.success) return priced;
+
   const { itemRows, subtotal } = priced.data;
-  const tax = subtotal * TAX_RATE;
-  const total = subtotal + tax;
-  const orderNumber = await getNextOrderNumber(outletId);
+  const tax      = subtotal * TAX_RATE;
+  const total    = subtotal + tax;
+
+  // ── KOT status from already-fetched outlet (no extra query) ──
+  const kotStatus = outlet?.skipKitchenWorkflow ? "ready" : "pending";
 
   try {
+    // ── STEP 3: insert order ──
     const [order] = await db
       .insert(orders)
       .values({
         outletId,
-        orderType: "dine_in",
+        orderType:   "dine_in",
         tableId,
         orderNumber,
-        status: "pending",
-        subtotal: subtotal.toFixed(2),
-        tax: tax.toFixed(2),
-        total: total.toFixed(2),
-        createdBy: userId,
+        status:      "pending",
+        subtotal:    subtotal.toFixed(2),
+        tax:         tax.toFixed(2),
+        total:       total.toFixed(2),
+        createdBy:   userId,
       })
       .returning();
 
+    // ── STEP 4: insert order items ──
     const insertedItems = await db
       .insert(orderItems)
       .values(itemRows.map((row) => ({ ...row, orderId: order.id })))
       .returning();
-    // Mark the table as occupied now that it has an active order
-    await db
-      .update(diningTables)
-      .set({ status: "occupied" })
-      .where(eq(diningTables.id, tableId));
-    //stock decrement
-    const { stockWarnings } = await deductStockForOrder(
-      outletId,
-      order.id,
-      insertedItems.map((item) => ({
-        id: item.id,
-        productId: item.productId,
-        quantity: item.quantity,
-      })),
-      userId,
-    );
 
-    // const [kotTicket] = await db
-    //   .insert(kotTickets)
-    //   .values({
-    //     orderId: order.id,
-    //     outletId: outletId,
-    //     status: "pending",
-    //   })
-    //   .returning();
+    // ── STEP 5: update table + insert KOT IN PARALLEL ──
+    const [kotTicket] = await Promise.all([
+      db
+        .insert(kotTickets)
+        .values({
+          orderId:  order.id,
+          outletId: outletId,
+          status:   kotStatus,
+        })
+        .returning()
+        .then((rows) => rows[0]),
 
-    // await db.insert(kotItems).values(
-    //   insertedItems.map((item) => ({
-    //     kotTicketId: kotTicket.id,
-    //     orderItemId: item.id,
-    //   })),
-    // );
+      db
+        .update(diningTables)
+        .set({ status: "occupied" })
+        .where(eq(diningTables.id, tableId)),
+    ]);
 
-    // return {
-    //   success: true,
-    //   data: {
-    //     order,
-    //     items: insertedItems,
-    //     stockWarnings,
-    //   },
-    // };
-    const kotStatus = await getInitialKotStatus(outletId); // ← NEW
-
-    const [kotTicket] = await db
-      .insert(kotTickets)
-      .values({
-        orderId: order.id,
-        outletId: outletId,
-        status: kotStatus, // ← was "pending", now dynamic
-      })
-      .returning();
-
+    // ── STEP 6: insert KOT items ──
     await db.insert(kotItems).values(
       insertedItems.map((item) => ({
         kotTicketId: kotTicket.id,
@@ -217,21 +330,37 @@ export const createDineInOrder = async (
       })),
     );
 
+    // ── STEP 7: deduct stock (non-blocking — don't slow down response) ──
+    deductStockForOrder(
+      outletId,
+      order.id,
+      insertedItems.map((item) => ({
+        id:        item.id,
+        productId: item.productId,
+        quantity:  item.quantity,
+      })),
+      userId,
+    ).catch((err) => console.error("deductStockForOrder error:", err));
+    // ↑ fire and forget — order response returns immediately
+    //   stock deduction happens in background
+
     return {
       success: true,
-      data: { order, items: insertedItems, stockWarnings },
+      data: {
+        order,
+        items:         insertedItems,
+        stockWarnings: [], // warnings come async now
+      },
     };
   } catch (error) {
     console.error("createDineInOrder error:", error);
     return {
       success: false,
-      error: "Failed to create dine-in order",
+      error:  "Failed to create dine-in order",
       status: 500,
     };
   }
 };
-
-// takeaway ============
 export interface CreateTakeawayOrderInput {
   customerName?: string;
   customerPhone?: string;
@@ -365,59 +494,6 @@ export async function getOrderByTable(outletId: string, tableId: string) {
 
   return { success: true, data: { table, orders: ordersWithKot } } as const;
 }
-
-// ─────────────────────────────────────────────
-// ADD ITEMS TO AN EXISTING ORDER~
-// ─────────────────────────────────────────────
-
-// export async function addItemsToOrder(
-//   outletId: string,
-//   orderId: string,
-//   items: OrderItemInput[]
-// ): Promise<ControllerResult<OrderWithItems>> {
-//   const order = await db.query.orders.findFirst({
-//     where: (o, { eq, and }) => and(eq(o.id, orderId), eq(o.outletId, outletId)),
-//   });
-
-//   if (!order) {
-//     return { success: false, error: "Order not found", status: 404 };
-//   }
-
-//   if (order.status === "completed" || order.status === "cancelled") {
-//     return { success: false, error: `Cannot add items to a ${order.status} order`, status: 400 };
-//   }
-
-//   const priced = await priceItem(outletId, items);
-//   if (!priced.success) return priced;
-
-//   const { itemRows, subtotal: newItemsSubtotal } = priced.data;
-
-//   const newSubtotal = Number(order.subtotal) + newItemsSubtotal;
-//   const tax = Number(order.tax);
-//   const newTotal = newSubtotal + tax;
-
-//   try {
-//     const insertedItems = await db
-//       .insert(orderItems)
-//       .values(itemRows.map((row) => ({ ...row, orderId: order.id })))
-//       .returning();
-
-//     const [updatedOrder] = await db
-//       .update(orders)
-//       .set({
-//         subtotal: newSubtotal.toFixed(2),
-//         total: newTotal.toFixed(2),
-//         updatedAt: new Date(),
-//       })
-//       .where(eq(orders.id, order.id))
-//       .returning();
-
-//     return { success: true, data: { order: updatedOrder, items: insertedItems } };
-//   } catch (error) {
-//     console.error("addItemsToOrder error:", error);
-//     return { success: false, error: "Failed to add items to order", status: 500 };
-//   }
-// }
 
 export async function cancelOrder(
   outletId: string,
@@ -648,3 +724,4 @@ export async function placeAndPayTakeawayOrder(
     };
   }
 }
+

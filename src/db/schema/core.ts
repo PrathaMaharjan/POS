@@ -30,21 +30,29 @@ export const organizations = pgTable("organizations", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const users = pgTable("users", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  organizationId: uuid("organization_id")
-    .notNull()
-    .references(() => organizations.id, { onDelete: "cascade" }),
-  name: varchar("name", { length: 255 }).notNull(),
-  email: varchar("email", { length: 255 }).notNull().unique(),
-  phone: varchar("phone", { length: 30 }),
-  passwordHash: text("password_hash").notNull(),
-  isOwner: boolean("is_owner").default(false).notNull(),
-  isActive: boolean("is_active").default(true).notNull(),
-  emailVerified: boolean("email_verified").default(false).notNull(), // <-- new
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const users = pgTable(
+  "users",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    email: varchar("email", { length: 255 }).notNull().unique(),
+    phone: varchar("phone", { length: 30 }),
+    passwordHash: text("password_hash").notNull(),
+    isOwner: boolean("is_owner").default(false).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    emailVerified: boolean("email_verified").default(false).notNull(), // <-- new
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("users_email_idx").on(t.email),
+    index("users_org_active_idx").on(t.organizationId, t.isActive),
+    index("users_org_owner_idx").on(t.organizationId, t.isOwner),
+  ],
+);
 
 export const emailVerificationTokens = pgTable(
   "email_verification_tokens",
@@ -119,7 +127,10 @@ export const refreshTokens = pgTable(
     revoked: boolean("revoked").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (table) => [index("refresh_tokens_user_idx").on(table.userId as any)],
+  (t) => [
+    index("refresh_tokens_user_idx").on(t.userId), // revoke user tokens
+    index("refresh_tokens_hash_idx").on(t.tokenHash),
+  ],
 );
 export const superAdmins = pgTable("super_admins", {
   id: uuid("id").defaultRandom().primaryKey(),
