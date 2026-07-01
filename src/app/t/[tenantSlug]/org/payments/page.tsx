@@ -5,7 +5,7 @@ import {
   CreditCard, Banknote, Smartphone, TrendingUp,
   CheckCircle2, Clock, Search, Loader2,
   ChevronLeft, ChevronRight, Calendar, X, Filter,
-  Store, ChevronDown
+  Store, ChevronDown, Armchair, Utensils
 } from "lucide-react";
 import api from "@/lib/api";
 
@@ -416,7 +416,6 @@ export default function PaymentsPage() {
               ) : (
                 paginatedPayments.map((pay) => {
                   const ms = METHOD_STYLE[pay.method] ?? METHOD_STYLE.cash;
-                  const tableLabel = pay.tableNumber ?? "Takeaway";
                   return (
                     <tr key={pay.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-3 px-4 font-bold text-[#0f6b4a] font-mono text-xs">
@@ -425,11 +424,17 @@ export default function PaymentsPage() {
                       <td className="py-3 px-4 text-slate-500 text-xs">
                         {pay.createdAtNepal}
                       </td>
-                      <td className="py-3 px-4 text-slate-600">
-                        <div className="flex flex-col">
-                          <span>{tableLabel}</span>
-                          <span className="text-[10px] text-slate-400 uppercase">
-                            {pay.orderType.replace("_", " ")}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5 text-slate-600">
+                          {pay.orderType === "dine_in" ? (
+                            <Armchair className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          ) : (
+                            <Utensils className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          )}
+                          <span>
+                            {pay.orderType === "dine_in"
+                              ? `Dine In${pay.tableNumber ? ` · ${pay.tableNumber.toLowerCase().includes("table") ? pay.tableNumber : `Table ${pay.tableNumber}`}` : ""}`
+                              : "Takeaway"}
                           </span>
                         </div>
                       </td>

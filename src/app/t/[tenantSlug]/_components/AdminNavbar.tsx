@@ -1,8 +1,9 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, ElementType } from "react";
 import api from "@/lib/api";
 import {
   Users,
@@ -37,6 +38,45 @@ export default function AdminNavbar({ role }: NavbarProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [orgName, setOrgName] = useState<string>("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && tenantSlug) {
+      const cachedLogo = localStorage.getItem(`org_logo_${tenantSlug}`);
+      const cachedName = localStorage.getItem(`org_name_${tenantSlug}`);
+      if (cachedLogo) setLogoUrl(cachedLogo);
+      if (cachedName) setOrgName(cachedName);
+    }
+  }, [tenantSlug]);
+
+  useEffect(() => {
+    if (!tenantSlug) return;
+    async function fetchOrg() {
+      try {
+        const res = await api.get("/org/tenant");
+        if (res.data) {
+          const newLogo = res.data.imageUrl || "";
+          const newName = res.data.name || "";
+          setLogoUrl(newLogo);
+          setOrgName(newName);
+          if (typeof window !== "undefined") {
+            if (newLogo) {
+              localStorage.setItem(`org_logo_${tenantSlug}`, newLogo);
+            } else {
+              localStorage.removeItem(`org_logo_${tenantSlug}`);
+            }
+            if (newName) {
+              localStorage.setItem(`org_name_${tenantSlug}`, newName);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching organization for sidebar:", err);
+      }
+    }
+    fetchOrg();
+  }, [tenantSlug]);
 
   useEffect(() => {
     setIsOpen(false);
@@ -76,6 +116,8 @@ export default function AdminNavbar({ role }: NavbarProps) {
     navItems.push({ label: "Orders", href: `${baseUrl}/orders`, icon: ShoppingBag });
     navItems.push({ label: "Menu", href: `${baseUrl}/menu`, icon: UtensilsCrossed });
     navItems.push({ label: "Payments", href: `${baseUrl}/payments`, icon: CreditCard });
+      navItems.push({ label: "Inventory", href: `${baseUrl}/inventory`, icon: Package });
+    navItems.push({ label: "Recipes", href: `${baseUrl}/recipe`, icon: BookOpen });
 
   }
 
@@ -142,18 +184,25 @@ export default function AdminNavbar({ role }: NavbarProps) {
           }`}
       >
         {/* Brand Header */}
-        <div className="flex h-16 items-center justify-between border-b border-slate-200 px-6 md:h-auto md:py-5">
-          <div className="flex flex-col">
-            <span className="font-semibold text-sm text-slate-800 tracking-tight capitalize leading-none mb-0.5">
-              {tenantSlug}
-            </span>
-            <span className="text-xs font-medium text-emerald-600 capitalize">
-              {role === "org" ? "Organization Admin" : "Manager Portal"}
-            </span>
+        <div className="flex h-16 items-center justify-center border-b border-slate-200 px-3 md:h-auto md:py-5 relative">
+          <div className="flex w-full flex-col items-center justify-center text-center">
+            {logoUrl ? (
+              <Link href={baseUrl} className="block w-full hover:opacity-90 transition-opacity">
+                <img
+                  src={logoUrl}
+                  alt={orgName || (typeof tenantSlug === 'string' ? tenantSlug : "Logo")}
+                  className="max-h-16 w-full object-contain rounded-md"
+                />
+              </Link>
+            ) : (
+              <span className="font-semibold text-sm text-slate-800 tracking-tight capitalize leading-none">
+                {orgName || tenantSlug}
+              </span>
+            )}
           </div>
           <button
             onClick={() => setIsOpen(false)}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 md:hidden"
+            className="absolute right-4 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 md:hidden"
             aria-label="Close Navigation Menu"
           >
             <X className="h-5 w-5" />
@@ -165,7 +214,7 @@ export default function AdminNavbar({ role }: NavbarProps) {
           <ul className="flex flex-col gap-1.5">
             {/* Regular nav items */}
             {navItems.map((item) => {
-              const IconComponent = item.icon as any;
+              const IconComponent = item.icon as ElementType;
               const isActive = pathname === item.href;
               return (
                 <li key={item.href}>
@@ -212,7 +261,7 @@ export default function AdminNavbar({ role }: NavbarProps) {
                 {isSettingsOpen && (
                   <ul className="mt-1 ml-4 flex flex-col gap-1 border-l-2 border-slate-100 pl-3">
                     {settingsSubItems.map((sub) => {
-                      const SubIcon = sub.icon as any;
+                      const SubIcon = sub.icon as ElementType;
                       const isSubActive = pathname === sub.href;
                       return (
                         <li key={sub.href}>
