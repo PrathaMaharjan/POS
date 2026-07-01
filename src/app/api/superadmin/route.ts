@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSuperAdminRefreshExpiry } from "@/lib/auth/superAdminJwt";
-import { superAdminLogin } from "@/controller/superadmin/controller";
+import { getSuperAdminProfile, superAdminLogin } from "@/controller/superadmin/controller";
+import { requireSuperAdmin } from "@/lib/auth/requireSuperAdmin";
 
 const schema = z.object({
   email:    z.string().email(),
@@ -56,4 +57,22 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+
+
+export async function GET(req: NextRequest) {
+  const auth = await requireSuperAdmin(req);
+  if (!auth.ok) return auth.response;
+
+  const result = await getSuperAdminProfile(auth.payload.superAdminId);
+
+  if (!result.success) {
+    return NextResponse.json(
+      { error: result.error },
+      { status: result.status }
+    );
+  }
+
+  return NextResponse.json({ superAdmin: result.data });
 }
