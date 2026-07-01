@@ -8,6 +8,7 @@ import {
   timestamp,
   pgEnum,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { diningTables, outlets, users } from ".";
@@ -49,10 +50,11 @@ export const orders = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (t) => [
-    index("orders_outlet_idx").on(t.outletId),
-    index("orders_table_idx").on(t.tableId),
-    // composite - speeds up getNextOrderNumber's MAX() lookup
-    index("orders_outlet_ordernum_idx").on(t.outletId, t.orderNumber),
+    index("orders_outlet_status_idx").on(t.outletId, t.status), // listOrder, dashboard
+    index("orders_table_status_idx").on(t.tableId, t.status), // getOrderByTable
+    index("orders_outlet_created_idx").on(t.outletId, t.createdAt), // reports, sales trend
+    index("orders_outlet_type_idx").on(t.outletId, t.orderType), // takeaway vs dine-in filter
+    uniqueIndex("orders_outlet_number_idx").on(t.outletId, t.orderNumber),
   ],
 );
 
@@ -71,7 +73,10 @@ export const orderItems = pgTable(
     subtotal: numeric("subtotal", { precision: 10, scale: 2 }).notNull(),
     notes: text("notes"),
   },
-  (t) => [index("order_items_order_idx").on(t.orderId)],
+  (t) => [
+    index("order_items_order_idx").on(t.orderId),
+    index("order_items_product_idx").on(t.productId),
+  ],
 );
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
