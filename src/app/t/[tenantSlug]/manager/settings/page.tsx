@@ -301,7 +301,7 @@ export default function SettingsPage() {
                             onClick={() => setShowPw((p) => ({ ...p, [key]: !p[key] }))}
                             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                           >
-                            {showPw[key] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                             {showPw[key] ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                           </button>
                         </div>
                       ))}

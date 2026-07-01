@@ -133,23 +133,72 @@ export default function SuperAdminOverviewPage() {
   const [timeRange, setTimeRange] = useState<"7d" | "30d" | "12m">("30d");
   const [mounted, setMounted] = useState(false);
 
-  // Prevent SSR hydration mismatch
+  const [platformStats, setPlatformStats] = useState<{
+    totalOrganizations: number;
+    platformUsers: number;
+  } | null>(null);
+
+  const [trendData, setTrendData] = useState<any[]>([]);
+  const [trendLabel, setTrendLabel] = useState<string>("");
+  const [loadingStats, setLoadingStats] = useState(true);
+  const [loadingTrend, setLoadingTrend] = useState(true);
+
   useEffect(() => {
     setMounted(true);
+
+    async function fetchStats() {
+      try {
+        const res = await fetch("/api/superadmin/dashboard/stats");
+        if (res.ok) {
+          const data = await res.json();
+          setPlatformStats(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch platform stats:", err);
+      } finally {
+        setLoadingStats(false);
+      }
+    }
+    fetchStats();
   }, []);
 
+  useEffect(() => {
+    async function fetchTrend() {
+      setLoadingTrend(true);
+      try {
+        const period = timeRange === "7d" ? "7days" : timeRange === "30d" ? "30days" : "1year";
+        const res = await fetch(`/api/superadmin/dashboard/trend?period=${period}`);
+        if (res.ok) {
+          const data = await res.json();
+          setTrendData(data.data || []);
+          setTrendLabel(data.trendLabel || "");
+        }
+      } catch (err) {
+        console.error("Failed to fetch trend data:", err);
+      } finally {
+        setLoadingTrend(false);
+      }
+    }
+    fetchTrend();
+  }, [timeRange]);
+
   const stats = STATS_DATA[timeRange];
+
+  const formattedTrendData = trendData.map((item) => ({
+    month: item.bucket,
+    newSignups: item.newOrgs,
+    totalOrgs: item.totalOrgs,
+  }));
 
   return (
     <div className="flex flex-col gap-8 p-4 md:p-0">
       {/* Header Banner */}
       <div className="rounded-2xl bg-emerald-600 px-6 py-6 text-white shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Platform Command Center</h1>
-          <p className="text-emerald-100 text-sm mt-1">Super Admin dashboard oversight & billing monitors</p>
+          <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
         </div>
 
-        {/* Time-Range Selector */}
+
         <div className="flex bg-emerald-700/60 p-1 rounded-lg border border-emerald-500/30 self-start md:self-auto shadow-inner">
           {(["7d", "30d", "12m"] as const).map((r) => (
             <button
@@ -166,96 +215,94 @@ export default function SuperAdminOverviewPage() {
         </div>
       </div>
 
-      {/* KPI Stats Grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Total Organizations */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 group">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Organizations</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 group-hover:scale-105 transition-transform">
-              <Building2 className="h-5 w-5" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-end justify-between">
-            <div>
-              <p className="text-3xl font-extrabold text-slate-800 tracking-tight">{stats.orgs}</p>
-              <p className="text-xs text-slate-400 font-semibold mt-1">Total registered tenants</p>
-            </div>
 
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+        <div className="rounded-xl border-l-4 border-l-emerald-500 border border-slate-200 bg-white p-4 sm:p-5 shadow-sm flex items-center justify-between hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 group">
+          <div>
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Organizations</p>
+            {loadingStats ? (
+              <Loader2 className="w-5 h-5 animate-spin text-emerald-600 mt-2" />
+            ) : (
+              <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1 break-all">
+                {platformStats ? platformStats.totalOrganizations : stats.orgs}
+              </p>
+            )}
+            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Total registered tenants</p>
+          </div>
+          <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 group-hover:scale-105 transition-transform">
+            <Building2 className="h-5 w-5 sm:h-6 w-6" />
           </div>
         </div>
 
-        {/* Active Subscriptions */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 group">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Subscriptions</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 group-hover:scale-105 transition-transform">
-              <CreditCard className="h-5 w-5" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-end justify-between">
-            <div>
-              <p className="text-3xl font-extrabold text-slate-800 tracking-tight">{stats.subs}</p>
-              <p className="text-xs text-slate-400 font-semibold mt-1">Paying customers</p>
-            </div>
 
+        <div className="rounded-xl border-l-4 border-l-indigo-500 border border-slate-200 bg-white p-4 sm:p-5 shadow-sm flex items-center justify-between hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 group">
+          <div>
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Active Subscriptions</p>
+            <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1 break-all">{stats.subs}</p>
+            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Paying customers</p>
+          </div>
+          <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 group-hover:scale-105 transition-transform">
+            <CreditCard className="h-5 w-5 sm:h-6 w-6" />
           </div>
         </div>
 
         {/* Monthly Recurring Revenue */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 group">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">MRR Estimate</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600 group-hover:scale-105 transition-transform">
-              <Receipt className="h-5 w-5" />
-            </div>
+        <div className="rounded-xl border-l-4 border-l-amber-500 border border-slate-200 bg-white p-4 sm:p-5 shadow-sm flex items-center justify-between hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 group">
+          <div>
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">MRR Estimate</p>
+            <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1 break-all">Rs. {stats.mrr.toLocaleString()}</p>
+            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Platform monthly billings</p>
           </div>
-          <div className="mt-4 flex items-end justify-between">
-            <div>
-              <p className="text-2xl font-extrabold text-slate-800 tracking-tight">Rs. {stats.mrr.toLocaleString()}</p>
-              <p className="text-xs text-slate-400 font-semibold mt-1">Platform monthly billings</p>
-            </div>
-
+          <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 group-hover:scale-105 transition-transform">
+            <Receipt className="h-5 w-5 sm:h-6 w-6" />
           </div>
         </div>
 
-        {/* Platform Users */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 group">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Platform Users</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-50 text-slate-600 group-hover:scale-105 transition-transform">
-              <Users className="h-5 w-5" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-end justify-between">
-            <div>
-              <p className="text-3xl font-extrabold text-slate-800 tracking-tight">{stats.users}</p>
-              <p className="text-xs text-slate-400 font-semibold mt-1">Active staff accounts</p>
-            </div>
 
+        <div className="rounded-xl border-l-4 border-l-slate-400 border border-slate-200 bg-white p-4 sm:p-5 shadow-sm flex items-center justify-between hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 group">
+          <div>
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Platform Users</p>
+            {loadingStats ? (
+              <Loader2 className="w-5 h-5 animate-spin text-slate-500 mt-2" />
+            ) : (
+              <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1 break-all">
+                {platformStats ? platformStats.platformUsers : stats.users}
+              </p>
+            )}
+            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Active staff accounts</p>
+          </div>
+          <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600 group-hover:scale-105 transition-transform">
+            <Users className="h-5 w-5 sm:h-6 w-6" />
           </div>
         </div>
       </div>
 
-      {/* Visual Charts Section */}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recharts Area Chart for Tenant Registration Trend */}
+
         <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Tenant Registration Trend</h3>
-              <p className="text-xs text-slate-400 font-semibold mt-0.5">Platform growth & signup velocity over last 7 months</p>
+              <p className="text-xs text-slate-400 font-semibold mt-0.5">
+                {trendLabel
+                  ? `${trendLabel} (${timeRange === "7d" ? "Last 7 Days" : timeRange === "30d" ? "Last 30 Days" : "Last 12 Months"})`
+                  : "Platform growth & signup velocity"}
+              </p>
             </div>
-            <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>Steady registration volume</span>
-            </div>
+
           </div>
 
-          <div className="h-72 w-full text-xs font-medium">
+          <div className="h-72 w-full text-xs font-medium relative">
+            {loadingTrend && (
+              <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
+                <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+              </div>
+            )}
             {mounted ? (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={REGISTRATION_TREND_DATA} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                <AreaChart data={formattedTrendData.length > 0 ? formattedTrendData : REGISTRATION_TREND_DATA} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                   <defs>
                     <linearGradient id="colorOrgs" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
@@ -286,7 +333,7 @@ export default function SuperAdminOverviewPage() {
           </div>
         </div>
 
-        {/* Subscription Plan Distribution */}
+
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col justify-between">
           <div>
             <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Plan Distribution</h3>
@@ -316,7 +363,7 @@ export default function SuperAdminOverviewPage() {
             </div>
           </div>
 
-          {/* Plan legend */}
+
           <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
             {PLAN_DISTRIBUTION_DATA.map((plan) => (
               <div key={plan.name} className="flex items-center gap-2">
@@ -331,9 +378,9 @@ export default function SuperAdminOverviewPage() {
         </div>
       </div>
 
-      {/* Main bottom block */}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Invoices list */}
+
         <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between mb-5">
             <div>
@@ -375,10 +422,8 @@ export default function SuperAdminOverviewPage() {
           </div>
         </div>
 
-        {/* Sidebar logs: System Health & Activity Feed */}
         <div className="flex flex-col gap-6">
 
-          {/* Activity feed */}
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-1.5">
               <Zap className="w-4 h-4 text-amber-500" /> Platform Feed

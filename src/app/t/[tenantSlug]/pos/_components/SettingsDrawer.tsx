@@ -203,7 +203,7 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
                         placeholder="Required only to change password"
                       />
                       <button type="button" disabled={isSaving} onClick={() => setShowCurrentPassword(p => !p)} style={{ color: textMuted }} className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                        {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showCurrentPassword ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
@@ -224,7 +224,7 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
                         placeholder="Leave blank to keep current"
                       />
                       <button type="button" disabled={isSaving} onClick={() => setShowPassword(p => !p)} style={{ color: textMuted }} className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showPassword ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
@@ -245,7 +245,7 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
                         placeholder="Re-enter new password"
                       />
                       <button type="button" disabled={isSaving} onClick={() => setShowConfirmPassword(p => !p)} style={{ color: textMuted }} className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showConfirmPassword ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
