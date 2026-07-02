@@ -78,31 +78,31 @@ const MOCK_OUTLETS: Record<string, Outlet[]> = {
 };
 
 const MOCK_OUTLET_USER_COUNTS: Record<string, Record<string, number>> = {
-  // McDonalds Times Square
+
   "mcd-times-sq": { Owner: 1, Manager: 2, Cashier: 12, Waiter: 8, "Kitchen Crew": 15, "All Rounder": 4, "Shift Supervisor": 3 },
-  // McDonalds Mall of America
+
   "mcd-mall-of-am": { Owner: 1, Manager: 3, Cashier: 18, Waiter: 14, "Kitchen Crew": 22, "All Rounder": 6, "Shift Supervisor": 5 },
-  // McDonalds Main Branch
+
   "mcd-main": { Owner: 1, Manager: 2, Cashier: 10, Waiter: 6, "Kitchen Crew": 12, "All Rounder": 2, "Shift Supervisor": 2 },
 
-  // Starbucks Downtown
+
   "sbux-downtown": { Owner: 1, Manager: 1, Cashier: 8, Waiter: 0, "Kitchen Crew": 6, "All Rounder": 3, Barista: 10 },
-  // Starbucks Uptown
+
   "sbux-uptown": { Owner: 1, Manager: 1, Cashier: 6, Waiter: 0, "Kitchen Crew": 4, "All Rounder": 2, Barista: 8 },
-  // Starbucks Airport
+
   "sbux-airport": { Owner: 0, Manager: 2, Cashier: 15, Waiter: 0, "Kitchen Crew": 10, "All Rounder": 5, Barista: 12 },
 
-  // BK Drive Thru
+
   "bk-drive-thru": { Owner: 1, Manager: 2, Cashier: 9, Waiter: 4, "Kitchen Crew": 8, "All Rounder": 2, "Assistant Store Lead": 2 },
-  // BK Main Street
+
   "bk-main": { Owner: 1, Manager: 1, Cashier: 7, Waiter: 3, "Kitchen Crew": 6, "All Rounder": 1, "Assistant Store Lead": 1 },
 
-  // KFC Expressway
+
   "kfc-expressway": { Owner: 1, Manager: 2, Cashier: 11, Waiter: 5, "Kitchen Crew": 10, "All Rounder": 3, "Delivery Dispatcher": 4 },
-  // KFC Center Plaza
+
   "kfc-center": { Owner: 1, Manager: 1, Cashier: 8, Waiter: 4, "Kitchen Crew": 7, "All Rounder": 2, "Delivery Dispatcher": 3 },
 
-  // System fallback
+
   "sys-hq": { Owner: 4, Manager: 5, Cashier: 20, Waiter: 10, "Kitchen Crew": 15, "All Rounder": 8 },
   "sys-dev": { Owner: 2, Manager: 2, Cashier: 5, Waiter: 2, "Kitchen Crew": 4, "All Rounder": 1 },
 };
@@ -146,13 +146,13 @@ const SYSTEM_ROLES_TEMPLATES = [
     code: "OWNER",
     name: "Owner",
     description: "Full administrative access with control over all configurations, outlets, and system security.",
-    permissions: [] as string[], // Populated programmatically
+    permissions: [] as string[],
   },
   {
     code: "MANAGER",
     name: "Manager",
     description: "Operational management permissions including staff management, reports, menu editing, and outlets layout.",
-    permissions: [] as string[], // Populated programmatically
+    permissions: [] as string[],
   },
   {
     code: "CASHIER",
@@ -189,7 +189,6 @@ const SYSTEM_ROLES_TEMPLATES = [
   }
 ];
 
-// Populate Owner and Manager permissions programmatically
 const ALL_PERMISSIONS_LIST: string[] = [];
 const ACTIONS = ["create", "read", "update", "delete"];
 Object.entries(MODULE_GROUPS).forEach(([module, group]) => {
@@ -206,7 +205,7 @@ SYSTEM_ROLES_TEMPLATES[1].permissions = ALL_PERMISSIONS_LIST.filter((p) => {
 });
 
 const getRolesForOrg = (orgId: string, orgName: string) => {
-  // Start with system template roles
+
   const baseRoles: Role[] = SYSTEM_ROLES_TEMPLATES.map((tmpl) => ({
     id: `${tmpl.code}-${orgId}`,
     code: tmpl.code,
@@ -220,7 +219,7 @@ const getRolesForOrg = (orgId: string, orgName: string) => {
     permissions: tmpl.permissions,
   }));
 
-  // Append organization-specific custom roles
+
   if (orgId === "mcd" || orgName.toLowerCase().includes("mcdonald")) {
     baseRoles.push({
       id: `custom-mcd-shift-lead-${orgId}`,
@@ -325,12 +324,12 @@ export default function SuperAdminRolesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Dynamic Permissions States
+
   const [rolePermissions, setRolePermissions] = useState<Record<string, any>>({});
   const [isPermissionsLoading, setIsPermissionsLoading] = useState<Record<string, boolean>>({});
   const [permissionsError, setPermissionsError] = useState<Record<string, string | null>>({});
 
-  // Permission API fetch call
+
   const fetchPermissions = async (roleId: string) => {
     setIsPermissionsLoading((prev) => ({ ...prev, [roleId]: true }));
     setPermissionsError((prev) => ({ ...prev, [roleId]: null }));
@@ -352,10 +351,10 @@ export default function SuperAdminRolesPage() {
     }
   };
 
-  // Permission PATCH API call
+
   const handleTogglePermission = async (roleId: string, permissionId: string, currentEnabled: boolean) => {
     const nextState = !currentEnabled;
-    // Optimistic UI update
+
     setRolePermissions((prev) => {
       const rolePerms = prev[roleId] ? { ...prev[roleId] } : {};
       Object.keys(rolePerms).forEach((moduleKey) => {
@@ -388,7 +387,7 @@ export default function SuperAdminRolesPage() {
     } catch (err: any) {
       console.error("Toggle permission error:", err);
       showToast(err.message || "Failed to update permission");
-      // Revert optimistic update
+
       setRolePermissions((prev) => {
         const rolePerms = prev[roleId] ? { ...prev[roleId] } : {};
         Object.keys(rolePerms).forEach((moduleKey) => {
@@ -404,7 +403,7 @@ export default function SuperAdminRolesPage() {
     }
   };
 
-  // Revert / Reset permissions API call
+
   const handleResetPermissions = async (roleId: string) => {
     setIsPermissionsLoading((prev) => ({ ...prev, [roleId]: true }));
     try {
@@ -428,18 +427,17 @@ export default function SuperAdminRolesPage() {
     }
   };
 
-  // Toggle detail view panel
+
   const handleToggleExpand = (roleId: string) => {
     setExpandedRole(expandedRole === roleId ? null : roleId);
   };
 
-  // Helper to lookup permission items in the API-driven list
   const getPermissionItem = (roleId: string, module: string, resource: string, action: string) => {
     const modulePerms = rolePermissions[roleId]?.[module] ?? [];
     return modulePerms.find((p: any) => p.resource === resource && p.action === action);
   };
 
-  // Helper count methods
+
   const getActivePermissionsCount = (roleId: string) => {
     const rolePerms = rolePermissions[roleId];
     if (!rolePerms) return 0;
@@ -464,7 +462,7 @@ export default function SuperAdminRolesPage() {
 
   const ITEMS_PER_PAGE = 8;
 
-  // Fetch Organizations
+
   useEffect(() => {
     async function loadOrgs() {
       setIsLoading(true);
@@ -499,7 +497,7 @@ export default function SuperAdminRolesPage() {
     loadOrgs();
   }, []);
 
-  // Fetch Outlets when activeOrgId changes
+
   useEffect(() => {
     if (!activeOrgId) return;
 
@@ -524,7 +522,7 @@ export default function SuperAdminRolesPage() {
       }
 
       if (list.length === 0) {
-        // Use static mock fallback
+
         list = MOCK_OUTLETS[activeOrgId] || MOCK_OUTLETS["system"];
       }
 
@@ -540,7 +538,7 @@ export default function SuperAdminRolesPage() {
     loadOutlets();
   }, [activeOrgId]);
 
-  // Click outside handlers
+
   useEffect(() => {
     if (!orgDropdownOpen) return;
     const handleOutsideClick = () => setOrgDropdownOpen(false);
@@ -563,7 +561,7 @@ export default function SuperAdminRolesPage() {
     return outlets.find((o) => o.id === activeOutletId)?.name ?? "Select Outlet";
   }, [activeOutletId, outlets]);
 
-  // Roles computed list mapping the states
+
   const roles = useMemo(() => {
     const rawRoles = getRolesForOrg(activeOrgId, activeOrgName);
     return rawRoles.map((r) => ({
@@ -606,22 +604,22 @@ export default function SuperAdminRolesPage() {
     }, 3000);
   };
 
-  // Helper to fetch user counts for role in selected outlet
+
   const getRoleUserCount = (roleName: string) => {
     if (!activeOutletId) return 0;
     if (MOCK_OUTLET_USER_COUNTS[activeOutletId]) {
       return MOCK_OUTLET_USER_COUNTS[activeOutletId][roleName] ?? 0;
     }
-    // Hash-based deterministic number for dynamically loaded db outlets
+
     let hash = 0;
     const str = roleName + activeOutletId;
     for (let i = 0; i < str.length; i++) {
       hash = str.charCodeAt(i) + ((hash << 5) - hash);
     }
-    return Math.abs(hash % 10) + 1; // 1 to 10
+    return Math.abs(hash % 10) + 1;
   };
 
-  // Filtered Roles
+
   const filteredRoles = useMemo(() => {
     return roles.filter((role) => {
       const q = search.toLowerCase();
@@ -645,7 +643,7 @@ export default function SuperAdminRolesPage() {
     });
   }, [roles, search, statusFilter]);
 
-  // Statistics Calculation
+
   const stats = useMemo(() => {
     const total = roles.length;
     const active = roles.filter((r) => r.isActive).length;
@@ -685,16 +683,16 @@ export default function SuperAdminRolesPage() {
 
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-0 select-none">
-      {/* Header Banner */}
+
       <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Superadmin Roles</h1>
 
         </div>
 
-        {/* Dynamic Filters Container */}
+
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          {/* Organization Picker Dropdown */}
+
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => {
@@ -742,7 +740,7 @@ export default function SuperAdminRolesPage() {
             )}
           </div>
 
-          {/* Outlet Picker Dropdown */}
+
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => {
@@ -797,7 +795,7 @@ export default function SuperAdminRolesPage() {
         </div>
       </div>
 
-      {/* Statistics Cards */}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {[
           {
@@ -851,7 +849,7 @@ export default function SuperAdminRolesPage() {
         ))}
       </div>
 
-      {/* Filters Bar */}
+
       <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
         <div className="relative flex-1 max-w-full lg:max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -870,7 +868,6 @@ export default function SuperAdminRolesPage() {
 
       </div>
 
-      {/* Tabular Roles Table */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         {isLoading ? (
           <div className="py-16 text-center">
@@ -939,12 +936,12 @@ export default function SuperAdminRolesPage() {
                           </td>
                         </tr>
 
-                        {/* Expanded Detail Panel */}
+
                         {isExpanded && (
                           <tr className="bg-slate-50/60">
                             <td colSpan={4} className="px-6 py-5">
                               <div className="animate-in fade-in duration-200">
-                                {/* Permission Privilege Catalog */}
+
                                 <div className="w-full min-w-0">
                                   <div className="flex items-center gap-2 mb-4">
                                     <Shield className="w-4 h-4 text-emerald-600" />
@@ -975,11 +972,10 @@ export default function SuperAdminRolesPage() {
                                                   return (
                                                     <span
                                                       key={action}
-                                                      className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border select-none ${
-                                                        isAllowed
-                                                          ? "bg-emerald-50 text-[#0f6b4a] border-emerald-200/50"
-                                                          : "bg-slate-100 text-slate-300 border-transparent"
-                                                      }`}
+                                                      className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border select-none ${isAllowed
+                                                        ? "bg-emerald-50 text-[#0f6b4a] border-emerald-200/50"
+                                                        : "bg-slate-100 text-slate-300 border-transparent"
+                                                        }`}
                                                     >
                                                       {action.substring(0, 3)}
                                                     </span>
@@ -1006,7 +1002,7 @@ export default function SuperAdminRolesPage() {
           </div>
         )}
 
-        {/* Pagination Controls */}
+
         <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-t border-slate-100 bg-white px-6 py-4">
           <div className="text-xs text-slate-400 order-2 sm:order-1">
             {filteredRoles.length > 0
@@ -1043,7 +1039,7 @@ export default function SuperAdminRolesPage() {
         </div>
       </div>
 
-      {/* Success Toast Notification */}
+
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-slate-900 text-white px-5 py-3.5 rounded-xl shadow-2xl border border-slate-800/80 animate-in fade-in slide-in-from-bottom-4 duration-300">
           <CheckCircle2 className="h-4.5 w-4.5 text-emerald-400 shrink-0" />
