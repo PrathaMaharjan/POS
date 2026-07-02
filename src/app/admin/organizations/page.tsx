@@ -540,8 +540,8 @@ export default function AdminOrganizationsPage() {
                           onClick={() => toggleStatus(org.id, org.isActive)}
                           title="Click to toggle status"
                           className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold cursor-pointer transition-all hover:scale-105 active:scale-95 select-none ${org.isActive
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200/50"
-                              : "bg-rose-50 text-rose-700 border border-rose-200/50"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200/50"
+                            : "bg-rose-50 text-rose-700 border border-rose-200/50"
                             }`}
                         >
                           <span

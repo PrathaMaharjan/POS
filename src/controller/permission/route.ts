@@ -72,7 +72,7 @@ export async function getRolePermissions(
       };
     }
 
-    // fall back to global default
+
     return {
       ...perm,
       isEnabled: globalPermIds.has(perm.id),
@@ -175,7 +175,7 @@ export async function togglePermission(
 // ─────────────────────────────────────────────
 export async function resetRolePermissions(
   organizationId: string,
-  roleId:         string
+  roleId: string
 ): Promise<ControllerResult<null>> {
   const role = await db.query.roles.findFirst({
     where: (r, { eq }) => eq(r.id, roleId),
@@ -189,7 +189,7 @@ export async function resetRolePermissions(
   if (PROTECTED_ROLES.includes(role.name)) {
     return {
       success: false,
-      error:  "Cannot reset Owner role permissions",
+      error: "Cannot reset Owner role permissions",
       status: 403,
     };
   }
@@ -200,7 +200,7 @@ export async function resetRolePermissions(
       .where(
         and(
           eq(orgRolePermissions.organizationId, organizationId),
-          eq(orgRolePermissions.roleId,         roleId)
+          eq(orgRolePermissions.roleId, roleId)
         )
       );
 
@@ -209,7 +209,7 @@ export async function resetRolePermissions(
     console.error("resetRolePermissions error:", error);
     return {
       success: false,
-      error:  "Failed to reset permissions",
+      error: "Failed to reset permissions",
       status: 500,
     };
   }

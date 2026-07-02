@@ -118,7 +118,7 @@ export default function AdminNavbar({ role }: NavbarProps) {
     navItems.push({ label: "Payments", href: `${baseUrl}/payments`, icon: CreditCard });
       navItems.push({ label: "Inventory", href: `${baseUrl}/inventory`, icon: Package });
     navItems.push({ label: "Recipes", href: `${baseUrl}/recipe`, icon: BookOpen });
-
+    navItems.push({ label: "Roles", href: `${baseUrl}/roles`, icon: ShieldCheck });
   }
 
 
