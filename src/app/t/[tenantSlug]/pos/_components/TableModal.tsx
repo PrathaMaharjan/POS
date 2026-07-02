@@ -32,6 +32,7 @@ interface TableModalProps {
   onClose: () => void;
   onStatusChange?: (tableId: string, newStatus: TableStatus) => void;
   onKotStatusChange?: (ticketId: string, nextStatus: string) => void;
+  skipKitchenWorkflow?: boolean;
 }
 
 const TABS = ['Add Order', 'Order List'] as const;
