@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requiredToken } from "@/lib/auth/requireAuth";
-import { requirePermission } from "@/lib/permissions/requirePermission";
-import { resetRolePermissions } from "@/controller/rolePermissionController";
+import { requiredPermission } from "@/lib/permissions/requirePermission";
+import { resetRolePermissions } from "@/controller/permission/controller";
 
 const schema = z.object({
   roleId: z.string().uuid(),
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
-  const permError = requirePermission(auth.payload, "core.roles.update");
+  const permError = requiredPermission(auth.payload, "core.roles.update");
   if (permError) return permError;
 
   const body   = await req.json();

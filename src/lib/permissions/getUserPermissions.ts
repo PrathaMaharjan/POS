@@ -31,12 +31,63 @@ import { and, eq } from "drizzle-orm";
 // }
 
 
+// export async function getUserPermissionsForOutlet(
+//   userId:         string,
+//   outletId:       string,
+//   organizationId: string
+// ): Promise<string[]> {
+
+//   const userRole = await db.query.userOutletRoles.findFirst({
+//     where: (uor, { eq, and }) =>
+//       and(eq(uor.userId, userId), eq(uor.outletId, outletId)),
+//     columns: { roleId: true },
+//   });
+
+//   if (!userRole) return [];
+//   const { roleId } = userRole;
+
+//   // ── 1. get global permissions as the base ──
+//   const globalPerms = await db.query.rolePermissions.findMany({
+//     where: (rp, { eq }) => eq(rp.roleId, roleId),
+//     with: { permission: { columns: { id: true, code: true } } },
+//   });
+
+//   // build a map: permissionId → code, starting with global enabled = true
+//   const permissionMap = new Map<string, { code: string; enabled: boolean }>();
+//   for (const gp of globalPerms) {
+//     permissionMap.set(gp.permission.id, {
+//       code:    gp.permission.code,
+//       enabled: true, // global presence = enabled by default
+//     });
+//   }
+
+//   // ── 2. apply org overrides on top ──
+//   const orgOverrides = await db.query.orgRolePermissions.findMany({
+//     where: (orp, { eq, and }) =>
+//       and(eq(orp.organizationId, organizationId), eq(orp.roleId, roleId)),
+//     with: { permission: { columns: { id: true, code: true } } },
+//   });
+
+//   for (const override of orgOverrides) {
+//     permissionMap.set(override.permission.id, {
+//       code:    override.permission.code,
+//       enabled: override.isEnabled, // override wins
+//     });
+//   }
+
+//   // ── 3. return only enabled permission codes ──
+//   return Array.from(permissionMap.values())
+//     .filter((p) => p.enabled)
+//     .map((p) => p.code);
+// }
+
 export async function getUserPermissionsForOutlet(
   userId:         string,
   outletId:       string,
   organizationId: string
 ): Promise<string[]> {
 
+  // ── 1. get user's role ──
   const userRole = await db.query.userOutletRoles.findFirst({
     where: (uor, { eq, and }) =>
       and(eq(uor.userId, userId), eq(uor.outletId, outletId)),
@@ -46,40 +97,71 @@ export async function getUserPermissionsForOutlet(
   if (!userRole) return [];
   const { roleId } = userRole;
 
-  // ── 1. get global permissions as the base ──
-  const globalPerms = await db.query.rolePermissions.findMany({
-    where: (rp, { eq }) => eq(rp.roleId, roleId),
-    with: { permission: { columns: { id: true, code: true } } },
-  });
+  // ── 2. fetch outlet-specific + org-level overrides + global in parallel ──
+  const [outletOverrides, orgOverrides, globalPerms] = await Promise.all([
 
-  // build a map: permissionId → code, starting with global enabled = true
+    // outlet-specific overrides (highest priority)
+    db.query.orgRolePermissions.findMany({
+      where: (orp, { eq, and }) =>
+        and(
+          eq(orp.organizationId, organizationId),
+          eq(orp.outletId,       outletId),  // ← specific outlet
+          eq(orp.roleId,         roleId)
+        ),
+      with: { permission: { columns: { id: true, code: true } } },
+    }),
+
+    // org-level overrides (fallback)
+    db.query.orgRolePermissions.findMany({
+      where: (orp, { eq, and, isNull }) =>
+        and(
+          eq(orp.organizationId, organizationId),
+          isNull(orp.outletId),  // ← org-level (no outlet)
+          eq(orp.roleId,         roleId)
+        ),
+      with: { permission: { columns: { id: true, code: true } } },
+    }),
+
+    // global defaults (lowest priority)
+    db.query.rolePermissions.findMany({
+      where: (rp, { eq }) => eq(rp.roleId, roleId),
+      with: { permission: { columns: { id: true, code: true } } },
+    }),
+  ]);
+
+  // ── 3. build permission map — outlet overrides win over org overrides win over global ──
   const permissionMap = new Map<string, { code: string; enabled: boolean }>();
+
+  // start with global (lowest priority)
   for (const gp of globalPerms) {
     permissionMap.set(gp.permission.id, {
       code:    gp.permission.code,
-      enabled: true, // global presence = enabled by default
+      enabled: true,
     });
   }
 
-  // ── 2. apply org overrides on top ──
-  const orgOverrides = await db.query.orgRolePermissions.findMany({
-    where: (orp, { eq, and }) =>
-      and(eq(orp.organizationId, organizationId), eq(orp.roleId, roleId)),
-    with: { permission: { columns: { id: true, code: true } } },
-  });
-
-  for (const override of orgOverrides) {
-    permissionMap.set(override.permission.id, {
-      code:    override.permission.code,
-      enabled: override.isEnabled, // override wins
+  // apply org-level overrides
+  for (const op of orgOverrides) {
+    permissionMap.set(op.permission.id, {
+      code:    op.permission.code,
+      enabled: op.isEnabled,
     });
   }
 
-  // ── 3. return only enabled permission codes ──
+  // apply outlet-specific overrides (highest priority — wins everything)
+  for (const op of outletOverrides) {
+    permissionMap.set(op.permission.id, {
+      code:    op.permission.code,
+      enabled: op.isEnabled,
+    });
+  }
+
+  // ── 4. return only enabled permissions ──
   return Array.from(permissionMap.values())
     .filter((p) => p.enabled)
     .map((p) => p.code);
 }
+
 
 export async function getUserRoleForOutlet(
   userId:   string,

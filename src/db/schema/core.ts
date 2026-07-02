@@ -152,6 +152,8 @@ export const orgRolePermissions = pgTable(
     roleId: uuid("role_id")
       .notNull()
       .references(() => roles.id, { onDelete: "cascade" }),
+    outletId: uuid("outlet_id") // ← NEW — null = org-level, uuid = outlet-level
+      .references(() => outlets.id, { onDelete: "cascade" }),
     permissionId: uuid("permission_id")
       .notNull()
       .references(() => permissions.id, { onDelete: "cascade" }),
@@ -165,6 +167,7 @@ export const orgRolePermissions = pgTable(
       t.organizationId,
       t.roleId,
       t.permissionId,
+      t.outletId,
     ),
     index("org_role_permissions_org_idx").on(t.organizationId),
     index("org_role_permissions_role_idx").on(t.roleId),
