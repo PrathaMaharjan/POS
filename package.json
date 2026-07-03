@@ -15,7 +15,7 @@
     "db:seed:dev": "tsx src/db/seed/cashier.ts",
     "db:seed:waiter-kitchen": "tsx src/db/seed/dev-waiter-kitchen.ts",
     "db:seed:manager": "tsx src/db/seed/dev-manager.ts",
-    "seed:admin":"tsx src/db/seed/seedSuperAdmin.ts"
+    "seed:admin": "tsx src/db/seed/seedSuperAdmin.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
@@ -25,7 +25,6 @@
     "axios": "^1.18.0",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
-    "better-auth": "^1.6.16",
     "cloudinary": "^2.10.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
@@ -38,7 +37,6 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.9.0",
-    "resend": "^6.12.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {

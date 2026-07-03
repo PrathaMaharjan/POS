@@ -19,7 +19,6 @@ export async function GET(
   const auth = await requireSuperAdmin(req);
   if (!auth.ok) return auth.response;
 
-  // ✅ check success flag, not truthiness
   const orgCheck = await verifyOrg(orgId);
   if (!orgCheck.success) {
     return NextResponse.json(

@@ -4,11 +4,12 @@ import { requiredPermission } from "@/lib/permissions/requirePermission";
 import { NextRequest, NextResponse } from "next/server";
 import z from "zod";
 
-const toggleSchema = z.object({
-  roleId:       z.string().uuid(),
-  permissionId: z.string().uuid(),
-  isEnabled:    z.boolean(),
-});
+  const toggleSchema = z.object({
+    roleId:       z.string().uuid(),
+    permissionId: z.string().uuid(),
+    isEnabled:    z.boolean(),
+    outletId:     z.string().uuid().optional(), 
+  });
 
 export async function GET(req: NextRequest) {
   const auth = await requiredToken(req);
@@ -44,12 +45,6 @@ export async function PATCH(req: NextRequest) {
   const permError = requiredPermission(auth.payload, "core.roles.update");
   if (permError) return permError;
 
-  const toggleSchema = z.object({
-    roleId:       z.string().uuid(),
-    permissionId: z.string().uuid(),
-    isEnabled:    z.boolean(),
-    outletId:     z.string().uuid().optional(), // ← add
-  });
 
   const body   = await req.json();
   const parsed = toggleSchema.safeParse(body);
