@@ -313,6 +313,8 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
               const s = isDark ? STATUS_STYLES_DARK[order.status] : STATUS_STYLES_LIGHT[order.status];
               const isExpanded = expandedId === order.id;
               const paymentBadge = getPaymentBadge(order.paymentMethod, isDark);
+              const computedRate = order.subtotal > 0 ? (order.tax / order.subtotal) * 100 : 8;
+              const taxRateLabel = `${parseFloat(computedRate.toFixed(2))}%`;
 
               return (
                 <div
@@ -402,7 +404,7 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
                               <span>Rs.{order.subtotal.toFixed(2)}</span>
                             </div>
                             <div className={`flex justify-between ${isDark ? "text-neutral-400" : "text-slate-500"}`}>
-                              <span>Tax (8%)</span>
+                              <span>Tax ({taxRateLabel})</span>
                               <span>Rs.{order.tax.toFixed(2)}</span>
                             </div>
                             <div className={`flex justify-between font-bold border-t pt-1.5 mt-1 ${isDark ? "text-white border-neutral-800" : "text-slate-800 border-slate-200"

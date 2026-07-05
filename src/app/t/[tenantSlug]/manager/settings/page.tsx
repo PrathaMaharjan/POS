@@ -111,12 +111,13 @@ export default function SettingsPage() {
         const list = res.data.outlets ?? [];
         const currentOutlet = list.find((o: any) => o.id === storedOutletId);
         if (currentOutlet) {
+          const localTaxRate = localStorage.getItem(`taxRate_${storedOutletId}`);
           setOutlet({
             id: currentOutlet.id,
             name: currentOutlet.name || "",
             address: currentOutlet.address || "",
             phone: currentOutlet.phone || "",
-            taxRate: currentOutlet.taxRate ?? 8,
+            taxRate: localTaxRate ? Number(localTaxRate) : (currentOutlet.taxRate ?? 8),
           });
         }
       } catch (err) {
@@ -196,10 +197,15 @@ export default function SettingsPage() {
         name: outlet.name,
         address: outlet.address,
         phone: outlet.phone,
-        taxRate: outlet.taxRate,
+        taxRate: outlet.taxRate.toFixed(2),
+        taxEnabled: true,
       };
 
       await api.patch(`/outlets/${outlet.id}`, payload);
+      
+      localStorage.setItem(`taxRate_${outlet.id}`, String(outlet.taxRate));
+      localStorage.setItem("activeOutletTaxRate", String(outlet.taxRate));
+      
       flashSaved("Outlet settings updated successfully.");
     } catch (err: any) {
       console.error(err);

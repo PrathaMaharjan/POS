@@ -14,8 +14,8 @@ export async function GET(req: NextRequest) {
   // every org uses the same base roles assigned via userOutletRoles
   const allRoles = await db.query.roles.findMany({
     columns: {
-      id:          true,
-      name:        true,
+      id: true,
+      name: true,
       description: true,
     },
     orderBy: (r, { asc }) => [asc(r.name)],

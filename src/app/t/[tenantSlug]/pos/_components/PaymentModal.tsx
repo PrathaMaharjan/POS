@@ -67,8 +67,12 @@ export default function PaymentModal({
 
   if (!isOpen) return null;
 
+  const storedOutletId = typeof window !== 'undefined' ? localStorage.getItem("activeOutletId") : null;
+  const storedTaxRate = storedOutletId && typeof window !== 'undefined' ? localStorage.getItem(`taxRate_${storedOutletId}`) : null;
+  const taxRate = storedTaxRate ? parseFloat(storedTaxRate) : 8;
+
   const actualSubtotal = orderType === 'TAKEAWAY' ? subtotalAmount : totalAmount;
-  const tax = Math.round(actualSubtotal * 0.08 * 100) / 100;
+  const tax = Math.round(actualSubtotal * (taxRate / 100) * 100) / 100;
   const grandTotal = Math.round((actualSubtotal + tax) * 100) / 100;
 
   const handleConfirm = async () => {
@@ -254,10 +258,10 @@ export default function PaymentModal({
             }`}>
               <div className={`flex justify-between text-sm ${isDark ? "text-neutral-400" : "text-slate-500"}`}>
                 <span>Subtotal</span>
-                <span className={isDark ? "" : "font-medium"}>Rs.{totalAmount.toFixed(2)}</span>
+                <span className={isDark ? "" : "font-medium"}>Rs.{actualSubtotal.toFixed(2)}</span>
               </div>
               <div className={`flex justify-between text-sm ${isDark ? "text-neutral-400" : "text-slate-500"}`}>
-                <span>Tax (8%)</span>
+                <span>Tax ({taxRate}%)</span>
                 <span className={isDark ? "" : "font-medium"}>Rs.{tax.toFixed(2)}</span>
               </div>
               <div className={`flex justify-between font-bold border-t pt-2 mt-1 ${

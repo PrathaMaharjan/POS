@@ -350,6 +350,8 @@ export default function ManagerOrdersPage() {
                 paginated.map((order) => {
                   const s = STATUS_STYLE[order.status];
                   const isExpanded = expanded === order.id;
+                  const computedRate = order.subtotal > 0 ? (order.tax / order.subtotal) * 100 : 8;
+                  const taxRateLabel = `${parseFloat(computedRate.toFixed(2))}%`;
                   return (
                     <React.Fragment key={order.id}>
                       <tr
@@ -425,7 +427,7 @@ export default function ManagerOrdersPage() {
                                     <span className="font-mono">Rs. {order.subtotal.toFixed(2)}</span>
                                   </div>
                                   <div className="flex justify-between text-slate-500">
-                                    <span>Tax (8%)</span>
+                                    <span>Tax ({taxRateLabel})</span>
                                     <span className="font-mono">Rs. {order.tax.toFixed(2)}</span>
                                   </div>
                                   <div className="flex justify-between font-bold text-slate-800 border-t border-slate-200 pt-1.5 mt-1">

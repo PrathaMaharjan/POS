@@ -515,7 +515,8 @@ function TablesInner({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesPro
   const total = tables.length;
   const occupancyPct = total > 0 ? Math.round((occupied / total) * 100) : 0;
 
-  const checkTableReadyState = (tableLabel: string) => {
+  const checkTableReadyState = (tableLabel: string, tableStatus: string) => {
+    if (tableStatus !== 'occupied') return false;
     return activeOrders.some(
       order => order.tableName === tableLabel && order.ticketState === 'DONE' && order.type === 'DINE_IN'
     );
@@ -759,7 +760,7 @@ function TablesInner({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesPro
                   key={table.id}
                   table={table}
                   position={pos}
-                  isReadyToServe={checkTableReadyState(table.label)}
+                  isReadyToServe={checkTableReadyState(table.label, table.status)}
                   isDragging={isCurrentDragging}
                   onPointerDown={(e) => handlePointerDown(table.id, e)}
                   onClick={() => {

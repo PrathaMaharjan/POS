@@ -222,8 +222,17 @@ export default function Order({
     cart.reduce((sum, item) => sum + parseFloat(item.product.price) * item.quantity, 0),
     [cart]
   );
-  const tax = subtotal * 0.08;
-  const total = subtotal + tax;
+  const taxRate = useMemo(() => {
+    if (typeof window === 'undefined') return 8;
+    const storedOutletId = localStorage.getItem("activeOutletId");
+    const storedTaxRate = storedOutletId ? localStorage.getItem(`taxRate_${storedOutletId}`) : null;
+    if (storedTaxRate) return parseFloat(storedTaxRate);
+    const globalTaxRate = localStorage.getItem("activeOutletTaxRate");
+    return globalTaxRate ? parseFloat(globalTaxRate) : 8;
+  }, [isPaymentOpen, cart]);
+
+  const tax = useMemo(() => subtotal * (taxRate / 100), [subtotal, taxRate]);
+  const total = useMemo(() => subtotal + tax, [subtotal, tax]);
 
   const handleAction = async () => {
     if (cart.length === 0) return;
@@ -583,7 +592,7 @@ export default function Order({
                 <span className="font-semibold" style={{ color: sidebarTextPrim }}>Rs.{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span style={{ color: sidebarTextMuted }}>Tax (8%)</span>
+                <span style={{ color: sidebarTextMuted }}>Tax ({taxRate}%)</span>
                 <span className="font-semibold" style={{ color: sidebarTextPrim }}>Rs.{tax.toFixed(2)}</span>
               </div>
               <div style={{ borderColor: sidebarBorderCol }} className="flex justify-between font-bold border-t pt-2 mt-1">
