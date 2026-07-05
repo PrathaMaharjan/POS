@@ -468,7 +468,7 @@ export default function MenuManagement() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5 content-start pb-6">
             <div
               onClick={openAdd}
-              className="border-2 border-dashed border-slate-200 hover:border-emerald-400 bg-white hover:bg-emerald-50/30 rounded-xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all group h-[220px] md:h-[240px]"
+              className="border-2 border-dashed border-slate-200 hover:border-emerald-400 bg-white hover:bg-emerald-50/30 rounded-xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all group h-[220px] md:h-[272px]"
             >
               <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-emerald-50 border-2 border-emerald-200 group-hover:border-emerald-400 flex items-center justify-center transition-all">
                 <Plus className="w-5 h-5 md:w-6 md:h-6 text-emerald-500" />
@@ -666,7 +666,7 @@ export default function MenuManagement() {
                     <label className="flex flex-col items-center justify-center gap-1.5 w-full h-36 md:h-40 rounded-lg border-2 border-dashed border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/30 cursor-pointer transition-colors px-4 text-center">
                       <ImagePlus className="w-7 h-7 text-slate-300" />
                       <span className="text-xs text-slate-400 font-medium">Click to upload image</span>
-                      <span className="text-[10px] text-slate-300">JPG, PNG, WebP — max 5MB</span>
+
                       <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} className="hidden" />
                     </label>
                   )}

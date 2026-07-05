@@ -59,6 +59,10 @@ export default function OrgStaffPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
 
+  // ── Delete confirmation state ───────────────────────────────────────────
+  const [deleteConfirmMember, setDeleteConfirmMember] = useState<StaffMember | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // ── Outlet picker state ───────────────────────────────────────────────────
   const [activeOutletId, setActiveOutletId] = useState<string>("");
   const [outletDropdownOpen, setOutletDropdownOpen] = useState(false);
@@ -304,20 +308,24 @@ export default function OrgStaffPage() {
     }
   }
 
-  async function handleDeleteStaff(member: StaffMember) {
-    if (confirm(`Are you sure you want to remove ${member.name} from the organization?`)) {
-      try {
-        setIsLoading(true);
-        await api.delete(`/staff/${member.id}`, {
-          params: { outletId: member.outletId },
-        });
-        await fetchAllData(activeOutletId);
-      } catch (err: any) {
-        console.error("Failed to delete staff member:", err);
-        alert(err.response?.data?.error ?? "Failed to delete staff member");
-      } finally {
-        setIsLoading(false);
-      }
+  function handleDeleteStaff(member: StaffMember) {
+    setDeleteConfirmMember(member);
+  }
+
+  async function confirmDeleteStaff() {
+    if (!deleteConfirmMember) return;
+    setIsDeleting(true);
+    try {
+      await api.delete(`/staff/${deleteConfirmMember.id}`, {
+        params: { outletId: deleteConfirmMember.outletId },
+      });
+      await fetchAllData(activeOutletId);
+      setDeleteConfirmMember(null);
+    } catch (err: any) {
+      console.error("Failed to delete staff member:", err);
+      alert(err.response?.data?.error ?? "Failed to delete staff member");
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -340,7 +348,7 @@ export default function OrgStaffPage() {
 
       {/* Header */}
       <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Organization Directory</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Manage Staff</h1>
 
         {/* Outlet picker */}
         <div className="relative" onClick={(e) => e.stopPropagation()}>
@@ -478,10 +486,10 @@ export default function OrgStaffPage() {
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/50 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    <th className="py-3 px-4">Name / Verification</th>
-                    <th className="py-3 px-4">Role Matrix</th>
+                    <th className="py-3 px-4">Name </th>
+                    <th className="py-3 px-4">Role </th>
                     <th className="py-3 px-4">Assigned Branch</th>
-                    <th className="py-3 px-4">Contact Gateway</th>
+                    <th className="py-3 px-4">Contact Information</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
@@ -730,6 +738,44 @@ export default function OrgStaffPage() {
                   {isSaving ? "Saving..." : editingMember ? "Save Changes" : "Add Staff"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirmMember && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 w-full max-w-sm rounded-xl shadow-xl overflow-hidden">
+            <div className="flex flex-col items-center text-center gap-3 p-6 border-b border-slate-100">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
+                <Trash2 className="h-6 w-6 text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Remove Staff Member?</h3>
+                <p className="text-sm text-slate-500">
+                  Are you sure you want to remove{" "}
+                  <span className="font-semibold text-slate-700">{deleteConfirmMember.name}</span>{" "}?
+
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3 p-6">
+              <button
+                disabled={isDeleting}
+                onClick={() => setDeleteConfirmMember(null)}
+                className="flex-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 font-medium text-sm py-2.5 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={isDeleting}
+                onClick={confirmDeleteStaff}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold text-sm py-2.5 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isDeleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
             </div>
           </div>
         </div>

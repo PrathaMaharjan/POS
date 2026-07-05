@@ -87,14 +87,12 @@ export default function SuperAdminNavbar() {
           }`}
       >
         {/* Brand Header */}
-        <div className="flex h-16 items-center justify-between border-b border-slate-200 px-6 md:h-auto md:py-5">
+        <div className="flex h-16 items-center justify-center border-b border-slate-200 px-6 md:h-auto md:py-5">
           <div className="flex flex-col">
-            <span className="font-semibold text-sm text-slate-800 tracking-tight leading-none mb-0.5">
+            <span className="font-semibold text-2xl text-slate-800 tracking-tight leading-none mb-0.5">
               Abstrakt POS
             </span>
-            <span className="text-xs font-medium text-emerald-600">
-              Super Admin
-            </span>
+      
           </div>
           <button
             onClick={() => setIsOpen(false)}

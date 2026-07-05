@@ -432,7 +432,7 @@ export default function SettingsPage() {
         </div>
 
 
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        {/* <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <button
             type="button"
             onClick={() => toggleSection("qrMenu")}
@@ -504,7 +504,6 @@ export default function SettingsPage() {
                   </button>
                 </div>
 
-                {/* Print-Only Tabletop Flyer Layout */}
                 <div id="print-flyer-area" className="hidden flex-col items-center justify-center p-8 bg-white border-[12px] border-emerald-600 rounded-3xl max-w-sm mx-auto text-center font-sans">
                   <div className="flex flex-col items-center gap-1.5">
                     <div className="flex items-center gap-2 text-emerald-700">
@@ -587,7 +586,7 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
     </div>
   );

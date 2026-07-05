@@ -17,6 +17,8 @@ import {
   Loader2,
   Globe,
   Plus,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useImageUpload } from "@/lib/hooks/useImageUpload";
 import { getImageUrl } from "@/lib/cloudinary/storage";
@@ -62,7 +64,7 @@ export default function AdminOrganizationsPage() {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
+const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
     name: "",
     slug: "",
@@ -161,21 +163,22 @@ export default function AdminOrganizationsPage() {
   }, [paginatedOrgs]);
 
   function resetForm() {
-    setForm({
-      name: "",
-      slug: "",
-      ownerName: "",
-      ownerEmail: "",
-      ownerPassword: "",
-      outletName: "Main Branch",
-      phone: "",
-      address: "",
-      imagePublicId: "",
-    });
-    setLogoPreviewUrl(null);
-    setEditingOrg(null);
-    setErrorMsg(null);
-  }
+  setForm({
+    name: "",
+    slug: "",
+    ownerName: "",
+    ownerEmail: "",
+    ownerPassword: "",
+    outletName: "Main Branch",
+    phone: "",
+    address: "",
+    imagePublicId: "",
+  });
+  setLogoPreviewUrl(null);
+  setEditingOrg(null);
+  setErrorMsg(null);
+  setShowPassword(false);
+}
 
   function getInitials(name: string) {
     return name
@@ -852,19 +855,30 @@ export default function AdminOrganizationsPage() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
-                      Owner Password *
-                    </label>
-                    <input
-                      type="password"
-                      disabled={isSaving}
-                      value={form.ownerPassword}
-                      onChange={(e) => setForm({ ...form, ownerPassword: e.target.value })}
-                      placeholder="Enter a secure password (min 8 characters)"
-                      className="w-full rounded-lg border border-slate-200/80 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60"
-                    />
-                  </div>
+               <div>
+  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
+    Owner Password *
+  </label>
+  <div className="relative">
+    <input
+      type={showPassword ? "text" : "password"}
+      disabled={isSaving}
+      value={form.ownerPassword}
+      onChange={(e) => setForm({ ...form, ownerPassword: e.target.value })}
+      placeholder="Enter a secure password (min 8 characters)"
+      className="w-full rounded-lg border border-slate-200/80 px-3 py-2.5 pr-9 text-sm text-slate-800 placeholder:text-slate-400 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60"
+    />
+    <button
+      type="button"
+      onClick={() => setShowPassword((prev) => !prev)}
+      disabled={isSaving}
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-60"
+      tabIndex={-1}
+    >
+      {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+    </button>
+  </div>
+</div>
 
                   <div className="border-b border-slate-100 pb-1 pt-2">
                     <h3 className="text-sm font-semibold text-slate-800">Initial Outlet Settings</h3>

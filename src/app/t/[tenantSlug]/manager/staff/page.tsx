@@ -18,6 +18,8 @@ import {
   ChevronRight,
   Loader2,
   AlertTriangle,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import api from '@/lib/api';
 
@@ -50,7 +52,7 @@ export default function StaffPage() {
   const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [roleFilter, setRoleFilter] = useState<string>("All");
-
+  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
     name: "",
     role: ROLE_OPTIONS[0],
@@ -96,11 +98,12 @@ export default function StaffPage() {
   const activeStaff = staff.filter((s) => s.isActive).length;
   const inactiveStaff = staff.filter((s) => !s.isActive).length;
 
-  function resetForm() {
-    setForm({ name: "", role: ROLE_OPTIONS[0], email: "", phone: "", password: "" });
-    setEditingMember(null);
-    setErrorMsg(null);
-  }
+function resetForm() {
+  setForm({ name: "", role: ROLE_OPTIONS[0], email: "", phone: "", password: "" });
+  setEditingMember(null);
+  setErrorMsg(null);
+  setShowPassword(false);
+}
 
   function handleOpenEdit(member: StaffMember) {
     setEditingMember(member);
@@ -557,20 +560,28 @@ export default function StaffPage() {
               </div>
 
               {!editingMember && (
-                <div className="sm:col-span-2">
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-500 sm:text-sm sm:mb-2">Initial Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="password"
-                      value={form.password}
-                      onChange={(e) => setForm({ ...form, password: e.target.value })}
-                      placeholder="Minimum 8 characters"
-                      className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
-                    />
-                  </div>
-                </div>
-              )}
+  <div className="sm:col-span-2">
+    <label className="mb-1.5 block text-xs font-semibold text-slate-500 sm:text-sm sm:mb-2">Initial Password</label>
+    <div className="relative">
+      <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <input
+        type={showPassword ? "text" : "password"}
+        value={form.password}
+        onChange={(e) => setForm({ ...form, password: e.target.value })}
+        placeholder="Minimum 8 characters"
+        className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-9 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+      />
+   <button
+  type="button"
+  onClick={() => setShowPassword((prev) => !prev)}
+  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+  tabIndex={-1}
+>
+  {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+</button>
+    </div>
+  </div>
+)}
             </div>
 
             <div className="flex flex-col-reverse gap-2 border-t border-slate-100 p-4 bg-slate-50/50 rounded-b-xl sm:flex-row sm:justify-end sm:gap-3 sm:p-6">
