@@ -1,4 +1,5 @@
 import {
+  numeric,
   pgTable,
   uuid,
   varchar,
@@ -84,6 +85,16 @@ export const outlets = pgTable(
     skipKitchenWorkflow: boolean("skip_kitchen_workflow")
       .notNull()
       .default(false),
+    // ── TAX — new fields ──
+    taxEnabled: boolean("tax_enabled").notNull().default(false),
+    taxRate: numeric("tax_rate", { precision: 5, scale: 2 })
+      .notNull()
+      .default("0"),
+    // taxRate is a percentage e.g. 13.00 = 13%
+    // precision 5, scale 2 → max 999.99%
+
+    taxName: varchar("tax_name", { length: 50 }).default("VAT"),
+    // label shown on receipt e.g. "VAT", "GST", "Service Tax"
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

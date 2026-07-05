@@ -1,43 +1,75 @@
-import {  getRolePermissions, togglePermission } from "@/controller/permission/controller";
+import {
+  getRolePermissions,
+  togglePermission,
+} from "@/controller/permission/controller";
 import { requiredToken } from "@/lib/auth/requireAuth";
 import { requiredPermission } from "@/lib/permissions/requirePermission";
 import { NextRequest, NextResponse } from "next/server";
 import z from "zod";
 
-  const toggleSchema = z.object({
-    roleId:       z.string().uuid(),
-    permissionId: z.string().uuid(),
-    isEnabled:    z.boolean(),
-    outletId:     z.string().uuid().optional(), 
-  });
+const toggleSchema = z.object({
+  roleId: z.string().uuid(),
+  permissionId: z.string().uuid(),
+  isEnabled: z.boolean(),
+  outletId: z.string().uuid().optional(),
+});
+
+// export async function GET(req: NextRequest) {
+//   const auth = await requiredToken(req);
+//   if (!auth.ok) return auth.response;
+
+//   const permError = requiredPermission(auth.payload, "core.roles.read");
+//   if (permError) return permError;
+
+//   const roleId   = req.nextUrl.searchParams.get("roleId");
+//   const outletId = req.nextUrl.searchParams.get("outletId") ?? undefined; // ← add
+
+//   if (!roleId) {
+//     return NextResponse.json({ error: "roleId is required" }, { status: 400 });
+//   }
+
+//   const result = await getRolePermissions(
+//     auth.payload.organizationId,
+//     roleId,
+//     outletId  // ← pass through
+//   );
+
+//   if (!result.success) {
+//     return NextResponse.json({ error: result.error }, { status: result.status });
+//   }
+
+//   return NextResponse.json(result.data);
+// }
 
 export async function GET(req: NextRequest) {
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
-  const permError = requiredPermission(auth.payload, "core.roles.read");
-  if (permError) return permError;
-
-  const roleId   = req.nextUrl.searchParams.get("roleId");
-  const outletId = req.nextUrl.searchParams.get("outletId") ?? undefined; // ← add
-
+  const { organizationId, activeOutletId } = auth.payload; // ← from JWT
+  const roleId = req.nextUrl.searchParams.get("roleId");
   if (!roleId) {
     return NextResponse.json({ error: "roleId is required" }, { status: 400 });
   }
+  let outletId = activeOutletId
+
 
   const result = await getRolePermissions(
-    auth.payload.organizationId,
+    organizationId,
     roleId,
-    outletId  // ← pass through
+    outletId as string
   );
+  // console.log(organizationId);
+  // console.log(roleId);
 
   if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json(
+      { error: result.error },
+      { status: result.status },
+    );
   }
-
+  // console.log("resultt",result.data)
   return NextResponse.json(result.data);
 }
-
 export async function PATCH(req: NextRequest) {
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
@@ -45,12 +77,14 @@ export async function PATCH(req: NextRequest) {
   const permError = requiredPermission(auth.payload, "core.roles.update");
   if (permError) return permError;
 
-
-  const body   = await req.json();
+  const body = await req.json();
   const parsed = toggleSchema.safeParse(body);
 
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
   const result = await togglePermission(
@@ -58,11 +92,14 @@ export async function PATCH(req: NextRequest) {
     parsed.data.roleId,
     parsed.data.permissionId,
     parsed.data.isEnabled,
-    parsed.data.outletId  // ← pass through
+    parsed.data.outletId, // ← pass through
   );
 
   if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json(
+      { error: result.error },
+      { status: result.status },
+    );
   }
 
   return NextResponse.json(result.data);
