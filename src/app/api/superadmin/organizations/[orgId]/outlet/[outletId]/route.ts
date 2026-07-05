@@ -37,6 +37,7 @@ export async function PATCH(
   const result = await updateOutlet(orgId, outletId, {
     skipKitchenWorkflow: parsed.data.skipKitchenWorkflow,
   });
+  console.log(result)
 
   if (!result.success) {
     return NextResponse.json(

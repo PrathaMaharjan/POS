@@ -1,5 +1,6 @@
+import { ControllerResult } from "@/controller/password";
 import { db } from "@/db";
-import { kotTickets } from "@/db/schema";
+import { kotItems, kotTickets } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 type KotStatus = "pending" | "preparing" | "ready" | "cancelled" | "served";
@@ -41,7 +42,7 @@ export async function listKotTickets(outletId: string) {
       items: {
         columns: {
           id: true,
-        
+          status:true
         },
         with: {
           orderItem: {
@@ -149,4 +150,104 @@ export async function updateKotStatus(
     .returning();
 
   return { success: true, data: updated } as const;
+}
+
+
+
+const KOT_STATUS_FLOW: Record<KotStatus, KotStatus[]> = {
+  pending:   ["preparing", "cancelled"],
+  preparing: ["ready", "cancelled"],
+  ready:     ["served", "cancelled"],
+  cancelled: [], // terminal
+  served:    [], // terminal
+};
+
+export async function updateKotItemStatus(
+  outletId:  string,
+  kotItemId: string,
+  newStatus: Exclude<KotStatus, "pending"> 
+): Promise<ControllerResult<{
+  item:         typeof kotItems.$inferSelect;
+  ticketStatus: KotStatus;
+}>> {
+
+  const item = await db.query.kotItems.findFirst({
+    where: (ki, { eq }) => eq(ki.id, kotItemId),
+    with: {
+      kotTicket: {
+        columns: { id: true, outletId: true, status: true },
+      },
+    },
+  });
+
+  if (!item || item.kotTicket.outletId !== outletId) {
+    return { success: false, error: "KOT item not found", status: 404 };
+  }
+
+  const currentStatus = item.status as KotStatus;
+  const allowed = KOT_STATUS_FLOW[currentStatus] ?? [];
+
+  if (!allowed.includes(newStatus)) {
+    return {
+      success: false,
+      error:  `Cannot move item from "${currentStatus}" to "${newStatus}"`,
+      status: 400,
+    };
+  }
+
+  try {
+    const [updatedItem, siblingItems] = await Promise.all([
+      db
+        .update(kotItems)
+        .set({ status: newStatus, updatedAt: new Date() })
+        .where(eq(kotItems.id, kotItemId))
+        .returning()
+        .then((rows) => rows[0]),
+
+      db.query.kotItems.findMany({
+        where: (ki, { eq }) => eq(ki.kotTicketId, item.kotTicket.id),
+        columns: { id: true, status: true },
+      }),
+    ]);
+
+    const statuses: KotStatus[] = siblingItems.map((s) =>
+      s.id === kotItemId ? newStatus : (s.status as KotStatus)
+    );
+
+    const derivedStatus = deriveTicketStatus(statuses);
+
+    if (derivedStatus !== item.kotTicket.status) {
+      await db
+        .update(kotTickets)
+        .set({ status: derivedStatus, updatedAt: new Date() })
+        .where(eq(kotTickets.id, item.kotTicket.id));
+    }
+
+    return {
+      success: true,
+      data: {
+        item:         updatedItem,
+        ticketStatus: derivedStatus,
+      },
+    };
+  } catch (error) {
+    console.error("updateKotItemStatus error:", error);
+    return {
+      success: false,
+      error:  "Failed to update KOT item status",
+      status: 500,
+    };
+  }
+}
+
+function deriveTicketStatus(statuses: KotStatus[]): KotStatus {
+
+  const active = statuses.filter((s) => s !== "cancelled");
+  if (active.length === 0) return "cancelled";
+  if (active.every((s) => s === "served"))                    return "served";
+  if (active.every((s) => s === "ready" || s === "served"))   return "ready";
+  if (active.some((s) => s === "preparing" || s === "ready" || s === "served"))
+    return "preparing";
+
+  return "pending";
 }

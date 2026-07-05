@@ -960,75 +960,164 @@ export async function placeAndPayTakeawayOrder(
   // ── KOT status from outlet config ──
   const kotStatus = outlet.skipKitchenWorkflow ? "ready" : "pending";
 
-  try {
-    // ── STEP 2: insert order ──
+//   try {
+//     // ── STEP 2: insert order ──
+//     const [order] = await db
+//       .insert(orders)
+//       .values({
+//         outletId,
+//         orderType: "takeaway",
+//         tableId: null,
+//         customerName: customerName ?? null,
+//         customerPhone: customerPhone ?? null,
+//         orderNumber,
+//         status: "pending",
+//         subtotal: subtotal.toFixed(2),
+//         tax: taxAmount.toFixed(2), // ← keep existing "tax" column
+//         taxRate: taxRate.toFixed(2), // ← new column
+//         taxAmount: taxAmount.toFixed(2), // ← new column
+//         total: total.toFixed(2), // ← subtotal + taxAmount
+//         createdBy: userId,
+//       })
+//       .returning();
+
+//     // ── STEP 3: insert order items ──
+//     const insertedItems = await db
+//       .insert(orderItems)
+//       .values(itemRows.map((row) => ({ ...row, orderId: order.id })))
+//       .returning();
+
+//     // ── STEP 4: insert payment ──
+//     const amountToRecord = Math.min(payment.amountTendered, total);
+//     const [paymentRecord] = await db
+//       .insert(payments)
+//       .values({
+//         orderId: order.id,
+//         outletId,
+//         method: payment.method,
+//         amount: amountToRecord.toFixed(2),
+//         receivedBy: userId,
+//       })
+//       .returning();
+
+//     // ── STEP 5: deduct stock (non-blocking) ──
+//     deductStockForOrder(
+//       outletId,
+//       order.id,
+//       insertedItems.map((item) => ({
+//         id: item.id,
+//         productId: item.productId,
+//         quantity: item.quantity,
+//       })),
+//       userId,
+//     ).catch((err) => console.error("deductStockForOrder error:", err));
+
+//     // ── STEP 6: mark order as completed ──
+//     const [completedOrder] = await db
+//       .update(orders)
+//       .set({ status: "completed", updatedAt: new Date() })
+//       .where(eq(orders.id, order.id))
+//       .returning();
+
+//     // ── STEP 7: insert KOT ──
+//     const [kotTicket] = await db
+//       .insert(kotTickets)
+//       .values({
+//         orderId: order.id,
+//         outletId,
+//         status: kotStatus,
+//       })
+//       .returning();
+
+//     await db.insert(kotItems).values(
+//       insertedItems.map((item) => ({
+//         kotTicketId: kotTicket.id,
+//         orderItemId: item.id,
+//       })),
+//     );
+
+//     // ── STEP 8: return ──
+//     return {
+//       success: true,
+//       data: {
+//         order: completedOrder,
+//         payment: paymentRecord,
+//         changeDue: Number(changeDue.toFixed(2)),
+//         tax: {
+//           rate: taxRate, // e.g. 13
+//           amount: taxAmount, // e.g. 104.00
+//           name: taxName, // e.g. "VAT"
+//         },
+//         subtotal,
+//         total,
+//         stockWarnings: [],
+//       },
+//     };
+//   } catch (error) {
+//     console.error("placeAndPayTakeawayOrder error:", error);
+//     return {
+//       success: false,
+//       error: "Failed to place takeaway order",
+//       status: 500,
+//     };
+//   }
+// }
+try {
+    // ── STEP 2: insert order — status "completed" DIRECTLY ──
+    // (was: insert "pending" then update to "completed" — wasted a round trip)
     const [order] = await db
       .insert(orders)
       .values({
         outletId,
-        orderType: "takeaway",
-        tableId: null,
-        customerName: customerName ?? null,
+        orderType:     "takeaway",
+        tableId:       null,
+        customerName:  customerName ?? null,
         customerPhone: customerPhone ?? null,
         orderNumber,
-        status: "pending",
-        subtotal: subtotal.toFixed(2),
-        tax: taxAmount.toFixed(2), // ← keep existing "tax" column
-        taxRate: taxRate.toFixed(2), // ← new column
-        taxAmount: taxAmount.toFixed(2), // ← new column
-        total: total.toFixed(2), // ← subtotal + taxAmount
-        createdBy: userId,
+        status:        "completed",          // ← directly completed, no update later
+        subtotal:      subtotal.toFixed(2),
+        tax:           taxAmount.toFixed(2),
+        taxRate:       taxRate.toFixed(2),
+        taxAmount:     taxAmount.toFixed(2),
+        total:         total.toFixed(2),
+        createdBy:     userId,
       })
       .returning();
 
-    // ── STEP 3: insert order items ──
-    const insertedItems = await db
-      .insert(orderItems)
-      .values(itemRows.map((row) => ({ ...row, orderId: order.id })))
-      .returning();
-
-    // ── STEP 4: insert payment ──
+    // ── STEP 3: order items + payment + KOT ticket IN PARALLEL ──
+    // all three only need order.id — no reason to run sequentially
     const amountToRecord = Math.min(payment.amountTendered, total);
-    const [paymentRecord] = await db
-      .insert(payments)
-      .values({
-        orderId: order.id,
-        outletId,
-        method: payment.method,
-        amount: amountToRecord.toFixed(2),
-        receivedBy: userId,
-      })
-      .returning();
 
-    // ── STEP 5: deduct stock (non-blocking) ──
-    deductStockForOrder(
-      outletId,
-      order.id,
-      insertedItems.map((item) => ({
-        id: item.id,
-        productId: item.productId,
-        quantity: item.quantity,
-      })),
-      userId,
-    ).catch((err) => console.error("deductStockForOrder error:", err));
+    const [insertedItems, paymentRecord, kotTicket] = await Promise.all([
+      db
+        .insert(orderItems)
+        .values(itemRows.map((row) => ({ ...row, orderId: order.id })))
+        .returning(),
 
-    // ── STEP 6: mark order as completed ──
-    const [completedOrder] = await db
-      .update(orders)
-      .set({ status: "completed", updatedAt: new Date() })
-      .where(eq(orders.id, order.id))
-      .returning();
+      db
+        .insert(payments)
+        .values({
+          orderId:    order.id,
+          outletId,
+          method:     payment.method,
+          amount:     amountToRecord.toFixed(2),
+          receivedBy: userId,
+        })
+        .returning()
+        .then((rows) => rows[0]),
 
-    // ── STEP 7: insert KOT ──
-    const [kotTicket] = await db
-      .insert(kotTickets)
-      .values({
-        orderId: order.id,
-        outletId,
-        status: kotStatus,
-      })
-      .returning();
+      db
+        .insert(kotTickets)
+        .values({
+          orderId:  order.id,
+          outletId,
+          status:   kotStatus,
+        })
+        .returning()
+        .then((rows) => rows[0]),
+    ]);
 
+    // ── STEP 4: KOT items (needs kotTicket.id + insertedItems from above) ──
     await db.insert(kotItems).values(
       insertedItems.map((item) => ({
         kotTicketId: kotTicket.id,
@@ -1036,17 +1125,29 @@ export async function placeAndPayTakeawayOrder(
       })),
     );
 
-    // ── STEP 8: return ──
+    // ── STEP 5: deduct stock (non-blocking — unchanged) ──
+    deductStockForOrder(
+      outletId,
+      order.id,
+      insertedItems.map((item) => ({
+        id:        item.id,
+        productId: item.productId,
+        quantity:  item.quantity,
+      })),
+      userId,
+    ).catch((err) => console.error("deductStockForOrder error:", err));
+
+    // ── STEP 6: return ──
     return {
       success: true,
       data: {
-        order: completedOrder,
-        payment: paymentRecord,
+        order,                    // ← already "completed", no separate update needed
+        payment:   paymentRecord,
         changeDue: Number(changeDue.toFixed(2)),
         tax: {
-          rate: taxRate, // e.g. 13
-          amount: taxAmount, // e.g. 104.00
-          name: taxName, // e.g. "VAT"
+          rate:   taxRate,
+          amount: taxAmount,
+          name:   taxName,
         },
         subtotal,
         total,
@@ -1057,8 +1158,8 @@ export async function placeAndPayTakeawayOrder(
     console.error("placeAndPayTakeawayOrder error:", error);
     return {
       success: false,
-      error: "Failed to place takeaway order",
-      status: 500,
+      error:   "Failed to place takeaway order",
+      status:  500,
     };
   }
 }

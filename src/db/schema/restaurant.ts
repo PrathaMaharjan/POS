@@ -47,10 +47,13 @@ export const kotItems = pgTable(
     orderItemId: uuid("order_item_id")
       .notNull()
       .references(() => orderItems.id, { onDelete: "cascade" }),
+    status: kotStatusEnum("status").notNull().default("pending"),
+    updatedAt:   timestamp("updated_at").defaultNow().notNull(),
   },
   (t) => [
-    index("kot_items_ticket_idx").on(t.kotTicketId), 
+    index("kot_items_ticket_idx").on(t.kotTicketId),
     index("kot_items_order_item_idx").on(t.orderItemId),
+    index("kot_items_status_idx").on(t.kotTicketId, t.status),
   ],
 );
 
