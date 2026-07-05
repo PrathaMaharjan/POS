@@ -38,11 +38,20 @@ export const orders = pgTable(
     customerPhone: varchar("customer_phone", { length: 30 }),
     orderNumber: integer("order_number").notNull(),
     status: orderStatusEnum("status").default("pending").notNull(),
-    subtotal: numeric("subtotal", { precision: 10, scale: 2 })
+    // subtotal: numeric("subtotal", { precision: 10, scale: 2 })
+    //   .notNull()
+    //   .default("0"),
+    // tax: numeric("tax", { precision: 10, scale: 2 }).notNull().default("0"),
+    // total: numeric("total", { precision: 10, scale: 2 }).notNull().default("0"),
+    subtotal: numeric("subtotal", { precision: 10, scale: 2 }).notNull(),
+    tax: numeric("tax", { precision: 10, scale: 2 }).notNull().default("0"), // ← keep existing
+    taxRate: numeric("tax_rate", { precision: 5, scale: 2 })
       .notNull()
-      .default("0"),
-    tax: numeric("tax", { precision: 10, scale: 2 }).notNull().default("0"),
-    total: numeric("total", { precision: 10, scale: 2 }).notNull().default("0"),
+      .default("0"), // ← new
+    taxAmount: numeric("tax_amount", { precision: 10, scale: 2 })
+      .notNull()
+      .default("0"), // ← new
+    total: numeric("total", { precision: 10, scale: 2 }).notNull(),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => users.id),

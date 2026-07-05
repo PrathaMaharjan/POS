@@ -5,11 +5,17 @@ import { NextRequest, NextResponse } from "next/server";
 import z from "zod";
 
 const updateSchema = z.object({
-  name:                 z.string().min(1).max(255).optional(),
-  address:              z.string().optional(),
-  phone:                z.string().max(30).optional(),
-  skipKitchenWorkflow:  z.boolean().optional(), // ← add this
-});
+  name:                z.string().min(1).max(255).optional(),
+  address:             z.string().optional(),
+  phone:               z.string().max(30).optional(),
+  skipKitchenWorkflow: z.boolean().optional(),
+  taxEnabled:          z.boolean().optional(),                              // ← new
+  taxRate:             z.string().regex(/^\d{1,3}(\.\d{1,2})?$/).optional(), // ← new e.g. "13.00"
+  taxName:             z.string().max(50).optional(),                       // ← new e.g. "VAT"
+}).refine(
+  (data) => Object.keys(data).length > 0,
+  { message: "Provide at least one field to update" }
+);
 
 export async function PATCH(
   req: NextRequest,
