@@ -3,6 +3,7 @@ import { requiredToken } from "@/lib/auth/requireAuth";
 import { resolveOutletId } from "@/lib/auth/resolveOutletId";
 import { requiredPermission } from "@/lib/permissions/requirePermission";
 import { NextRequest, NextResponse } from "next/server";
+import { requirePlan } from "@/lib/permissions/requirePlan";
 import z from "zod";
 
 const updateSchema = z.object({
@@ -19,6 +20,9 @@ export async function GET(
 
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
+
+  const planError = requirePlan(auth.payload, "pro");
+  if (planError) return planError;
 
   const permError = requiredPermission(auth.payload, "inventory.stock.read");
   if (permError) return permError;

@@ -4,6 +4,7 @@ import { requiredToken } from "@/lib/auth/requireAuth";
 import { requiredPermission } from "@/lib/permissions/requirePermission";
 import { resolveOutletId } from "@/lib/auth/resolveOutletId";
 import { adjustStockItem } from "@/controller/inventory/stockItem";
+import { requirePlan } from "@/lib/permissions/requirePlan";
 
 const schema = z.object({
   newQuantity: z.number().min(0),
@@ -19,6 +20,9 @@ export async function POST(
 
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
+
+  const planError = requirePlan(auth.payload, "pro");
+  if (planError) return planError;
 
   const permError = requiredPermission(auth.payload, "inventory.stock.update");
   if (permError) return permError;
