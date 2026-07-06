@@ -137,6 +137,35 @@ export default function SuperAdminRolesPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  // ── authoritative single-field fetch — reads the SAME endpoint you tested
+  //    (/api/superadmin/organizations/{orgId}/outlet/{outletId}) and corrects
+  //    whatever the bulk outlets list got wrong ──
+  const fetchSkipKitchenStatus = async (outletId: string) => {
+    if (!activeOrgId || !outletId) return;
+    try {
+      const { data } = await api.get(
+        `/api/superadmin/organizations/${activeOrgId}/outlet/${outletId}`
+      );
+
+      // defensive: handle either a flat or nested response shape
+      // remove the fallback chain once you confirm the exact shape in console
+      const skipValue =
+        data.skipKitchenWorkflow ??
+        data.outlet?.skipKitchenWorkflow ??
+        false;
+
+      console.log("RAW single-outlet response:", data); // ← remove once confirmed
+
+      setOutlets((prev) =>
+        prev.map((o) =>
+          o.id === outletId ? { ...o, skipKitchenWorkflow: skipValue } : o
+        )
+      );
+    } catch (err) {
+      console.error("Failed to fetch skip-kitchen status", err);
+    }
+  };
+
   // ── 1. load orgs ──
   useEffect(() => {
     async function load() {
@@ -172,7 +201,10 @@ export default function SuperAdminRolesPage() {
           id: o.id, name: o.name, skipKitchenWorkflow: o.skipKitchenWorkflow ?? false,
         }));
         setOutlets(list);
-        if (list.length > 0) setActiveOutletId(list[0].id);
+        if (list.length > 0) {
+          setActiveOutletId(list[0].id);
+          fetchSkipKitchenStatus(list[0].id); // ← NEW: correct the value from the reliable single-outlet route
+        }
       } catch (err: any) {
         showToast(err.response?.data?.error ?? "Failed to load outlets", "error");
       } finally {
@@ -298,6 +330,7 @@ export default function SuperAdminRolesPage() {
         `/api/superadmin/organizations/${activeOrgId}/outlet/${activeOutletId}`,
         { skipKitchenWorkflow: next }
       );
+      await fetchSkipKitchenStatus(activeOutletId); // ← NEW: re-verify from DB instead of trusting optimistic value
       showToast(next ? "Kitchen workflow bypassed for this outlet" : "Kitchen workflow restored");
     } catch (err: any) {
       showToast(err.response?.data?.error ?? "Failed to update", "error");
@@ -340,6 +373,7 @@ export default function SuperAdminRolesPage() {
   const handleOutletChange = (id: string) => {
     setActiveOutletId(id); setCurrentPage(1); setExpandedRole(null);
     setRolePermissions({}); setOutletDropdownOpen(false);
+    fetchSkipKitchenStatus(id); // ← NEW: correct the value the moment the outlet changes
   };
 
   const filteredRoles = useMemo(() => {
@@ -525,7 +559,7 @@ export default function SuperAdminRolesPage() {
         </div>
       )}
 
-      {/* ── STATS CARDS — same as original ── */}
+      {/* ── STATS CARDS ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {[
           { label: stats.hasFilters ? "Filtered Roles"     : "Total Roles",       value: stats.total,    border: "border-l-slate-400",   iconBg: "bg-slate-50 text-slate-600",   icon: <Shield     className="h-5 w-5 sm:h-6 sm:w-6" /> },
@@ -546,7 +580,7 @@ export default function SuperAdminRolesPage() {
         ))}
       </div>
 
-      {/* ── SEARCH — same as original ── */}
+      {/* ── SEARCH ── */}
       <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
         <div className="relative flex-1 max-w-full lg:max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -752,7 +786,7 @@ export default function SuperAdminRolesPage() {
           </div>
         )}
 
-        {/* ── PAGINATION — same as original ── */}
+        {/* ── PAGINATION ── */}
         <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-t border-slate-100 bg-white px-6 py-4">
           <div className="text-xs text-slate-400 order-2 sm:order-1">
             {filteredRoles.length > 0
