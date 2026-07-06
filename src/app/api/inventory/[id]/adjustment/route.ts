@@ -21,8 +21,8 @@ export async function POST(
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
-  const planError = requirePlan(auth.payload, "pro");
-  if (planError) return planError;
+  // const planError = requirePlan(auth.payload, "pro");
+  // if (planError) return planError;
 
   const permError = requiredPermission(auth.payload, "inventory.stock.update");
   if (permError) return permError;

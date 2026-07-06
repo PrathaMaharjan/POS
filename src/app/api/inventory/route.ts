@@ -18,8 +18,8 @@ export async function GET(req: NextRequest) {
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
-  const planError = requirePlan(auth.payload, "pro");
-  if (planError) return planError;
+  // const planError = requirePlan(auth.payload, "pro");
+  // if (planError) return planError;
 
   const permError = requiredPermission(auth.payload, "inventory.stock.read");
   if (permError) return permError;

@@ -3,6 +3,7 @@ import { requiredToken } from "@/lib/auth/requireAuth";
 import { requiredPermission } from "@/lib/permissions/requirePermission";
 import { resolveOutletId } from "@/lib/auth/resolveOutletId";
 import { getStockMovements } from "@/controller/inventory/stockItem";
+import { requirePlan } from "@/lib/permissions/requirePlan";
 
 export async function GET(
   req: NextRequest,
@@ -12,6 +13,9 @@ export async function GET(
 
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
+
+  // const planError = requirePlan(auth.payload, "pro");
+  // if (planError) return planError;
 
   const permError = requiredPermission(auth.payload, "inventory.stock.read");
   if (permError) return permError;
