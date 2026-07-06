@@ -119,6 +119,7 @@ export async function getOrganization(
       name: true,
       slug: true,
       imagePublicId: true,
+      skipKitchenWorkflow: true,
       isActive: true,
       createdAt: true,
     },
@@ -431,22 +432,25 @@ export async function createOrganization(input: {
 export async function updateOrganization(
   orgId: string,
   input: {
-    name?:          string;
+    name?: string;
     imagePublicId?: string;
-  }
-): Promise<ControllerResult<{
-  id:       string;
-  name:     string;
-  imageUrl: string | null; // ← add
-}>> {
+  },
+): Promise<
+  ControllerResult<{
+    id: string;
+    name: string;
+    imageUrl: string | null; // ← add
+  }>
+> {
   const updateValues: Record<string, unknown> = { updatedAt: new Date() };
-  if (input.name          !== undefined) updateValues.name          = input.name;
-  if (input.imagePublicId !== undefined) updateValues.imagePublicId = input.imagePublicId;
+  if (input.name !== undefined) updateValues.name = input.name;
+  if (input.imagePublicId !== undefined)
+    updateValues.imagePublicId = input.imagePublicId;
 
   if (Object.keys(updateValues).length === 1) {
     return {
       success: false,
-      error:  "Provide at least one field to update",
+      error: "Provide at least one field to update",
       status: 400,
     };
   }
@@ -457,8 +461,8 @@ export async function updateOrganization(
       .set(updateValues)
       .where(eq(organizations.id, orgId))
       .returning({
-        id:            organizations.id,
-        name:          organizations.name,
+        id: organizations.id,
+        name: organizations.name,
         imagePublicId: organizations.imagePublicId, // ← add
       });
 
@@ -469,9 +473,9 @@ export async function updateOrganization(
     return {
       success: true,
       data: {
-        id:       updated.id,
-        name:     updated.name,
-        imageUrl: updated.imagePublicId  // ← add
+        id: updated.id,
+        name: updated.name,
+        imageUrl: updated.imagePublicId // ← add
           ? getImageUrl(updated.imagePublicId, { width: 800, height: 400 })
           : null,
       },
@@ -480,7 +484,7 @@ export async function updateOrganization(
     console.error("updateOrganization error:", error);
     return {
       success: false,
-      error:  "Failed to update organization",
+      error: "Failed to update organization",
       status: 500,
     };
   }

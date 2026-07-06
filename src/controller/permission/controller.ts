@@ -5,7 +5,7 @@ import {
   permissions,
   roles,
 } from "@/db/schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 export type ControllerResult<T> =
   | { success: true;  data: T }
@@ -124,6 +124,104 @@ export async function getRolePermissions(
 // ─────────────────────────────────────────────
 // TOGGLE PERMISSION
 // ─────────────────────────────────────────────
+// export async function togglePermission(
+//   organizationId: string,
+//   roleId:         string,
+//   permissionId:   string,
+//   isEnabled:      boolean,
+//   outletId?:      string
+// ): Promise<ControllerResult<{ isEnabled: boolean; level: string }>> {
+
+//   // ── verify role + permission IN PARALLEL ──
+//   const [role, permission] = await Promise.all([
+//     db.query.roles.findFirst({
+//       where: (r, { eq }) => eq(r.id, roleId),
+//       columns: { name: true },
+//     }),
+//     db.query.permissions.findFirst({
+//       where: (p, { eq }) => eq(p.id, permissionId),
+//       columns: { code: true },
+//     }),
+//   ]);
+
+//   if (!role) {
+//     return { success: false, error: "Role not found", status: 404 };
+//   }
+//   if (PROTECTED_ROLES.includes(role.name)) {
+//     return { success: false, error: "Cannot modify Owner role", status: 403 };
+//   }
+//   if (!permission) {
+//     return { success: false, error: "Permission not found", status: 404 };
+//   }
+//   if (PROTECTED_PERMISSIONS.includes(permission.code)) {
+//     return {
+//       success: false,
+//       error:  `Permission "${permission.code}" cannot be modified`,
+//       status: 403,
+//     };
+//   }
+
+//   try {
+//     if (!outletId) {
+//       // ── org-level upsert ──
+//       await db
+//         .insert(orgRolePermissions)
+//         .values({
+//           organizationId,
+//           outletId:    null,
+//           roleId,
+//           permissionId,
+//           isEnabled,
+//         })
+//         .onConflictDoUpdate({
+//           target:      [
+//             orgRolePermissions.organizationId,
+//             orgRolePermissions.roleId,
+//             orgRolePermissions.permissionId,
+//           ],
+//           targetWhere: isNull(orgRolePermissions.outletId), // ← partial index match
+//           set: { isEnabled, updatedAt: new Date() },
+//         });
+//     } else {
+//       // ── outlet-level upsert ──
+//       await db
+//         .insert(orgRolePermissions)
+//         .values({
+//           organizationId,
+//           outletId,
+//           roleId,
+//           permissionId,
+//           isEnabled,
+//         })
+//         .onConflictDoUpdate({
+//           target: [
+//             orgRolePermissions.organizationId,
+//             orgRolePermissions.outletId,
+//             orgRolePermissions.roleId,
+//             orgRolePermissions.permissionId,
+//           ],
+//           set: { isEnabled, updatedAt: new Date() },
+//         });
+//     }
+
+//     return {
+//       success: true,
+//       data: {
+//         isEnabled,
+//         level: outletId ? "outlet" : "organization",
+//       },
+//     };
+//   } catch (error) {
+//     console.error("togglePermission error:", error);
+//     return {
+//       success: false,
+//       error:  "Failed to update permission",
+//       status: 500,
+//     };
+//   }
+// }
+
+
 export async function togglePermission(
   organizationId: string,
   roleId:         string,
@@ -174,12 +272,12 @@ export async function togglePermission(
           isEnabled,
         })
         .onConflictDoUpdate({
-          target:      [
+          target: [
             orgRolePermissions.organizationId,
             orgRolePermissions.roleId,
             orgRolePermissions.permissionId,
           ],
-          targetWhere: isNull(orgRolePermissions.outletId), // ← partial index match
+          targetWhere: isNull(orgRolePermissions.outletId), // ← matches org_role_permissions_org_unique
           set: { isEnabled, updatedAt: new Date() },
         });
     } else {
@@ -200,6 +298,7 @@ export async function togglePermission(
             orgRolePermissions.roleId,
             orgRolePermissions.permissionId,
           ],
+          targetWhere: isNotNull(orgRolePermissions.outletId), // ← ADDED — matches org_role_permissions_outlet_unique
           set: { isEnabled, updatedAt: new Date() },
         });
     }
@@ -220,7 +319,6 @@ export async function togglePermission(
     };
   }
 }
-
 // ─────────────────────────────────────────────
 // RESET ROLE PERMISSIONS
 // ─────────────────────────────────────────────
