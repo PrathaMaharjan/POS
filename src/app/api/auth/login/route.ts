@@ -122,6 +122,7 @@ export async function POST(req: NextRequest) {
       activeOutletId,
       permissions,
       role,
+      plan: user.organization.plan, // ← NEW
     });
 
     // ── 5. Create refresh token — single insert ──

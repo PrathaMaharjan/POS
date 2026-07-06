@@ -19,10 +19,12 @@ export const orgStatusEnum = pgEnum("org_status", [
   "trial",
 ]);
 
+export const planEnum = pgEnum("plan", ["basic", "standard", "pro"]);
 export const organizations = pgTable("organizations", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   slug: varchar("slug", { length: 100 }).notNull().unique(),
+  plan: planEnum("plan").notNull().default("basic"),
   logo: text("logo"), // nullable, stores URL/path to logo image, default null
   imagePublicId: text("image_public_id"),
   isActive: boolean("is_active").notNull().default(true),
@@ -153,6 +155,9 @@ export const superAdmins = pgTable("super_admins", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// src/db/schema/rbac.ts
+import { isNull, isNotNull } from "drizzle-orm";
+
 export const orgRolePermissions = pgTable(
   "org_role_permissions",
   {
@@ -160,11 +165,12 @@ export const orgRolePermissions = pgTable(
     organizationId: uuid("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
+    outletId: uuid("outlet_id").references(() => outlets.id, {
+      onDelete: "cascade",
+    }),
     roleId: uuid("role_id")
       .notNull()
       .references(() => roles.id, { onDelete: "cascade" }),
-    outletId: uuid("outlet_id") // ← NEW — null = org-level, uuid = outlet-level
-      .references(() => outlets.id, { onDelete: "cascade" }),
     permissionId: uuid("permission_id")
       .notNull()
       .references(() => permissions.id, { onDelete: "cascade" }),
@@ -173,15 +179,16 @@ export const orgRolePermissions = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (t) => [
-    // one row per org + role + permission combination
-    uniqueIndex("org_role_permissions_unique").on(
-      t.organizationId,
-      t.roleId,
-      t.permissionId,
-      t.outletId,
-    ),
+    uniqueIndex("org_role_permissions_org_unique")
+      .on(t.organizationId, t.roleId, t.permissionId)
+      .where(isNull(t.outletId)),
+
+    uniqueIndex("org_role_permissions_outlet_unique")
+      .on(t.organizationId, t.outletId, t.roleId, t.permissionId)
+      .where(isNotNull(t.outletId)),
+
     index("org_role_permissions_org_idx").on(t.organizationId),
-    index("org_role_permissions_role_idx").on(t.roleId),
+    index("org_role_permissions_outlet_idx").on(t.outletId),
   ],
 );
 
