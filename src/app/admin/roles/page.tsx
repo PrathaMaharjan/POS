@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ChevronDown,
   CheckCircle2,
+  AlertCircle,
   Building2,
   Users,
   Settings2,
@@ -812,11 +813,19 @@ export default function SuperAdminRolesPage() {
 
       {/* ── TOAST ── */}
       {toastMessage && (
-        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl border animate-in fade-in slide-in-from-bottom-4 duration-300 ${
-          toastMessage.type === "error" ? "bg-rose-900 text-white border-rose-800" : "bg-slate-900 text-white border-slate-800"
-        }`}>
-          <CheckCircle2 className={`h-4 w-4 shrink-0 ${toastMessage.type === "error" ? "text-rose-400" : "text-emerald-400"}`} />
-          <span className="text-xs font-semibold">{toastMessage.msg}</span>
+        <div
+          className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 text-white font-bold px-6 py-4 rounded-xl shadow-2xl border animate-in fade-in slide-in-from-bottom-4 duration-300 ${
+            toastMessage.type === "success"
+              ? "bg-[#0f6b4a] border-emerald-700"
+              : "bg-rose-900 border-rose-700"
+          }`}
+        >
+          {toastMessage.type === "success" ? (
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-white" />
+          ) : (
+            <AlertCircle className="h-5 w-5 shrink-0 text-rose-300" />
+          )}
+          <span>{toastMessage.msg}</span>
         </div>
       )}
     </div>
