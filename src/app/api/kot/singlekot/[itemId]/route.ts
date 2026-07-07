@@ -10,7 +10,7 @@ const schema = z.object({
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ itemId: string }> }
+  { params }: { params: Promise<{ itemId: string }> },
 ) {
   const { itemId } = await params;
   const auth = await requiredToken(req);
@@ -20,21 +20,27 @@ export async function PATCH(
 
   if (permError) return permError;
 
-  const body   = await req.json();
+  const body = await req.json();
   const parsed = schema.safeParse(body);
 
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
   const result = await updateKotItemStatus(
     auth.payload.activeOutletId!,
     itemId,
-    parsed.data.status
+    parsed.data.status,
   );
 
   if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json(
+      { error: result.error },
+      { status: result.status },
+    );
   }
 
   return NextResponse.json(result.data);

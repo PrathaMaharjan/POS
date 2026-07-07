@@ -8,8 +8,8 @@ export async function GET(req: NextRequest) {
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
 
-  const planError = requirePlan(auth.payload, "standard");
-  if (planError) return planError;
+  // const planError = requirePlan(auth.payload, "standard");
+  // if (planError) return planError;
 
   const permError = requiredPermission(auth.payload, "restaurant.kot.read");
   if (permError) return permError;
