@@ -253,7 +253,7 @@ function TableCard({
         ${isRound ? 'rounded-full' : 'rounded-2xl'}
         ${cfg.bgColor} ${cfg.borderColor}
         ${isDragging
-          ? isDark 
+          ? isDark
             ? 'shadow-[0_8px_32px_rgba(0,0,0,0.5)] scale-105 opacity-90'
             : 'shadow-xl scale-105 opacity-90'
           : isReadyToServe
@@ -549,24 +549,21 @@ function TablesInner({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesPro
   const safeSlug = tenantSlug && tenantSlug !== 'undefined' ? tenantSlug : 'default';
 
   return (
-    <div className={`min-h-screen flex flex-col font-sans select-none antialiased transition-colors duration-200 ${
-      isDark ? "bg-[#0c0c0d] text-[#e4e4e7]" : "bg-slate-50 text-slate-800"
-    }`}>
+    <div className={`min-h-screen flex flex-col font-sans select-none antialiased transition-colors duration-200 ${isDark ? "bg-[#0c0c0d] text-[#e4e4e7]" : "bg-slate-50 text-slate-800"
+      }`}>
       <main className="flex-1 flex flex-col px-8 py-6 gap-6 max-w-[1400px] mx-auto w-full">
 
         {/* Top Status Indicators & Navigation */}
-        <div className={`flex items-center justify-between flex-wrap gap-4 rounded-2xl px-5 py-3.5 border ${
-          isDark 
-            ? "bg-[#141416] border-neutral-800" 
+        <div className={`flex items-center justify-between flex-wrap gap-4 rounded-2xl px-5 py-3.5 border ${isDark
+            ? "bg-[#141416] border-neutral-800"
             : "bg-[#059669] border-[#047857] text-white shadow-sm"
-        }`}>
+          }`}>
           <div className="flex items-center flex-wrap gap-3">
             {(Object.keys(isDark ? STATUS_CONFIG_DARK : STATUS_CONFIG_LIGHT) as TableStatus[]).map((s) => {
               const cfg = isDark ? STATUS_CONFIG_DARK[s] : STATUS_CONFIG_LIGHT[s];
               return (
-                <div key={s} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${
-                  isDark ? "bg-[#0c0c0d] border-neutral-900" : "bg-emerald-700/60 border-emerald-600/30"
-                }`}>
+                <div key={s} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${isDark ? "bg-[#0c0c0d] border-neutral-900" : "bg-emerald-700/60 border-emerald-600/30"
+                  }`}>
                   <span className={`w-2 h-2 rounded-full ${cfg.dotColor}`} />
                   <span className={`text-xs font-semibold tracking-wide ${isDark ? "text-neutral-400" : "text-emerald-50"}`}>{cfg.label}</span>
                 </div>
@@ -577,11 +574,10 @@ function TablesInner({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesPro
             <button
               onClick={resetLayout}
               title="Reset table layout to default grid"
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold tracking-wide uppercase transition-all duration-150 border ${
-                isDark 
-                  ? "bg-[#141416] border border-neutral-800 hover:border-neutral-600 text-neutral-500 hover:text-neutral-300" 
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold tracking-wide uppercase transition-all duration-150 border ${isDark
+                  ? "bg-[#141416] border border-neutral-800 hover:border-neutral-600 text-neutral-500 hover:text-neutral-300"
                   : "bg-emerald-700 hover:bg-emerald-800 border-emerald-600 text-white hover:text-emerald-100 shadow-sm"
-              }`}
+                }`}
             >
               <LayoutGrid className="w-4 h-4" strokeWidth={2} />
               Reset Layout
@@ -594,11 +590,10 @@ function TablesInner({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesPro
                   router.push(`/t/${safeSlug}/pos/waiter`);
                 }
               }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold tracking-wide uppercase transition-all duration-150 border ${
-                isDark 
-                  ? "bg-[#141416] border border-neutral-800 hover:border-[#e5b83b]/60 text-neutral-400 hover:text-white" 
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold tracking-wide uppercase transition-all duration-150 border ${isDark
+                  ? "bg-[#141416] border border-neutral-800 hover:border-[#e5b83b]/60 text-neutral-400 hover:text-white"
                   : "bg-emerald-700 hover:bg-emerald-800 border-emerald-600 text-white hover:text-emerald-100 shadow-sm"
-              }`}
+                }`}
             >
               <ArrowLeft className="w-4 h-4" strokeWidth={2} />
               Go Back
@@ -608,12 +603,10 @@ function TablesInner({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesPro
 
         {/* Cashier Takeaway Pickup Queue Panel */}
         {role === 'cashier' && readyTakeaways.length > 0 && (
-          <div className={`border rounded-2xl p-5 flex flex-col gap-4 ${
-            isDark ? "bg-[#141416] border-neutral-900" : "bg-white border-slate-200 shadow-sm"
-          }`}>
-            <div className={`flex items-center gap-2 text-xs font-black tracking-wider uppercase ${
-              isDark ? "text-neutral-400" : "text-slate-400"
+          <div className={`border rounded-2xl p-5 flex flex-col gap-4 ${isDark ? "bg-[#141416] border-neutral-900" : "bg-white border-slate-200 shadow-sm"
             }`}>
+            <div className={`flex items-center gap-2 text-xs font-black tracking-wider uppercase ${isDark ? "text-neutral-400" : "text-slate-400"
+              }`}>
               <span>Takeaway Pickup Queue ({readyTakeaways.length})</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -624,21 +617,19 @@ function TablesInner({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesPro
                   <div
                     key={order.id}
                     onClick={() => setExpandedTakeawayId(isExpanded ? null : order.id)}
-                    className={`flex flex-col border rounded-xl transition-all duration-200 cursor-pointer overflow-hidden ${
-                      isConfirming
+                    className={`flex flex-col border rounded-xl transition-all duration-200 cursor-pointer overflow-hidden ${isConfirming
                         ? isDark ? 'bg-[#291414] border-red-500/30' : 'bg-red-50 border-red-200'
                         : isExpanded
                           ? isDark ? 'bg-[#18181b] border-[#e5b83b]/40 shadow-md shadow-black/40' : 'bg-amber-50 border-amber-300 shadow-sm'
                           : isDark ? 'bg-[#112414] border-[#22c55e]/20 hover:border-[#22c55e]/40' : 'bg-emerald-50 border-emerald-200 hover:border-emerald-300 shadow-sm'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between px-4 py-3 gap-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className={`text-sm font-black ${
-                          isConfirming 
-                            ? 'text-red-600 dark:text-red-400' 
+                        <span className={`text-sm font-black ${isConfirming
+                            ? 'text-red-600 dark:text-red-400'
                             : isDark ? 'text-green-400' : 'text-emerald-600 font-bold'
-                        }`}>
+                          }`}>
                           #{order.orderNumber}
                         </span>
                         <span className={`text-xs font-medium truncate ${isDark ? 'text-neutral-300' : 'text-slate-700'}`}>
@@ -656,9 +647,8 @@ function TablesInner({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesPro
                             </button>
                             <button
                               onClick={() => setConfirmingTakeawayId(null)}
-                              className={`px-2 py-1 rounded-md font-bold text-[10px] uppercase transition-colors ${
-                                isDark ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300' : 'bg-slate-200 hover:bg-slate-300 text-slate-600'
-                              }`}
+                              className={`px-2 py-1 rounded-md font-bold text-[10px] uppercase transition-colors ${isDark ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300' : 'bg-slate-200 hover:bg-slate-300 text-slate-600'
+                                }`}
                             >
                               Cancel
                             </button>
@@ -666,9 +656,8 @@ function TablesInner({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesPro
                         ) : (
                           <button
                             onClick={() => setConfirmingTakeawayId(order.id)}
-                            className={`px-2.5 py-1 rounded-md font-black text-[10px] uppercase tracking-wider transition-colors ${
-                              isDark ? 'bg-[#22c55e] hover:bg-[#16a34a] text-[#0a1a0f]' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
-                            }`}
+                            className={`px-2.5 py-1 rounded-md font-black text-[10px] uppercase tracking-wider transition-colors ${isDark ? 'bg-[#22c55e] hover:bg-[#16a34a] text-[#0a1a0f]' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                              }`}
                           >
                             Handout
                           </button>
@@ -679,9 +668,8 @@ function TablesInner({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesPro
                       </div>
                     </div>
                     {isExpanded && (
-                      <div className={`border-t bg-black/5 dark:bg-black/20 px-4 py-3 flex flex-col gap-2 ${
-                        isDark ? 'border-neutral-800/60' : 'border-slate-200'
-                      }`}>
+                      <div className={`border-t bg-black/5 dark:bg-black/20 px-4 py-3 flex flex-col gap-2 ${isDark ? 'border-neutral-800/60' : 'border-slate-200'
+                        }`}>
                         <div className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-neutral-500' : 'text-slate-400'}`}>Order Items</div>
                         <div className="flex flex-col gap-1.5 max-h-[160px] overflow-y-auto">
                           {order.items.length === 0 ? (
@@ -694,11 +682,10 @@ function TablesInner({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesPro
                                   <span className="font-mono opacity-80">x{item.quantity}</span>
                                 </div>
                                 {item.notes && (
-                                  <div className={`flex items-start gap-1 text-[11px] px-1.5 py-0.5 rounded mt-0.5 border ${
-                                    isDark 
-                                      ? 'text-[#e5b83b]/80 bg-[#e5b83b]/5 border-[#e5b83b]/10' 
+                                  <div className={`flex items-start gap-1 text-[11px] px-1.5 py-0.5 rounded mt-0.5 border ${isDark
+                                      ? 'text-[#e5b83b]/80 bg-[#e5b83b]/5 border-[#e5b83b]/10'
                                       : 'text-amber-800 bg-amber-50 border-amber-200/60'
-                                  }`}>
+                                    }`}>
                                     <MessageSquare className="w-3 h-3 mt-0.5 shrink-0" />
                                     <span className="italic">{item.notes}</span>
                                   </div>
@@ -735,9 +722,8 @@ function TablesInner({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesPro
             onPointerUp={stopDrag}
             onPointerLeave={stopDrag}
             style={{ position: 'relative', height: canvasHeight, minHeight: 480 }}
-            className={`w-full rounded-2xl border overflow-hidden ${
-              isDark ? "border-neutral-900/60 bg-[#0e0e10]" : "border-slate-200 bg-slate-50/60 shadow-sm"
-            }`}
+            className={`w-full rounded-2xl border overflow-hidden ${isDark ? "border-neutral-900/60 bg-[#0e0e10]" : "border-slate-200 bg-slate-50/60 shadow-sm"
+              }`}
           >
             {/* Subtle dot-grid background */}
             <div
@@ -775,16 +761,14 @@ function TablesInner({ tenantSlug: propTenantSlug, role = 'cashier' }: TablesPro
 
         {/* Live Capacity Footer */}
         <div className={`w-full mt-auto pt-4 border-t ${isDark ? "border-neutral-900" : "border-slate-200"}`}>
-          <div className={`border p-5 flex flex-col justify-between rounded-2xl transition-all duration-200 ${
-            isDark 
-              ? "bg-[#141416] border-neutral-900/80" 
+          <div className={`border p-5 flex flex-col justify-between rounded-2xl transition-all duration-200 ${isDark
+              ? "bg-[#141416] border-neutral-900/80"
               : "bg-[#059669] border-[#047857] text-white shadow-sm"
-          }`}>
+            }`}>
             <div>
               <div className="flex items-start justify-between mb-2">
-                <span className={`text-[10px] font-bold tracking-widest uppercase ${
-                  isDark ? "text-neutral-500" : "text-emerald-100"
-                }`}>Live Capacity Meter</span>
+                <span className={`text-[10px] font-bold tracking-widest uppercase ${isDark ? "text-neutral-500" : "text-emerald-100"
+                  }`}>Live Capacity Meter</span>
                 <TrendingUp className={`w-4 h-4 ${isDark ? "text-[#e5b83b]/70" : "text-white"}`} strokeWidth={2} />
               </div>
               <span className={`text-3xl font-extrabold ${isDark ? "text-[#e5b83b]" : "text-white"}`}>{occupancyPct}%</span>

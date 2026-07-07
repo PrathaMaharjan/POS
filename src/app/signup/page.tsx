@@ -41,7 +41,7 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-  
+
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -56,7 +56,7 @@ export default function SignupPage() {
       const data = await res.json();
 
       if (!res.ok) {
-    
+
         const message =
           typeof data.error === "string"
             ? data.error
@@ -66,10 +66,10 @@ export default function SignupPage() {
         return;
       }
 
- 
+
       router.push("/login");
 
-      
+
     } catch (err) {
       setError("Something went wrong. Please try again.");
       setLoading(false);

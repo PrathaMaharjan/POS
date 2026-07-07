@@ -66,7 +66,7 @@ async function main() {
       email: "kitchen@demo.com",
       passwordHash: kitchenPasswordHash,
       isOwner: false,
-      emailVerified: true, // dev seed - skip email verification
+      emailVerified: true,
     })
     .returning();
 

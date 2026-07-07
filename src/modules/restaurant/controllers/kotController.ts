@@ -156,10 +156,10 @@ export async function updateKotStatus(
 
 const KOT_STATUS_FLOW: Record<KotStatus, KotStatus[]> = {
   pending:   ["preparing", "cancelled"],
-  preparing: ["ready", "cancelled"],
-  ready:     ["served", "cancelled"],
+  preparing: ["ready", "pending", "cancelled"],
+  ready:     ["served", "preparing", "cancelled"],
   cancelled: [], // terminal
-  served:    [], // terminal
+  served:    ["ready"], 
 };
 
 export async function updateKotItemStatus(

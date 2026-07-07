@@ -43,6 +43,7 @@ export default function StaffPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showEmailInUseModal, setShowEmailInUseModal] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<StaffMember | null>(null);
@@ -140,7 +141,13 @@ function resetForm() {
             phone: form.phone || undefined,
           });
         } catch (err: any) {
-          errors.push(err?.response?.data?.error ?? "Failed to update profile details.");
+          const msg = err?.response?.data?.error ?? "Failed to update profile details.";
+          if (err?.response?.status === 409 || msg.toLowerCase().includes("already exists") || msg.toLowerCase().includes("already in use")) {
+            setShowEmailInUseModal(true);
+            setIsSaving(false);
+            return;
+          }
+          errors.push(msg);
         }
       }
 
@@ -186,7 +193,12 @@ function resetForm() {
         const firstField = Object.values(data.error.fieldErrors)[0] as string[] | undefined;
         setErrorMsg(firstField?.[0] ?? "Please check the form for errors.");
       } else {
-        setErrorMsg(typeof data?.error === "string" ? data.error : "Failed to create staff member.");
+        const msg = typeof data?.error === "string" ? data.error : "Failed to create staff member.";
+        if (err?.response?.status === 409 || msg.toLowerCase().includes("already exists") || msg.toLowerCase().includes("already in use")) {
+          setShowEmailInUseModal(true);
+        } else {
+          setErrorMsg(msg);
+        }
       }
     } finally {
       setIsSaving(false);
@@ -647,6 +659,33 @@ function resetForm() {
               >
                 {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
                 Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEmailInUseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-fade-in" onClick={() => setShowEmailInUseModal(false)}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-xl bg-white shadow-xl border border-slate-100 p-6 space-y-6 animate-scale-in">
+            <div className="flex items-center space-x-3 text-amber-600">
+              <div className="rounded-lg bg-amber-50 p-2">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900">Email Already in Use</h3>
+            </div>
+            
+            <p className="text-sm text-slate-500 leading-relaxed font-light">
+              The email address <span className="font-semibold text-slate-800">{form.email}</span> is already registered under another account in the system.
+            </p>
+            
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowEmailInUseModal(false)}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800 transition-colors cursor-pointer"
+              >
+                Close
               </button>
             </div>
           </div>

@@ -24,6 +24,7 @@ import {
   Loader2,
   Store,
   ChevronDown,
+  AlertTriangle,
 } from "lucide-react";
 
 interface StaffMember {
@@ -58,6 +59,7 @@ export default function OrgStaffPage() {
   const [selectedRoleFilter, setSelectedRoleFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
+  const [showEmailInUseModal, setShowEmailInUseModal] = useState(false);
 
   // ── Delete confirmation state ───────────────────────────────────────────
   const [deleteConfirmMember, setDeleteConfirmMember] = useState<StaffMember | null>(null);
@@ -253,7 +255,13 @@ export default function OrgStaffPage() {
               outletId: editingMember.outletId,
             });
           } catch (err: any) {
-            errors.push(err.response?.data?.error ?? "Failed to update profile details.");
+            const msg = err.response?.data?.error ?? "Failed to update profile details.";
+            if (err.response?.status === 409 || msg.toLowerCase().includes("already exists") || msg.toLowerCase().includes("already in use")) {
+              setShowEmailInUseModal(true);
+              setIsSaving(false);
+              return;
+            }
+            errors.push(msg);
           }
         }
 
@@ -302,7 +310,12 @@ export default function OrgStaffPage() {
           }
         }
       }
-      alert(errMsg);
+
+      if (err.response?.status === 409 || errMsg.toLowerCase().includes("already exists") || errMsg.toLowerCase().includes("already in use")) {
+        setShowEmailInUseModal(true);
+      } else {
+        alert(errMsg);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -377,8 +390,8 @@ export default function OrgStaffPage() {
                 <button
                   onClick={() => handleOutletChange("all")}
                   className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${activeOutletId === "all"
-                      ? "bg-emerald-50 text-emerald-700 font-semibold"
-                      : "text-slate-700 hover:bg-slate-50"
+                    ? "bg-emerald-50 text-emerald-700 font-semibold"
+                    : "text-slate-700 hover:bg-slate-50"
                     }`}
                 >
                   <span className={`w-2 h-2 rounded-full shrink-0 ${activeOutletId === "all" ? "bg-emerald-500" : "bg-slate-200"}`} />
@@ -389,8 +402,8 @@ export default function OrgStaffPage() {
                     key={outlet.id}
                     onClick={() => handleOutletChange(outlet.id)}
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${activeOutletId === outlet.id
-                        ? "bg-emerald-50 text-emerald-700 font-semibold"
-                        : "text-slate-700 hover:bg-slate-50"
+                      ? "bg-emerald-50 text-emerald-700 font-semibold"
+                      : "text-slate-700 hover:bg-slate-50"
                       }`}
                   >
                     <span className={`w-2 h-2 rounded-full shrink-0 ${activeOutletId === outlet.id ? "bg-emerald-500" : "bg-slate-200"}`} />
@@ -500,8 +513,8 @@ export default function OrgStaffPage() {
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-3">
                           <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold border ${member.role === "Branch Manager"
-                              ? "bg-indigo-50 text-indigo-700 border-indigo-100"
-                              : "bg-emerald-50 text-emerald-700 border-emerald-100"
+                            ? "bg-indigo-50 text-indigo-700 border-indigo-100"
+                            : "bg-emerald-50 text-emerald-700 border-emerald-100"
                             }`}>
                             {member.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
                           </div>
@@ -526,8 +539,8 @@ export default function OrgStaffPage() {
                           type="button"
                           onClick={() => toggleStatus(member)}
                           className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:scale-105 active:scale-95 select-none ${member.status === "active"
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200/50"
-                              : "bg-slate-100 text-slate-500 border border-slate-200"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200/50"
+                            : "bg-slate-100 text-slate-500 border border-slate-200"
                             }`}
                         >
                           <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${member.status === "active" ? "bg-emerald-600" : "bg-slate-400"}`} />
@@ -780,6 +793,34 @@ export default function OrgStaffPage() {
           </div>
         </div>
       )}
+
+      {showEmailInUseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-fade-in" onClick={() => setShowEmailInUseModal(false)}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-xl bg-white shadow-xl border border-slate-100 p-6 space-y-6 relative overflow-hidden animate-scale-in animate-scale-in">
+            <div className="flex items-center space-x-3 text-amber-600">
+              <div className="rounded-lg bg-amber-50 p-2">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900">Email Already in Use</h3>
+            </div>
+
+            <p className="text-sm text-slate-500 leading-relaxed font-light">
+              The email address <span className="font-semibold text-slate-800">{form.email}</span> is already registered under another account in the system.
+            </p>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowEmailInUseModal(false)}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800 transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+
   );
 }

@@ -77,8 +77,6 @@ export async function DELETE(
       { status: result.status },
     );
   }
-
-  return NextResponse.json({ success: true });
 }
 
 export async function PATCH(
