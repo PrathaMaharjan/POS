@@ -1,7 +1,3 @@
-import { createAuthClient } from "better-auth/react"
-
-export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_APP_URL,
-})
-
-export const { signIn, signUp, signOut, useSession } = authClient
+// Unused better-auth client definition.
+// This is currently disabled because better-auth is not installed or used.
+export {};

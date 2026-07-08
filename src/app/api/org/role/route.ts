@@ -16,7 +16,6 @@ export async function GET(req: NextRequest) {
     columns: {
       id: true,
       name: true,
-      description: true,
     },
     orderBy: (r, { asc }) => [asc(r.name)],
   });
