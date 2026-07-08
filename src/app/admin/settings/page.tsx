@@ -257,7 +257,7 @@ export default function SuperAdminSettingsPage() {
           </div>
           <div>
             <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Account & Profile</h2>
-            <p className="text-xs text-slate-400 font-semibold mt-0.5">Edit credentials used for logging into the platform control center</p>
+
           </div>
         </div>
 

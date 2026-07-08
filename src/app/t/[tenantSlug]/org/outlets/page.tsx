@@ -246,7 +246,7 @@ export default function OutletsPage() {
                     <th className="py-3 px-4">Outlet Name</th>
                     <th className="py-3 px-4">Phone Number</th>
                     <th className="py-3 px-4">Address</th>
-                    <th className="py-3 px-4">Kitchen</th>
+                   
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
@@ -276,24 +276,7 @@ export default function OutletsPage() {
                           <span>{outlet.address}</span>
                         </div>
                       </td>
-                      <td className="py-4 px-4">
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={!outlet.skipKitchenWorkflow}
-                          onClick={() => toggleKitchenWorkflow(outlet.id, outlet.skipKitchenWorkflow)}
-                          title={!outlet.skipKitchenWorkflow ? "Kitchen Queue Active (Click to bypass)" : "Kitchen Bypassed (Click to enable)"}
-                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                            !outlet.skipKitchenWorkflow ? "bg-emerald-600" : "bg-slate-200"
-                          }`}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                              !outlet.skipKitchenWorkflow ? "translate-x-5" : "translate-x-0"
-                            }`}
-                          />
-                        </button>
-                      </td>
+                
                       <td className="py-4 px-4">
                         <button
                           type="button"

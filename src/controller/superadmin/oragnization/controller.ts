@@ -107,7 +107,7 @@ export async function listOrganizations() {
     totalStaff: Number(staffCountMap.get(org.id) ?? 0),
   }));
 }
-w
+
 // get single oragnization
 export async function getOrganization(
   orgId: string,
