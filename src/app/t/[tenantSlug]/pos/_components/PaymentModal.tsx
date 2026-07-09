@@ -72,13 +72,69 @@ export default function PaymentModal({
   const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
   const [isDownloadingReceipt, setIsDownloadingReceipt] = useState<boolean>(false);
 
+  // ── FIX — tax rate is now fetched live from the backend, ──
+  // ── never read from localStorage. See useEffect below.   ──
+  const [taxRate, setTaxRate] = useState<number>(0);
+  const [isTaxLoading, setIsTaxLoading] = useState<boolean>(true);
+
   const receiptRef = useRef<HTMLDivElement>(null);
 
-  const storedOutletId = typeof window !== 'undefined' ? localStorage.getItem("activeOutletId") : null;
-  const storedTaxRate = storedOutletId && typeof window !== 'undefined' ? localStorage.getItem(`taxRate_${storedOutletId}`) : null;
-  const taxRate = storedTaxRate ? parseFloat(storedTaxRate) : 8;
   const cachedName = typeof window !== 'undefined' && tenantSlug ? localStorage.getItem(`org_name_${tenantSlug}`) : null;
 
+  // ── FIX — fetch the outlet's REAL, current tax rate every time
+  //          the modal opens. This replaces the old localStorage
+  //          read (`taxRate_${outletId}`), which could silently
+  //          go stale and disagree with what the backend actually
+  //          charges at order-creation time.
+// ── FIX — fetch the outlet's REAL, current tax rate every time
+  //          the modal opens, via the dedicated single-outlet route.
+  //          This replaces the old localStorage read AND the old
+  //          "/outlets" list-then-find approach.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+
+    async function fetchTaxRate() {
+      setIsTaxLoading(true);
+      try {
+        const outletId = typeof window !== 'undefined'
+          ? localStorage.getItem("activeOutletId")
+          : null;
+
+        if (!outletId) {
+          if (!cancelled) setTaxRate(0);
+          return;
+        }
+
+        const res = await api.get(`/outlets/${outletId}`);
+        const outlet = res.data.outlet;
+
+        if (outlet && !cancelled) {
+          const rate = outlet.taxEnabled
+            ? Number(outlet.taxRate ?? 0)
+            : 0;
+          setTaxRate(rate);
+        }
+      } catch (err) {
+        console.error("Failed to fetch outlet tax rate:", err);
+        // fall back to 0 rather than a guessed hardcoded number —
+        // safer to show "no tax" than to show a WRONG tax rate
+        if (!cancelled) setTaxRate(0);
+      } finally {
+        if (!cancelled) setIsTaxLoading(false);
+      }
+    }
+
+    fetchTaxRate();
+    return () => { cancelled = true; };
+  }, [isOpen]);
+
+  // NOTE: for DINE_IN orders, this assumes `totalAmount` passed in from
+  // the parent is a PRE-TAX subtotal (same treatment as TAKEAWAY).
+  // If the parent is actually passing the order's already tax-inclusive
+  // `order.total` from the database here, this will double-apply tax.
+  // Confirm what the parent sends before relying on this for dine-in.
   const actualSubtotal = orderType === 'TAKEAWAY' ? subtotalAmount : totalAmount;
   const tax = Math.round(actualSubtotal * (taxRate / 100) * 100) / 100;
   const grandTotal = Math.round((actualSubtotal + tax) * 100) / 100;
@@ -89,9 +145,11 @@ export default function PaymentModal({
       setErrorMessage(null);
 
       if (orderType === 'TAKEAWAY') {
-        const amountTendered = paymentMethod === 'Cash'
+        const rawAmount = paymentMethod === 'Cash'
           ? parseFloat(cashReceived || '0')
           : grandTotal;
+
+        const amountTendered = Number.isNaN(rawAmount) ? 0 : rawAmount;
 
         const payload = {
           customerName: customerName.trim() || undefined,
@@ -440,7 +498,7 @@ export default function PaymentModal({
                 <span className={isDark ? "" : "font-medium"}>Rs.{actualSubtotal.toFixed(2)}</span>
               </div>
               <div className={`flex justify-between text-sm ${isDark ? "text-neutral-400" : "text-slate-500"}`}>
-                <span>Tax ({taxRate}%)</span>
+                <span>Tax {isTaxLoading ? "(...)" : `(${taxRate}%)`}</span>
                 <span className={isDark ? "" : "font-medium"}>Rs.{tax.toFixed(2)}</span>
               </div>
               <div className={`flex justify-between font-bold border-t pt-2 mt-1 ${isDark ? "text-white border-neutral-800" : "text-slate-800 border-slate-200"
@@ -518,7 +576,7 @@ export default function PaymentModal({
 
             <button
               onClick={handleConfirm}
-              disabled={isSubmitting || (paymentMethod === 'Cash' && (!cashReceived || parseFloat(cashReceived) < grandTotal))}
+              disabled={isSubmitting || isTaxLoading || (paymentMethod === 'Cash' && (!cashReceived || parseFloat(cashReceived) < grandTotal))}
               className={`w-full disabled:opacity-40 disabled:cursor-not-allowed font-bold py-3 rounded-xl transition-all duration-150 text-sm flex items-center justify-center gap-2 ${isDark
                 ? "bg-[#e5b83b] hover:bg-[#f5c847] text-[#0c0c0d]"
                 : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"

@@ -88,7 +88,7 @@ export const outlets = pgTable(
       .notNull()
       .default(false),
     // ── TAX — new fields ──
-    taxEnabled: boolean("tax_enabled").notNull().default(false),
+    taxEnabled: boolean("tax_enabled").notNull().default(true),
     taxRate: numeric("tax_rate", { precision: 5, scale: 2 })
       .notNull()
       .default("0"),

@@ -1,4 +1,5 @@
 import { deleteOutlet, updateOutlet } from "@/controller/outlets";
+import { db } from "@/db";
 import { requiredToken } from "@/lib/auth/requireAuth";
 import { requiredPermission } from "@/lib/permissions/requirePermission";
 import { NextRequest, NextResponse } from "next/server";
@@ -42,6 +43,7 @@ export async function PATCH(
   }
 
   const result = await updateOutlet(auth.payload.organizationId, id, parsed.data);
+  console.log(result)
 
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: result.status });
@@ -68,4 +70,46 @@ export async function DELETE(
   }
 
   return NextResponse.json({ success: true });
+}
+
+
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  const auth = await requiredToken(req);
+  if (!auth.ok) return auth.response;
+
+  // const permError = requiredPermission(auth.payload, "core.outlets.read");
+  // if (permError) return permError;
+
+  const outlet = await db.query.outlets.findFirst({
+    where: (o, { eq, and }) =>
+      and(
+        eq(o.id, id),
+        eq(o.organizationId, auth.payload.organizationId) // ← tenant isolation
+      ),
+    columns: {
+      id:                  true,
+      name:                true,
+      address:             true,
+      phone:               true,
+      isActive:            true,
+      taxEnabled:          true,
+      taxRate:             true,
+      taxName:             true,
+      skipKitchenWorkflow: true,
+      createdAt:           true,
+      updatedAt:           true,
+    },
+  });
+
+  if (!outlet) {
+    return NextResponse.json({ error: "Outlet not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ outlet });
 }

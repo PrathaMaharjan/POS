@@ -28,13 +28,14 @@ export async function listOutlets(organizationId: string) {
   const rows = await db.query.outlets.findMany({
     where: (o, { eq }) => eq(o.organizationId, organizationId),
     columns: {
-      id:                   true,
-      name:                 true,
-      address:              true,
-      phone:                true,
-      isActive:             true,
-      skipKitchenWorkflow:  true, 
-      createdAt:            true,
+      id: true,
+      name: true,
+      address: true,
+      phone: true,
+      isActive: true,
+      taxRate:true,
+      skipKitchenWorkflow: true,
+      createdAt: true,
     },
   });
 
@@ -74,25 +75,33 @@ export async function createOutlet(
 
 export async function updateOutlet(
   organizationId: string,
-  outletId:       string,
+  outletId: string,
   input: {
-    name?:                string;
-    address?:             string;
-    phone?:               string;
-    skipKitchenWorkflow?: boolean; // ← add this
-  }
-): Promise<ControllerResult<{ id: string; name: string }>> {
-
+    name?: string;
+    address?: string;
+    phone?: string;
+    skipKitchenWorkflow?: boolean;
+    taxEnabled?: boolean; // ← new
+    taxRate?: string; // ← new (string because numeric column)
+    taxName?: string; // ← new
+  },
+): Promise<ControllerResult<{ id: string; name: string,taxRate:string }>> {
   const updateValues: Record<string, unknown> = { updatedAt: new Date() };
-  if (input.name                !== undefined) updateValues.name                = input.name;
-  if (input.address             !== undefined) updateValues.address             = input.address;
-  if (input.phone               !== undefined) updateValues.phone               = input.phone;
-  if (input.skipKitchenWorkflow !== undefined) updateValues.skipKitchenWorkflow = input.skipKitchenWorkflow; // ← add this
+
+  if (input.name !== undefined) updateValues.name = input.name;
+  if (input.address !== undefined) updateValues.address = input.address;
+  if (input.phone !== undefined) updateValues.phone = input.phone;
+  if (input.skipKitchenWorkflow !== undefined)
+    updateValues.skipKitchenWorkflow = input.skipKitchenWorkflow;
+  if (input.taxEnabled !== undefined)
+    updateValues.taxEnabled = input.taxEnabled; // ← new
+  if (input.taxRate !== undefined) updateValues.taxRate = input.taxRate; // ← new
+  if (input.taxName !== undefined) updateValues.taxName = input.taxName; // ← new
 
   if (Object.keys(updateValues).length === 1) {
     return {
       success: false,
-      error:  "Provide at least one field to update",
+      error: "Provide at least one field to update",
       status: 400,
     };
   }
@@ -102,9 +111,12 @@ export async function updateOutlet(
       .update(outlets)
       .set(updateValues)
       .where(
-        and(eq(outlets.id, outletId), eq(outlets.organizationId, organizationId))
+        and(
+          eq(outlets.id, outletId),
+          eq(outlets.organizationId, organizationId),
+        ),
       )
-      .returning({ id: outlets.id, name: outlets.name });
+      .returning({ id: outlets.id, name: outlets.name,taxRate :outlets.taxRate });
 
     if (!updated) {
       return { success: false, error: "Outlet not found", status: 404 };

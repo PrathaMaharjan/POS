@@ -115,7 +115,9 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
         setIsLoading(true);
         setError(null);
         const res = await api.get('/orders');
+        console.log(res)
         const dbOrders = res.data.orders ?? [];
+
         const mapped: Order[] = dbOrders.map((o: any) => {
           const firstPayment = o.payments?.[0];
           const paymentMethod = firstPayment?.method?.toUpperCase() ?? 'UNPAID';
