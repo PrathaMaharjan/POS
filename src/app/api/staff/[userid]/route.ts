@@ -85,10 +85,6 @@ export async function DELETE(
   if (!outletId) {
     return NextResponse.json({ error: "No outlet found" }, { status: 400 });
   }
-
-  console.log("userid:", userid);
-  console.log("outletId:", outletId);
-  console.log("role:", auth.payload.role);
   const result = await removeStaff(outletId, userid);
 
   if (!result.success) {
