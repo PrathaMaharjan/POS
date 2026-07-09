@@ -40,6 +40,9 @@ export default function AdminNavbar({ role }: NavbarProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [orgName, setOrgName] = useState<string>("");
+  const [scrolled, setScrolled] = useState(false);
+
+
 
   useEffect(() => {
     if (typeof window !== "undefined" && tenantSlug) {
@@ -81,6 +84,13 @@ export default function AdminNavbar({ role }: NavbarProps) {
   useEffect(() => {
     setIsOpen(false);
   }, [pathname]);
+
+    useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10);
+    onScroll(); 
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
 
   useEffect(() => {
@@ -152,7 +162,13 @@ export default function AdminNavbar({ role }: NavbarProps) {
   return (
     <>
       {/* Mobile Top Bar */}
-<header className="fixed top-0 left-0 right-0 z-40 flex h-16 items-center justify-between border-b border-slate-200/50 bg-white/70 backdrop-blur-xs px-4 md:hidden">
+ <header
+      className={`fixed top-0 left-0 right-0 z-40 flex h-16 items-center justify-between px-4 md:hidden transition-all duration-300 ${
+        scrolled
+          ? "border-b border-slate-200/50 bg-white/70 backdrop-blur-md"
+          : "border-b border-transparent bg-transparent"
+      }`}
+    >
         <div className="flex flex-col">
           {/* <span className="font-semibold text-xs text-slate-400 uppercase tracking-wider leading-none mb-1">
             {tenantSlug}

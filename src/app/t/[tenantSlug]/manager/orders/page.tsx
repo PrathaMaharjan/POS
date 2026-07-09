@@ -117,7 +117,7 @@ export default function ManagerOrdersPage() {
     <div className="flex flex-col gap-6 p-4 sm:p-0">
 
       {/* Header */}
-      <div className="rounded-xl bg-[#0f6b4a] px-6 py-5 text-white shadow-sm">
+      <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm">
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Orders</h1>
       </div>
 

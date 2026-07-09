@@ -230,7 +230,7 @@ function resetForm() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-4 sm:p-6 md:gap-8 md:p-8">
+       <div className="flex flex-col gap-8">
       {/* Banner Title */}
       <div className="rounded-xl bg-emerald-600 px-4 py-4 text-white shadow-sm sm:px-6 sm:py-5">
         <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Staff</h1>
