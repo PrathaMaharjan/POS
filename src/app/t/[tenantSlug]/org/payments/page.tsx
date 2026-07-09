@@ -207,7 +207,7 @@ export default function PaymentsPage() {
     <div className="flex flex-col gap-8">
 
       {/* Header */}
-      <div className="rounded-xl bg-[#0f6b4a] px-6 py-5 text-white shadow-sm flex items-center justify-between gap-4">
+      <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Payment Ledger</h1>
           {hasFilters && (
