@@ -43,6 +43,12 @@ interface CartItem {
   note: string;
 }
 
+interface Outlet {
+  id: string;
+  name: string;
+  taxRate?: number | string;
+}
+
 export interface OrderItemRecord {
   quantity: number;
   name: string;
@@ -120,6 +126,9 @@ export default function Order({
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [createdTakeawayOrderId, setCreatedTakeawayOrderId] = useState<string | null>(null);
 
+  // Tax rate now comes straight from the backend instead of a (possibly stale) localStorage cache
+  const [taxRate, setTaxRate] = useState<number>(8);
+
   // Tracks which cart item layout is open for custom notes
   const [activeNoteProductId, setActiveNoteProductId] = useState<string | null>(null);
 
@@ -170,6 +179,42 @@ export default function Order({
     }
     fetchProducts();
   }, [activeCategory]);
+
+  // Fetch the active outlet's real tax rate from the backend (source of truth),
+  // then refresh the localStorage cache so other components (e.g. PaymentModal)
+  // that still read from cache also see the correct, up-to-date value.
+  useEffect(() => {
+    async function fetchOutletTaxRate() {
+      try {
+        const storedOutletId = typeof window !== 'undefined' ? localStorage.getItem('activeOutletId') : null;
+        const res = await api.get('/outlets');
+        const outlets: Outlet[] = res.data.outlets ?? [];
+
+        const activeOutlet = storedOutletId
+          ? outlets.find(o => o.id === storedOutletId)
+          : outlets[0];
+
+        if (activeOutlet?.taxRate !== undefined && activeOutlet?.taxRate !== null) {
+          const freshRate = parseFloat(String(activeOutlet.taxRate));
+          if (!Number.isNaN(freshRate)) {
+            setTaxRate(freshRate);
+            if (typeof window !== 'undefined' && activeOutlet.id) {
+              localStorage.setItem(`taxRate_${activeOutlet.id}`, String(freshRate));
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch outlet tax rate, falling back to cached/default value:', err);
+        // Fall back to whatever's cached locally, or the 8% default, rather than blocking checkout
+        if (typeof window !== 'undefined') {
+          const storedOutletId = localStorage.getItem('activeOutletId');
+          const storedTaxRate = storedOutletId ? localStorage.getItem(`taxRate_${storedOutletId}`) : null;
+          if (storedTaxRate) setTaxRate(parseFloat(storedTaxRate));
+        }
+      }
+    }
+    fetchOutletTaxRate();
+  }, [tenantSlug]);
 
   const filteredProducts = useMemo(() =>
     products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())),
@@ -222,14 +267,6 @@ export default function Order({
     cart.reduce((sum, item) => sum + parseFloat(item.product.price) * item.quantity, 0),
     [cart]
   );
-  const taxRate = useMemo(() => {
-    if (typeof window === 'undefined') return 8;
-    const storedOutletId = localStorage.getItem("activeOutletId");
-    const storedTaxRate = storedOutletId ? localStorage.getItem(`taxRate_${storedOutletId}`) : null;
-    if (storedTaxRate) return parseFloat(storedTaxRate);
-    const globalTaxRate = localStorage.getItem("activeOutletTaxRate");
-    return globalTaxRate ? parseFloat(globalTaxRate) : 8;
-  }, [isPaymentOpen, cart]);
 
   const tax = useMemo(() => subtotal * (taxRate / 100), [subtotal, taxRate]);
   const total = useMemo(() => subtotal + tax, [subtotal, tax]);
