@@ -6,14 +6,28 @@ import { createDineInOrder } from "@/controller/orderController";
 // import { requirePermission } from "@/lib/permissions/requirePermission";
 // import { createDineInOrder } from "@/modules/pos/controllers/orderController";
 
+// const schema = z.object({
+//   tableId: z.string().uuid(),
+//   items: z
+//     .array(
+//       z.object({
+//         productId: z.string().uuid(),
+//         quantity: z.number().int().positive(),
+//         notes: z.string().optional(),
+//       })
+//     )
+//     .min(1),
+// });
+
 const schema = z.object({
   tableId: z.string().uuid(),
   items: z
     .array(
       z.object({
         productId: z.string().uuid(),
-        quantity: z.number().int().positive(),
-        notes: z.string().optional(),
+        variantId: z.string().uuid().optional(), // ← added
+        quantity:  z.number().int().positive(),
+        notes:     z.string().optional(),
       })
     )
     .min(1),

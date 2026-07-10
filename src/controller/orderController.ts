@@ -17,23 +17,29 @@ export type ControllerResult<T> =
   | { success: true; data: T }
   | { success: false; error: string; status: number };
 
+// interface OrderItemInput {
+//   productId: string;
+//   quantity: number;
+//   notes?: string;
+// }
 interface OrderItemInput {
   productId: string;
-  quantity: number;
-  notes?: string;
+  variantId?: string;
+  quantity:  number;
+  notes?:    string;
 }
-
 interface PricedItems {
   itemRows: {
-    productId: string;
-    quantity: number;
-    unitPrice: string;
-    subtotal: string;
-    notes?: string;
+    productId:    string;
+    variantId:    string | null;   // ← added
+    variantLabel: string | null;   // ← added
+    quantity:     number;
+    unitPrice:    string;
+    subtotal:     string;
+    notes?:       string;
   }[];
   subtotal: number;
 }
-
 async function getInitialKotStatus(
   outletId: string,
 ): Promise<"pending" | "ready"> {
@@ -47,6 +53,53 @@ async function getInitialKotStatus(
 
 // shared validate products belong to outlet.are active.available and snapsort price
 
+// const priceItem = async (
+//   outletId: string,
+//   items: OrderItemInput[],
+// ): Promise<
+//   | { success: true; data: PricedItems }
+//   | { success: false; error: string; status: number }
+// > => {
+//   const productIds = [...new Set(items.map((i) => i.productId))];
+
+//   const dbProducts = await db.query.products.findMany({
+//     where: (p, { eq, and }) =>
+//       and(
+//         eq(p.outletId, outletId),
+//         eq(p.isActive, true),
+//         eq(p.isAvailable, true),
+//         inArray(p.id, productIds),
+//       ),
+//   });
+
+//   if (dbProducts.length !== productIds.length) {
+//     return {
+//       success: false,
+//       error:
+//         "One or more products are invalid, unavailable, or do not belong to this outlet",
+//       status: 400,
+//     };
+//   }
+
+//   const productMap = new Map(dbProducts.map((p) => [p.id, p]));
+//   let subTotal = 0;
+
+//   const itemRows = items.map((item) => {
+//     const product = productMap.get(item.productId)!;
+//     const unitPrice = Number(product.price);
+//     const lineSubtotal = unitPrice * item.quantity;
+//     subTotal += lineSubtotal;
+//     return {
+//       productId: item.productId,
+//       quantity: item.quantity,
+//       unitPrice: unitPrice.toFixed(2),
+//       subtotal: lineSubtotal.toFixed(2),
+//       notes: item.notes,
+//     };
+//   });
+
+//   return { success: true, data: { itemRows, subtotal: subTotal } };
+// };
 const priceItem = async (
   outletId: string,
   items: OrderItemInput[],
@@ -54,47 +107,171 @@ const priceItem = async (
   | { success: true; data: PricedItems }
   | { success: false; error: string; status: number }
 > => {
+  // Validate quantity
+  for (const item of items) {
+    if (item.quantity <= 0) {
+      return {
+        success: false,
+        error: "Quantity must be greater than zero.",
+        status: 400,
+      };
+    }
+  }
+
   const productIds = [...new Set(items.map((i) => i.productId))];
 
-  const dbProducts = await db.query.products.findMany({
-    where: (p, { eq, and }) =>
-      and(
-        eq(p.outletId, outletId),
-        eq(p.isActive, true),
-        eq(p.isAvailable, true),
-        inArray(p.id, productIds),
-      ),
-  });
+  const explicitVariantIds = [
+    ...new Set(
+      items
+        .filter((i) => i.variantId)
+        .map((i) => i.variantId as string),
+    ),
+  ];
+
+  const [dbProducts, explicitVariants] = await Promise.all([
+    db.query.products.findMany({
+      where: (p, { and, eq, inArray }) =>
+        and(
+          eq(p.outletId, outletId),
+          eq(p.isActive, true),
+          eq(p.isAvailable, true),
+          inArray(p.id, productIds),
+        ),
+    }),
+
+    explicitVariantIds.length
+      ? db.query.productVariants.findMany({
+          where: (v, { and, eq, inArray }) =>
+            and(
+              eq(v.isActive, true),
+              inArray(v.id, explicitVariantIds),
+            ),
+        })
+      : Promise.resolve([]),
+  ]);
 
   if (dbProducts.length !== productIds.length) {
     return {
       success: false,
       error:
-        "One or more products are invalid, unavailable, or do not belong to this outlet",
+        "One or more products are invalid, unavailable, or do not belong to this outlet.",
+      status: 400,
+    };
+  }
+
+  if (explicitVariants.length !== explicitVariantIds.length) {
+    return {
+      success: false,
+      error: "One or more selected variants are invalid.",
       status: 400,
     };
   }
 
   const productMap = new Map(dbProducts.map((p) => [p.id, p]));
-  let subTotal = 0;
+  const variantMap = new Map(explicitVariants.map((v) => [v.id, v]));
 
-  const itemRows = items.map((item) => {
-    const product = productMap.get(item.productId)!;
-    const unitPrice = Number(product.price);
+  const productsNeedingDefault = dbProducts.filter(
+    (p) =>
+      p.hasVariants &&
+      items.some((i) => i.productId === p.id && !i.variantId),
+  );
+
+  let defaultVariantMap = new Map<string, (typeof explicitVariants)[number]>();
+
+  if (productsNeedingDefault.length) {
+    const defaults = await db.query.productVariants.findMany({
+      where: (v, { and, eq, inArray }) =>
+        and(
+          inArray(
+            v.productId,
+            productsNeedingDefault.map((p) => p.id),
+          ),
+          eq(v.isDefault, true),
+          eq(v.isActive, true),
+        ),
+    });
+
+    defaultVariantMap = new Map(
+      defaults.map((v) => [v.productId, v]),
+    );
+  }
+
+  let subtotal = 0;
+
+  const itemRows: PricedItems["itemRows"] = [];
+
+  for (const item of items) {
+    const product = productMap.get(item.productId);
+
+    if (!product) {
+      return {
+        success: false,
+        error: "Product not found.",
+        status: 400,
+      };
+    }
+
+    let variant:
+      | (typeof explicitVariants)[number]
+      | undefined;
+
+    if (item.variantId) {
+      variant = variantMap.get(item.variantId);
+
+      if (!variant || variant.productId !== product.id) {
+        return {
+          success: false,
+          error: `Selected variant does not belong to "${product.name}".`,
+          status: 400,
+        };
+      }
+    } else if (product.hasVariants) {
+      variant = defaultVariantMap.get(product.id);
+
+      if (!variant) {
+        return {
+          success: false,
+          error: `Please select a variant for "${product.name}".`,
+          status: 400,
+        };
+      }
+    }
+
+    const unitPrice = Number(
+      variant ? variant.price : product.price,
+    );
+
+    if (Number.isNaN(unitPrice)) {
+      return {
+        success: false,
+        error: `Invalid price for "${product.name}".`,
+        status: 500,
+      };
+    }
+
     const lineSubtotal = unitPrice * item.quantity;
-    subTotal += lineSubtotal;
-    return {
-      productId: item.productId,
-      quantity: item.quantity,
-      unitPrice: unitPrice.toFixed(2),
-      subtotal: lineSubtotal.toFixed(2),
-      notes: item.notes,
-    };
-  });
 
-  return { success: true, data: { itemRows, subtotal: subTotal } };
+    subtotal += lineSubtotal;
+
+   itemRows.push({
+      productId:    product.id,
+      variantId:    variant?.id ?? null,
+      variantLabel: variant?.label ?? null,
+      quantity:     item.quantity,
+      unitPrice:    unitPrice.toFixed(2),
+      subtotal:     lineSubtotal.toFixed(2),
+      notes:        item.notes,
+    });
+  }
+
+  return {
+    success: true,
+    data: {
+      itemRows,
+      subtotal,
+    },
+  };
 };
-
 async function getNextOrderNumber(outletId: string): Promise<number> {
   const result = await db
     .select({

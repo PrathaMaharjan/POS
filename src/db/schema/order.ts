@@ -12,7 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { diningTables, outlets, users } from ".";
-import { products } from "./inventory";
+import { products, productVariants } from "./inventory";
 import { payments } from "./payment";
 
 export const orderTypeEnum = pgEnum("order_type", ["dine_in", "takeaway"]);
@@ -77,6 +77,10 @@ export const orderItems = pgTable(
     productId: uuid("product_id").references(() => products.id, {
       onDelete: "set null",
     }), // ← changed
+    variantId: uuid("variant_id").references(() => productVariants.id, {
+      onDelete: "set null",
+    }),
+    variantLabel: varchar("variant_label", { length: 50 }),
     quantity: integer("quantity").notNull(),
     unitPrice: numeric("unit_price", { precision: 10, scale: 2 }).notNull(),
     subtotal: numeric("subtotal", { precision: 10, scale: 2 }).notNull(),

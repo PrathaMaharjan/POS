@@ -11,7 +11,7 @@ import {
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { outlets, orders, users, products } from ".";
+import { outlets, orders, users, products, productVariants } from ".";
 
 // ─────────────────────────────────────────────
 // ENUMS
@@ -69,6 +69,9 @@ export const recipes = pgTable(
     productId: uuid("product_id")
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
+    variantId: uuid("variant_id").references(() => productVariants.id, {
+      onDelete: "cascade",
+    }),
     outletId: uuid("outlet_id")
       .notNull()
       .references(() => outlets.id, { onDelete: "cascade" }),
@@ -128,10 +131,6 @@ export const stockMovements = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
-    // index("sm_outlet_idx").on(t.outletId),
-    // index("sm_stock_item_idx").on(t.stockItemId),
-    // index("sm_order_idx").on(t.orderId),
-    // index("sm_created_at_idx").on(t.createdAt),
     index("stock_movements_item_idx").on(t.stockItemId), // getStockMovements
     index("stock_movements_order_idx").on(t.orderId), // restoreStockForOrder
     index("stock_movements_outlet_type_idx").on(t.outletId, t.type), // filter by type
