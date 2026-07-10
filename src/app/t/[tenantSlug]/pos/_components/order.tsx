@@ -532,8 +532,8 @@ export default function Order({
                         boxShadow: isInCart ? `0 0 0 1px ${accentRing}` : 'none',
                       }}
                       className={`relative border rounded-2xl p-3 flex flex-col gap-2 overflow-hidden transition-all duration-200 ${product.isAvailable
-                          ? "cursor-pointer hover:-translate-y-0.5 hover:brightness-[1.03]"
-                          : "cursor-not-allowed opacity-60"
+                        ? "cursor-pointer hover:-translate-y-0.5 hover:brightness-[1.03]"
+                        : "cursor-not-allowed opacity-60"
                         }`}
                     >
                       <div style={{ backgroundColor: skeletonBg }} className="relative w-full aspect-[4/3] rounded-xl overflow-hidden flex items-center justify-center">
@@ -769,7 +769,6 @@ export default function Order({
         </aside>
       </div>
 
-      {/* Size / ML Picker Modal - only rendered when a product truly has 2+ sizes */}
       {sizeModalProduct && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
