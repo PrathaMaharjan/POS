@@ -34,7 +34,6 @@ export async function GET(
   }
 
   const result = await listVariants(resolved.outletId,id);
-  console.log(result)
 
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: result.status });
@@ -48,7 +47,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  console.log(id)
 
   const auth = await requiredToken(req);
   if (!auth.ok) return auth.response;
@@ -60,7 +58,6 @@ export async function POST(
     auth.payload,
     req.nextUrl.searchParams.get("outletId")
   );
-  console.log("relove",resolved)
   if ("error" in resolved) {
     return NextResponse.json({ error: resolved.error }, { status: resolved.status });
   }

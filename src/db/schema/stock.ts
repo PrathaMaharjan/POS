@@ -10,7 +10,7 @@ import {
   uniqueIndex,
   pgEnum,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { outlets, orders, users, products, productVariants } from ".";
 
 // ─────────────────────────────────────────────
@@ -79,7 +79,15 @@ export const recipes = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (t) => [
-    uniqueIndex("rec_product_outlet_unique").on(t.productId, t.outletId),
+    uniqueIndex("rec_product_outlet_unique")
+      .on(t.productId, t.outletId)
+      .where(sql`${t.variantId} IS NULL`),
+
+    // one recipe per variant when variant-specific
+    uniqueIndex("rec_variant_outlet_unique")
+      .on(t.variantId, t.outletId)
+      .where(sql`${t.variantId} IS NOT NULL`),
+
     index("rec_outlet_idx").on(t.outletId),
   ],
 );
@@ -155,6 +163,10 @@ export const recipesRelations = relations(recipes, ({ one, many }) => ({
   product: one(products, {
     fields: [recipes.productId],
     references: [products.id],
+  }),
+  variant: one(productVariants, {
+    fields: [recipes.variantId],
+    references: [productVariants.id],
   }),
   outlet: one(outlets, {
     fields: [recipes.outletId],

@@ -89,7 +89,7 @@ export const productVariants = pgTable(
 
     sortOrder: integer("sort_order").notNull().default(0),
     // controls display order: 30ml before 50ml, Small before Large
-
+    isAvailable: boolean("is_available").notNull().default(true),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -119,7 +119,7 @@ export const productsRelations = relations(products, ({ one, many }) => ({
     fields: [products.outletId],
     references: [outlets.id],
   }),
-   variants: many(productVariants),
+  variants: many(productVariants),
   category: one(categories, {
     fields: [products.categoryId],
     references: [categories.id],
@@ -127,9 +127,12 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   recipes: many(recipes), // ← links to stock.ts
 }));
 
-export const productVariantsRelations = relations(productVariants, ({ one }) => ({
-  product: one(products, {
-    fields: [productVariants.productId],
-    references: [products.id],
+export const productVariantsRelations = relations(
+  productVariants,
+  ({ one }) => ({
+    product: one(products, {
+      fields: [productVariants.productId],
+      references: [products.id],
+    }),
   }),
-}));
+);
