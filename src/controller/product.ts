@@ -6,7 +6,25 @@ import { and, eq, sql } from "drizzle-orm";
 export type ControllerResult<T> =
   | { success: true; data: T }
   | { success: false; error: string; status: number };
+interface ProductRow {
+  id:            string;
+  name:          string;
+  description:   string | null;
+  price:         string | null; // nullable — variant-only products
+  imagePublicId: string | null;
+  isActive:      boolean;
+  isAvailable:   boolean;
+  categoryId:    string;
+  hasVariants:   boolean;
+}
 
+interface VariantRow {
+  id:        string;
+  label:     string;
+  price:     string;
+  isDefault: boolean;
+  sortOrder: number;
+}
 function isUniqueViolation(error: unknown): boolean {
   return (
     typeof error === "object" &&
@@ -16,22 +34,48 @@ function isUniqueViolation(error: unknown): boolean {
   );
 }
 
-export function formatProduct<T extends {
-  id: string;
-  name: string;
-  description?: string | null;
-  price: string;
-  imagePublicId: string | null;
-  isActive?: boolean;
-  isAvailable?: boolean;
-  categoryId: string;
-}>(p: T) {
+// export function formatProduct<T extends {
+//   id: string;
+//   name: string;
+//   description?: string | null;
+//   price: string;
+//   imagePublicId: string | null;
+//   isActive?: boolean;
+//   isAvailable?: boolean;
+//   categoryId: string;
+// }>(p: T) {
+//   return {
+//     ...p,
+//     price: Number(p.price),
+//     // resolve full URL here — if provider changes, only storage.ts changes
+//     imageUrl: getImageUrl(p.imagePublicId, { width: 400 }),
+//     imagePublicId: undefined, // don't expose raw key to frontend
+//   };
+// }
+
+export function formatProduct(p: ProductRow) {
   return {
-    ...p,
-    price: Number(p.price),
+    id:            p.id,
+    name:          p.name,
+    description:   p.description,
+    price:         p.price !== null ? Number(p.price) : null,
+    isActive:      p.isActive,
+    isAvailable:   p.isAvailable,
+    categoryId:    p.categoryId,
+    hasVariants:   p.hasVariants,
     // resolve full URL here — if provider changes, only storage.ts changes
     imageUrl: getImageUrl(p.imagePublicId, { width: 400 }),
-    imagePublicId: undefined, // don't expose raw key to frontend
+    // imagePublicId intentionally NOT included — don't expose raw key to frontend
+  };
+}
+
+function formatVariant(v: VariantRow) {
+  return {
+    id:        v.id,
+    label:     v.label,
+    price:     Number(v.price),
+    isDefault: v.isDefault,
+    sortOrder: v.sortOrder,
   };
 }
 
@@ -100,23 +144,56 @@ export async function hardDeleteProduct(
 }
 
 // ---------------------getProductById -----------------------------------
+// export async function getProductById(outletId: string, productId: string) {
+//   const product = await db.query.products.findFirst({
+//     where: (p, { eq, and }) =>
+//       and(eq(p.outletId, outletId), eq(p.id, productId)),
+//     columns: {
+//       id: true,
+//       name: true,
+//       description: true,
+//       price: true,
+//       imagePublicId: true,
+//       isActive: true,
+//       isAvailable: true,
+//       categoryId: true,
+//     },
+//   });
+//   if (!product) return null;
+//   return formatProduct(product);
+// }
+
 export async function getProductById(outletId: string, productId: string) {
   const product = await db.query.products.findFirst({
     where: (p, { eq, and }) =>
       and(eq(p.outletId, outletId), eq(p.id, productId)),
     columns: {
-      id: true,
-      name: true,
-      description: true,
-      price: true,
+      id:            true,
+      name:          true,
+      description:   true,
+      price:         true,
       imagePublicId: true,
-      isActive: true,
-      isAvailable: true,
-      categoryId: true,
+      isActive:      true,
+      isAvailable:   true,
+      categoryId:    true,
+      hasVariants:   true,
+    },
+    with: {
+      variants: {
+        where: (v, { eq }) => eq(v.isActive, true),
+        orderBy: (v, { asc }) => [asc(v.sortOrder), asc(v.createdAt)],
+      },
     },
   });
+
   if (!product) return null;
-  return formatProduct(product);
+
+  const { variants, ...productFields } = product;
+
+  return {
+    ...formatProduct(productFields),
+    variants: variants.map(formatVariant),
+  };
 }
 // ------------------------------updateProduct detail -------------------------------------
 export async function updateProduct(
@@ -193,14 +270,14 @@ export async function updateProductStatus(
 
 // --------------------list of active product ---------------------------------
 export async function listProducts(
-  outletId: string,
+  outletId:   string,
   categoryId: string | null | undefined,
-  limit: number,
-  offset: number
+  limit:      number,
+  offset:     number
 ) {
   const conditions = [
     eq(products.outletId, outletId),
-    eq(products.isActive, true)
+    eq(products.isActive, true),
   ];
   if (categoryId) {
     conditions.push(eq(products.categoryId, categoryId));
@@ -209,25 +286,26 @@ export async function listProducts(
   const [rows, totalResult] = await Promise.all([
     db.query.products.findMany({
       where: (p, { eq, and }) => {
-        const conds = [
-          eq(p.outletId, outletId),
-          eq(p.isActive, true)
-        ];
-        if (categoryId) {
-          conds.push(eq(p.categoryId, categoryId));
-        }
+        const conds = [eq(p.outletId, outletId), eq(p.isActive, true)];
+        if (categoryId) conds.push(eq(p.categoryId, categoryId));
         return and(...conds);
       },
       columns: {
-        id: true,
-        name: true,
-        description: true,
-        price: true,
+        id:            true,
+        name:          true,
+        description:   true,
+        price:         true,
         imagePublicId: true,
-        isActive: true,
-        isAvailable: true,
-        categoryId: true,
-
+        isActive:      true,
+        isAvailable:   true,
+        categoryId:    true,
+        hasVariants:   true,
+      },
+      with: {
+        variants: {
+          where: (v, { eq }) => eq(v.isActive, true),
+          orderBy: (v, { asc }) => [asc(v.sortOrder), asc(v.createdAt)],
+        },
       },
       orderBy: (p, { asc }) => asc(p.createdAt),
       limit,
@@ -240,7 +318,10 @@ export async function listProducts(
   ]);
 
   return {
-    products: rows.map(formatProduct),
+    products: rows.map(({ variants, ...productFields }) => ({
+      ...formatProduct(productFields),
+      variants: variants.map(formatVariant),
+    })),
     total: Number(totalResult[0]?.count ?? 0),
   };
 }
