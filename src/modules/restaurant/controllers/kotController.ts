@@ -6,9 +6,9 @@ import { eq } from "drizzle-orm";
 type KotStatus = "pending" | "preparing" | "ready" | "cancelled" | "served";
 
 const KOT_STATUS_TRANSITIONS: Record<KotStatus, KotStatus[]> = {
-  pending: ["preparing", "ready","cancelled"],
-  preparing: ["ready", "pending","cancelled"],
-  ready: ["preparing", "pending", "served","cancelled"],
+  pending: ["preparing", "ready", "cancelled"],
+  preparing: ["ready", "pending", "cancelled"],
+  ready: ["preparing", "pending", "served", "cancelled"],
   served: ["ready"],
   cancelled: [],
 };
@@ -29,7 +29,6 @@ export async function listKotTickets(outletId: string) {
           orderNumber: true,
           tableId: true,
           customerName: true,
-          
         },
         with: {
           table: {
@@ -42,15 +41,14 @@ export async function listKotTickets(outletId: string) {
       items: {
         columns: {
           id: true,
-          status:true
+          status: true,
         },
         with: {
           orderItem: {
             columns: {
-            
               quantity: true,
               notes: true,
-              variantLabel: true,
+              variantLabel: true, // ← added
             },
             with: {
               product: {
@@ -99,7 +97,7 @@ export async function getKotTicketById(outletId: string, kotId: string) {
             columns: {
               quantity: true,
               notes: true,
-              variantLabel: true,
+              variantLabel: true, // ← added
             },
             with: {
               product: {
@@ -114,6 +112,7 @@ export async function getKotTicketById(outletId: string, kotId: string) {
     },
   });
 }
+
 export async function updateKotStatus(
   outletId: string,
   kotId: string,
@@ -157,19 +156,19 @@ export async function updateKotStatus(
 
 
 const KOT_STATUS_FLOW: Record<KotStatus, KotStatus[]> = {
-  pending:   ["preparing", "cancelled"],
+  pending: ["preparing", "cancelled"],
   preparing: ["ready", "pending", "cancelled"],
-  ready:     ["served", "preparing", "cancelled"],
+  ready: ["served", "preparing", "cancelled"],
   cancelled: [], // terminal
-  served:    ["ready"], 
+  served: ["ready"],
 };
 
 export async function updateKotItemStatus(
-  outletId:  string,
+  outletId: string,
   kotItemId: string,
-  newStatus: Exclude<KotStatus, "pending"> 
+  newStatus: Exclude<KotStatus, "pending">
 ): Promise<ControllerResult<{
-  item:         typeof kotItems.$inferSelect;
+  item: typeof kotItems.$inferSelect;
   ticketStatus: KotStatus;
 }>> {
 
@@ -192,7 +191,7 @@ export async function updateKotItemStatus(
   if (!allowed.includes(newStatus)) {
     return {
       success: false,
-      error:  `Cannot move item from "${currentStatus}" to "${newStatus}"`,
+      error: `Cannot move item from "${currentStatus}" to "${newStatus}"`,
       status: 400,
     };
   }
@@ -228,7 +227,7 @@ export async function updateKotItemStatus(
     return {
       success: true,
       data: {
-        item:         updatedItem,
+        item: updatedItem,
         ticketStatus: derivedStatus,
       },
     };
@@ -236,7 +235,7 @@ export async function updateKotItemStatus(
     console.error("updateKotItemStatus error:", error);
     return {
       success: false,
-      error:  "Failed to update KOT item status",
+      error: "Failed to update KOT item status",
       status: 500,
     };
   }
@@ -246,8 +245,8 @@ function deriveTicketStatus(statuses: KotStatus[]): KotStatus {
 
   const active = statuses.filter((s) => s !== "cancelled");
   if (active.length === 0) return "cancelled";
-  if (active.every((s) => s === "served"))                    return "served";
-  if (active.every((s) => s === "ready" || s === "served"))   return "ready";
+  if (active.every((s) => s === "served")) return "served";
+  if (active.every((s) => s === "ready" || s === "served")) return "ready";
   if (active.some((s) => s === "preparing" || s === "ready" || s === "served"))
     return "preparing";
 

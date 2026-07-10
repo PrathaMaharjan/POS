@@ -119,9 +119,17 @@ export const productsRelations = relations(products, ({ one, many }) => ({
     fields: [products.outletId],
     references: [outlets.id],
   }),
+   variants: many(productVariants),
   category: one(categories, {
     fields: [products.categoryId],
     references: [categories.id],
   }),
   recipes: many(recipes), // ← links to stock.ts
+}));
+
+export const productVariantsRelations = relations(productVariants, ({ one }) => ({
+  product: one(products, {
+    fields: [productVariants.productId],
+    references: [products.id],
+  }),
 }));
