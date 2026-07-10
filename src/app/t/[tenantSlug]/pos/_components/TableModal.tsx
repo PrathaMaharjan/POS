@@ -112,11 +112,14 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
               total: Number(dbOrder.total),
               subtotal: Number(dbOrder.subtotal),
               createdAt: dbOrder.createdAt,
-              items: (dbOrder.items ?? []).map((item: any) => ({
-                quantity: item.quantity,
-                name: item.product?.name ?? 'Unknown Item',
-                subtotal: Number(item.subtotal),
-              })),
+              items: (dbOrder.items ?? []).map((item: any) => {
+                const baseName = item.product?.name ?? 'Unknown Item';
+                return {
+                  quantity: item.quantity,
+                  name: item.variantLabel ? `${baseName} (${item.variantLabel})` : baseName,
+                  subtotal: Number(item.subtotal),
+                };
+              }),
             };
 
             const totalTickets = dbOrder.kotTickets ?? [];
@@ -125,14 +128,16 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
               const itemTicket = totalTickets.find((t: any) =>
                 (t.items ?? []).some((ki: any) => {
                   const oi = ki.orderItem ?? {};
-                  const kiName = oi.product?.name ?? ki.product?.name ?? oi.name ?? ki.name ?? '';
+                  const kiBase = oi.product?.name ?? ki.product?.name ?? oi.name ?? ki.name ?? '';
+                  const kiName = oi.variantLabel ? `${kiBase} (${oi.variantLabel})` : kiBase;
                   return kiName === item.name;
                 })
               );
               const itemKi = itemTicket
                 ? (itemTicket.items ?? []).find((ki: any) => {
                   const oi = ki.orderItem ?? {};
-                  const kiName = oi.product?.name ?? ki.product?.name ?? oi.name ?? ki.name ?? '';
+                  const kiBase = oi.product?.name ?? ki.product?.name ?? oi.name ?? ki.name ?? '';
+                  const kiName = oi.variantLabel ? `${kiBase} (${oi.variantLabel})` : kiBase;
                   return kiName === item.name;
                 })
                 : null;

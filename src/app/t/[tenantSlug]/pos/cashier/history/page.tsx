@@ -122,12 +122,15 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
           const firstPayment = o.payments?.[0];
           const paymentMethod = firstPayment?.method?.toUpperCase() ?? 'UNPAID';
 
-          const mappedItems: OrderItem[] = (o.items ?? []).map((item: any) => ({
-            name: item.product?.name ?? item.name ?? 'Unknown Item',
-            quantity: item.quantity,
-            price: Number(item.unitPrice),
-            notes: item.notes ?? item.note ?? '',
-          }));
+          const mappedItems: OrderItem[] = (o.items ?? []).map((item: any) => {
+            const baseName = item.product?.name ?? item.name ?? 'Unknown Item';
+            return {
+              name: item.variantLabel ? `${baseName} (${item.variantLabel})` : baseName,
+              quantity: item.quantity,
+              price: Number(item.unitPrice),
+              notes: item.notes ?? item.note ?? '',
+            };
+          });
 
           return {
             id: o.id,
