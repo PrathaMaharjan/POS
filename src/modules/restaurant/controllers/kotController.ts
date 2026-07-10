@@ -29,7 +29,6 @@ export async function listKotTickets(outletId: string) {
           orderNumber: true,
           tableId: true,
           customerName: true,
-          
         },
         with: {
           table: {
@@ -42,14 +41,14 @@ export async function listKotTickets(outletId: string) {
       items: {
         columns: {
           id: true,
-          status:true
+          status: true,
         },
         with: {
           orderItem: {
             columns: {
-            
-              quantity: true,
-              notes: true,
+              quantity:     true,
+              notes:        true,
+              variantLabel: true, // ← added
             },
             with: {
               product: {
@@ -96,8 +95,9 @@ export async function getKotTicketById(outletId: string, kotId: string) {
         with: {
           orderItem: {
             columns: {
-              quantity: true,
-              notes: true,
+              quantity:     true,
+              notes:        true,
+              variantLabel: true, // ← added
             },
             with: {
               product: {
@@ -112,6 +112,7 @@ export async function getKotTicketById(outletId: string, kotId: string) {
     },
   });
 }
+
 export async function updateKotStatus(
   outletId: string,
   kotId: string,
