@@ -19,13 +19,21 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 
+interface ProductSize {
+  id: string;
+  label: string;
+  price: number;
+}
+
 interface Product {
   id: string;
-  name: string;
-  description?: string | null;
-  price: number;
   categoryId: string;
-  isActive: boolean;
+  name: string;
+  description: string | null;
+  price: number;
+  imageUrl: string | null;
+  isAvailable: boolean;
+  sizes?: ProductSize[];
 }
 
 interface StockItem {
@@ -57,12 +65,27 @@ interface RecipeItemDraft {
 }
 
 export default function RecipeManagementPage() {
-  const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const { tenantSlug } = useParams<{ tenantSlug: string; }>();
 
 
   const [products, setProducts] = useState<Product[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [recipesMap, setRecipesMap] = useState<Record<string, Recipe | null>>({});
+
+  // ── Variants API helper ──────────────────────────────────────────────
+  async function fetchVariants(productId: string): Promise<ProductSize[]> {
+    try {
+      const res = await api.get(`/product/${productId}/variants`);
+      const variants = res.data.variants ?? [];
+      return variants.map((v: any) => ({
+        id: v.id,
+        label: v.label,
+        price: Number(v.price),
+      }));
+    } catch {
+      return [];
+    }
+  }
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +96,7 @@ export default function RecipeManagementPage() {
 
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null);
   const [formItems, setFormItems] = useState<RecipeItemDraft[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -96,26 +119,50 @@ export default function RecipeManagementPage() {
       const loadedProducts = Array.isArray(rawProducts)
         ? rawProducts
         : (rawProducts?.products ?? []);
-      setProducts(loadedProducts);
+      const withSizes = await Promise.all(
+        loadedProducts.map(async (p: any) => {
+          const sizes = await fetchVariants(p.id);
+          return {
+            ...p,
+            price: Number(p.price),
+            sizes: sizes.length > 0 ? sizes : undefined,
+          };
+        })
+      );
+      setProducts(withSizes);
 
       const loadedStock = inventoryRes.data.stockItems ?? [];
       setStockItems(loadedStock);
 
-      if (loadedProducts.length > 0) {
-        const recipePromises = loadedProducts.map(async (p: Product) => {
-          try {
-            const recipeRes = await api.get(`/recipe/${p.id}`);
-            return { productId: p.id, recipe: recipeRes.data.recipe };
-          } catch (err) {
-            console.error(`Error loading recipe for ${p.name}:`, err);
-            return { productId: p.id, recipe: null };
+      if (withSizes.length > 0) {
+        const recipePromises = withSizes.flatMap((p: Product) => {
+          if (p.sizes) {
+            return p.sizes.map(async (size) => {
+              try {
+                const recipeRes = await api.get(`/recipe/${p.id}?variantId=${size.id}`);
+                return { key: `${p.id}-${size.id}`, recipe: recipeRes.data.recipe };
+              } catch (err) {
+                return { key: `${p.id}-${size.id}`, recipe: null };
+              }
+            });
+          } else {
+            return [
+              (async () => {
+                try {
+                  const recipeRes = await api.get(`/recipe/${p.id}`);
+                  return { key: p.id, recipe: recipeRes.data.recipe };
+                } catch (err) {
+                  return { key: p.id, recipe: null };
+                }
+              })(),
+            ];
           }
         });
 
         const recipeResults = await Promise.all(recipePromises);
         const map: Record<string, Recipe | null> = {};
         recipeResults.forEach((res) => {
-          map[res.productId] = res.recipe;
+          map[res.key] = res.recipe;
         });
         setRecipesMap(map);
       }
@@ -132,13 +179,35 @@ export default function RecipeManagementPage() {
   }, []);
 
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const hasRecipe = recipesMap[p.id] !== undefined && recipesMap[p.id] !== null;
+    const rows = products.flatMap((p) => {
+      if (p.sizes) {
+        return p.sizes.map((s) => ({
+          key: `${p.id}-${s.id}`,
+          product: p,
+          variantId: s.id,
+          name: `${p.name} (${s.label})`,
+          price: s.price,
+        }));
+      }
+      return [
+        {
+          key: p.id,
+          product: p,
+          variantId: undefined as string | undefined,
+          name: p.name,
+          price: p.price,
+        },
+      ];
+    });
 
-      if (filterType === "configured") return matchesSearch && hasRecipe;
-      if (filterType === "not_configured") return matchesSearch && !hasRecipe;
-      return matchesSearch;
+    return rows.filter((row) => {
+      const matchesSearch = row.name.toLowerCase().includes(searchQuery.toLowerCase());
+      if (!matchesSearch) return false;
+
+      const hasRecipe = recipesMap[row.key] !== undefined && recipesMap[row.key] !== null;
+      if (filterType === "configured") return hasRecipe;
+      if (filterType === "not_configured") return !hasRecipe;
+      return true;
     });
   }, [products, searchQuery, filterType, recipesMap]);
 
@@ -150,9 +219,9 @@ export default function RecipeManagementPage() {
     );
   }, [filteredProducts, currentPage]);
 
-  const openRecipeModal = (productId: string) => {
-    setSelectedProductId(productId);
-    const existingRecipe = recipesMap[productId];
+  const openRecipeModal = (rowKey: string) => {
+    setSelectedRowKey(rowKey);
+    const existingRecipe = recipesMap[rowKey];
 
     if (existingRecipe) {
       setFormItems(
@@ -171,21 +240,15 @@ export default function RecipeManagementPage() {
 
   const closeRecipeModal = () => {
     setIsModalOpen(false);
-    setSelectedProductId(null);
+    setSelectedRowKey(null);
     setFormItems([]);
     setSaveError(null);
   };
 
-
-  const selectedProduct = useMemo(() => {
-    return products.find((p) => p.id === selectedProductId) || null;
-  }, [products, selectedProductId]);
-
-  
-  const hasSelectedRecipe = useMemo(() => {
-    if (!selectedProductId) return false;
-    return recipesMap[selectedProductId] !== undefined && recipesMap[selectedProductId] !== null;
-  }, [recipesMap, selectedProductId]);
+  const hasExistingRecipe = React.useMemo(() => {
+    if (!selectedRowKey) return false;
+    return recipesMap[selectedRowKey] !== undefined && recipesMap[selectedRowKey] !== null;
+  }, [recipesMap, selectedRowKey]);
 
 
   function handleAddIngredientRow() {
@@ -208,7 +271,7 @@ export default function RecipeManagementPage() {
  
   async function handleSaveRecipe(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedProductId) return;
+    if (!selectedRowKey) return;
 
     setSaveError(null);
 
@@ -237,19 +300,21 @@ export default function RecipeManagementPage() {
 
     setSaving(true);
     try {
-      let res;
-      if (hasSelectedRecipe) {
+      const productId = selectedRowKey.split('-')[0];
+      const variantId = selectedRowKey.includes('-') ? selectedRowKey.split('-')[1] : undefined;
+      const variantQuery = variantId ? `?variantId=${variantId}` : '';
 
-        res = await api.patch(`/recipe/${selectedProductId}`, payload);
+      let res;
+      if (hasExistingRecipe) {
+        res = await api.patch(`/recipe/${productId}${variantQuery}`, payload);
       } else {
-     
-        res = await api.post(`/recipe/${selectedProductId}`, payload);
+        res = await api.post(`/recipe/${productId}${variantQuery}`, payload);
       }
 
 
       setRecipesMap((prev) => ({
         ...prev,
-        [selectedProductId]: res.data,
+        [selectedRowKey]: res.data,
       }));
 
       closeRecipeModal();
@@ -266,11 +331,16 @@ export default function RecipeManagementPage() {
     if (!deleteConfirmId) return;
     setDeleting(true);
     try {
-      await api.delete(`/recipe/${deleteConfirmId}`);
-      setRecipesMap((prev) => ({
-        ...prev,
-        [deleteConfirmId]: null,
-      }));
+      const productId = deleteConfirmId.split('-')[0];
+      const variantId = deleteConfirmId.includes('-') ? deleteConfirmId.split('-')[1] : undefined;
+      const variantQuery = variantId ? `?variantId=${variantId}` : '';
+
+      await api.delete(`/recipe/${productId}${variantQuery}`);
+      setRecipesMap((prev) => {
+        const copy = { ...prev };
+        delete copy[deleteConfirmId];
+        return copy;
+      });
       setDeleteConfirmId(null);
     } catch (err: any) {
       console.error("Delete recipe failed:", err);
@@ -281,10 +351,10 @@ export default function RecipeManagementPage() {
   }
 
   function triggerDeleteFromModal() {
-    if (!selectedProductId) return;
-    const prodId = selectedProductId;
+    if (!selectedRowKey) return;
+    const key = selectedRowKey;
     closeRecipeModal();
-    setDeleteConfirmId(prodId);
+    setDeleteConfirmId(key);
   }
 
   function getStockUnit(stockItemId: string): string {
@@ -404,21 +474,21 @@ export default function RecipeManagementPage() {
                   </td>
                 </tr>
               ) : (
-                paginatedProducts.map((product) => {
-                  const recipe = recipesMap[product.id];
+                paginatedProducts.map((row: any) => {
+                  const recipe = recipesMap[row.key];
                   const hasRecipe = recipe !== undefined && recipe !== null;
 
                   return (
                     <tr
-                      key={product.id}
-                      onClick={() => openRecipeModal(product.id)}
+                      key={row.key}
+                      onClick={() => openRecipeModal(row.key)}
                       className="hover:bg-slate-50/50 transition-colors cursor-pointer"
                     >
                       <td className="py-4 px-6 font-semibold text-slate-800">
-                        {product.name}
+                        {row.name}
                       </td>
                       <td className="py-4 px-4 font-medium text-slate-600">
-                        Rs. {product.price.toLocaleString()}
+                        Rs. {row.price.toLocaleString()}
                       </td>
                       <td className="py-4 px-4 font-medium text-slate-500">
                         {hasRecipe
@@ -429,7 +499,7 @@ export default function RecipeManagementPage() {
                       <td className="py-4 px-6 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-2">
                           <button
-                            onClick={() => openRecipeModal(product.id)}
+                            onClick={() => openRecipeModal(row.key)}
                             title="Configure Recipe"
                             className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
                           >
@@ -437,7 +507,10 @@ export default function RecipeManagementPage() {
                           </button>
                           {hasRecipe && (
                             <button
-                              onClick={() => setDeleteConfirmId(product.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteConfirmId(row.key);
+                              }}
                               title="Delete Recipe"
                               className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                             >
@@ -483,7 +556,7 @@ export default function RecipeManagementPage() {
         </div>
       </div>
 
-      {isModalOpen && selectedProduct && (
+      {isModalOpen && selectedRowKey && (
         <div
           className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
           onClick={closeRecipeModal}
@@ -497,7 +570,7 @@ export default function RecipeManagementPage() {
               <div className="flex flex-col items-center text-center">
                 <BookOpen className="h-6 w-6 text-white mb-1" />
                 <h3 className="text-xl font-semibold text-white">
-                  {selectedProduct.name}
+                  {paginatedProducts.find((r: any) => r.key === selectedRowKey)?.name || "Recipe"}
                 </h3>
 
               </div>
@@ -603,7 +676,7 @@ export default function RecipeManagementPage() {
                     <Plus className="w-3.5 h-3.5" /> Add Ingredient Row
                   </button>
                   <div className="flex gap-2">
-                    {hasSelectedRecipe && (
+                    {hasExistingRecipe && (
                       <button
                         type="button"
                         onClick={triggerDeleteFromModal}

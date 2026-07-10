@@ -17,6 +17,7 @@ import {
   SearchX,
   Plus,
   MessageSquare,
+  X,
 } from 'lucide-react';
 
 interface Category {
@@ -24,6 +25,13 @@ interface Category {
   name: string;
   isActive: boolean;
   sortOrder: number;
+}
+
+
+interface ProductSize {
+  id?: string;
+  label: string;
+  price: number;
 }
 
 interface Product {
@@ -35,10 +43,13 @@ interface Product {
   imageUrl: string | null;
   isAvailable: boolean;
   isActive: boolean;
+
+  sizes?: ProductSize[];
 }
 
 interface CartItem {
   product: Product;
+  size: ProductSize;
   quantity: number;
   note: string;
 }
@@ -75,6 +86,30 @@ interface OrderProps {
   onOrderCreated?: (order: CreatedOrder) => void;
 }
 
+
+async function fetchVariants(productId: string, outletId: string | null): Promise<ProductSize[]> {
+  try {
+    const res = await api.get(`/product/${productId}/variants${outletId ? `?outletId=${outletId}` : ''}`);
+    const variants = res.data.variants ?? [];
+    return variants.map((v: any) => ({
+      id: v.id,
+      label: v.label,
+      price: Number(v.price),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function getRealSizes(product: Product): ProductSize[] | null {
+  if (product.sizes && product.sizes.length > 1) return product.sizes;
+  return null;
+}
+
+function cartKey(productId: string, sizeLabel: string) {
+  return `${productId}::${sizeLabel}`;
+}
+
 export default function Order({
   tenantSlug: propTenantSlug,
   tableId = null,
@@ -103,7 +138,6 @@ export default function Order({
   const accentRing = isDark ? 'rgba(229,184,59,0.2)' : 'rgba(5,150,105,0.2)';
   const accentGlow = isDark ? '0 4px 20px rgba(229,184,59,0.15)' : '0 4px 20px rgba(5,150,105,0.15)';
 
-  // Sidebar-specific colors
   const sidebarTextPrim = isDark ? textPrim : '#ffffff';
   const sidebarTextMuted = isDark ? textMuted : 'rgba(255,255,255,0.75)';
   const sidebarTextFaint = isDark ? textFaint : 'rgba(255,255,255,0.55)';
@@ -126,11 +160,14 @@ export default function Order({
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [createdTakeawayOrderId, setCreatedTakeawayOrderId] = useState<string | null>(null);
 
-  // Tax rate now comes straight from the backend instead of a (possibly stale) localStorage cache
   const [taxRate, setTaxRate] = useState<number>(8);
 
-  // Tracks which cart item layout is open for custom notes
-  const [activeNoteProductId, setActiveNoteProductId] = useState<string | null>(null);
+  const [activeNoteKey, setActiveNoteKey] = useState<string | null>(null);
+
+
+  const [sizeModalProduct, setSizeModalProduct] = useState<Product | null>(null);
+
+  const [activeOutletId, setActiveOutletId] = useState<string | null>(null);
 
   const router = useRouter();
   const params = useParams<{ tenantSlug: string }>();
@@ -143,6 +180,12 @@ export default function Order({
       router.push(`/t/${tenantSlug}/pos/cashier`);
     }
   };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setActiveOutletId(localStorage.getItem('activeOutletId'));
+    }
+  }, []);
 
   useEffect(() => {
     async function fetchCategories() {
@@ -168,8 +211,18 @@ export default function Order({
         const endpoint = activeCategory === 'ALL' ? '/product' : `/product?categoryId=${activeCategory}`;
         const res = await api.get(endpoint);
         const data = res.data.products;
-        const productsList = Array.isArray(data) ? data : (data?.products ?? []);
-        setProducts(productsList);
+        const productsList: Product[] = Array.isArray(data) ? data : (data?.products ?? []);
+
+        const withSizes = await Promise.all(
+          productsList.map(async (p: any) => {
+            const sizes = await fetchVariants(p.id, activeOutletId);
+            return {
+              ...p,
+              sizes: sizes.length > 0 ? sizes : undefined,
+            };
+          })
+        );
+        setProducts(withSizes);
       } catch (err) {
         console.error('Failed to fetch products:', err);
         setProducts([]);
@@ -178,11 +231,8 @@ export default function Order({
       }
     }
     fetchProducts();
-  }, [activeCategory]);
+  }, [activeCategory, activeOutletId]);
 
-  // Fetch the active outlet's real tax rate from the backend (source of truth),
-  // then refresh the localStorage cache so other components (e.g. PaymentModal)
-  // that still read from cache also see the correct, up-to-date value.
   useEffect(() => {
     async function fetchOutletTaxRate() {
       try {
@@ -221,50 +271,86 @@ export default function Order({
     [products, searchQuery]
   );
 
-  const handleAddProduct = (product: Product) => {
+
+  const handleProductClick = (product: Product) => {
+    const sizes = getRealSizes(product);
+    if (sizes) {
+      setSizeModalProduct(product);
+      return;
+    }
+
+    const basePrice = parseFloat(product.price) || 0;
+    const key = cartKey(product.id, '');
     setCart(prev => {
-      const existing = prev.find(item => item.product.id === product.id);
-      if (existing) return prev.filter(item => item.product.id !== product.id);
-      return [...prev, { product, quantity: 1, note: '' }];
+      const existing = prev.find(item => cartKey(item.product.id, item.size.label) === key);
+      if (existing) {
+        return prev.filter(item => cartKey(item.product.id, item.size.label) !== key);
+      }
+      return [...prev, { product, size: { label: '', price: basePrice }, quantity: 1, note: '' }];
     });
   };
 
-  const handleDecreaseQuantity = (productId: string) => {
+  const handleSelectSize = (product: Product, size: ProductSize) => {
     setCart(prev => {
-      const existing = prev.find(item => item.product.id === productId);
+      const key = cartKey(product.id, size.label);
+      const existing = prev.find(item => cartKey(item.product.id, item.size.label) === key);
+      if (existing) {
+        return prev.map(item =>
+          cartKey(item.product.id, item.size.label) === key
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      }
+      return [...prev, { product, size, quantity: 1, note: '' }];
+    });
+    setSizeModalProduct(null);
+  };
+
+  const handleDecreaseQuantity = (productId: string, sizeLabel: string) => {
+    const key = cartKey(productId, sizeLabel);
+    setCart(prev => {
+      const existing = prev.find(item => cartKey(item.product.id, item.size.label) === key);
       if (existing?.quantity === 1) {
-        if (activeNoteProductId === productId) setActiveNoteProductId(null);
-        return prev.filter(item => item.product.id !== productId);
+        if (activeNoteKey === key) setActiveNoteKey(null);
+        return prev.filter(item => cartKey(item.product.id, item.size.label) !== key);
       }
       return prev.map(item =>
-        item.product.id === productId ? { ...item, quantity: item.quantity - 1 } : item
+        cartKey(item.product.id, item.size.label) === key
+          ? { ...item, quantity: item.quantity - 1 }
+          : item
       );
     });
   };
 
-  const handleIncreaseQuantity = (productId: string) => {
+  const handleIncreaseQuantity = (productId: string, sizeLabel: string) => {
+    const key = cartKey(productId, sizeLabel);
     setCart(prev =>
       prev.map(item =>
-        item.product.id === productId ? { ...item, quantity: item.quantity + 1 } : item
+        cartKey(item.product.id, item.size.label) === key
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
       )
     );
   };
 
-  const handleUpdateItemNote = (productId: string, noteText: string) => {
+  const handleUpdateItemNote = (productId: string, sizeLabel: string, noteText: string) => {
+    const key = cartKey(productId, sizeLabel);
     setCart(prev =>
       prev.map(item =>
-        item.product.id === productId ? { ...item, note: noteText } : item
+        cartKey(item.product.id, item.size.label) === key
+          ? { ...item, note: noteText }
+          : item
       )
     );
   };
 
   const handleClearCart = () => {
     setCart([]);
-    setActiveNoteProductId(null);
+    setActiveNoteKey(null);
   };
 
   const subtotal = useMemo(() =>
-    cart.reduce((sum, item) => sum + parseFloat(item.product.price) * item.quantity, 0),
+    cart.reduce((sum, item) => sum + item.size.price * item.quantity, 0),
     [cart]
   );
 
@@ -281,6 +367,7 @@ export default function Order({
           tableId,
           items: cart.map(item => ({
             productId: item.product.id,
+            variantId: item.size.id,
             quantity: item.quantity,
             notes: item.note.trim() || undefined,
           })),
@@ -296,8 +383,8 @@ export default function Order({
           createdAt: new Date().toISOString(),
           items: cart.map(item => ({
             quantity: item.quantity,
-            name: item.product.name,
-            subtotal: parseFloat(item.product.price) * item.quantity,
+            name: item.size.label ? `${item.product.name} (${item.size.label})` : item.product.name,
+            subtotal: item.size.price * item.quantity,
           })),
         };
 
@@ -432,21 +519,22 @@ export default function Order({
               ) : (
                 filteredProducts.map((product, idx) => {
                   const isInCart = !!cart.find(item => item.product.id === product.id);
+                  const sizes = getRealSizes(product);
                   const priceNum = parseFloat(product.price);
+                  const displayPrice = sizes ? Math.min(...sizes.map(s => s.price)) : priceNum;
                   return (
                     <div
                       key={`${product.id}-${idx}`}
-                      onClick={product.isAvailable ? () => handleAddProduct(product) : undefined}
+                      onClick={product.isAvailable ? () => handleProductClick(product) : undefined}
                       style={{
                         backgroundColor: surfaceBg,
                         borderColor: isInCart ? accent : borderCol,
                         boxShadow: isInCart ? `0 0 0 1px ${accentRing}` : 'none',
                       }}
-                      className={`relative border rounded-2xl p-3 flex flex-col gap-2 overflow-hidden transition-all duration-200 ${
-                        product.isAvailable
+                      className={`relative border rounded-2xl p-3 flex flex-col gap-2 overflow-hidden transition-all duration-200 ${product.isAvailable
                           ? "cursor-pointer hover:-translate-y-0.5 hover:brightness-[1.03]"
                           : "cursor-not-allowed opacity-60"
-                      }`}
+                        }`}
                     >
                       <div style={{ backgroundColor: skeletonBg }} className="relative w-full aspect-[4/3] rounded-xl overflow-hidden flex items-center justify-center">
                         {product.imageUrl ? (
@@ -483,7 +571,20 @@ export default function Order({
                             {product.description}
                           </span>
                         )}
-                        <span className="text-sm font-bold" style={{ color: accent }}>Rs.{priceNum.toFixed(2)}</span>
+                        {sizes ? (
+                          <div className="flex flex-col mt-0.5 gap-0.5">
+                            {sizes.map((s) => (
+                              <div key={s.id} className="flex justify-between items-center text-[12px]">
+                                <span style={{ color: textMuted }}>{s.label}</span>
+                                <span className="font-bold" style={{ color: accent }}>Rs.{s.price.toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-sm font-bold mt-0.5" style={{ color: accent }}>
+                            Rs.{displayPrice.toFixed(2)}
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
@@ -523,16 +624,16 @@ export default function Order({
               </div>
             ) : (
               cart.map((item, idx) => {
-                const priceNum = parseFloat(item.product.price);
-                const totalItemPrice = priceNum * item.quantity;
-                const isNoteSectionOpen = activeNoteProductId === item.product.id;
+                const totalItemPrice = item.size.price * item.quantity;
+                const key = cartKey(item.product.id, item.size.label);
+                const isNoteSectionOpen = activeNoteKey === key;
 
                 return (
                   <div
-                    key={`${item.product.id}-${idx}`}
+                    key={`${key}-${idx}`}
                     style={{ backgroundColor: sidebarSurfaceBg, borderColor: sidebarBorderCol }}
                     className="group relative flex flex-col p-3 rounded-xl border transition-all duration-150 gap-2 cursor-pointer"
-                    onClick={() => setActiveNoteProductId(isNoteSectionOpen ? null : item.product.id)}
+                    onClick={() => setActiveNoteKey(isNoteSectionOpen ? null : key)}
                   >
                     <div
                       className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-md opacity-0 group-hover:opacity-100 transition-opacity"
@@ -547,19 +648,27 @@ export default function Order({
                           onClick={e => e.stopPropagation()} // Stop note block drop down toggling on count edit
                         >
                           <button
-                            onClick={() => handleDecreaseQuantity(item.product.id)}
+                            onClick={() => handleDecreaseQuantity(item.product.id, item.size.label)}
                             style={{ color: sidebarTextMuted }}
                             className="w-6 h-6 flex items-center justify-center rounded-md hover:text-red-300 transition-colors text-sm font-bold"
                           >-</button>
                           <span className="text-xs font-bold w-4 text-center" style={{ color: sidebarTextPrim }}>{item.quantity}</span>
                           <button
-                            onClick={() => handleIncreaseQuantity(item.product.id)}
+                            onClick={() => handleIncreaseQuantity(item.product.id, item.size.label)}
                             style={{ color: sidebarTextMuted }}
                             className="w-6 h-6 flex items-center justify-center rounded-md hover:text-emerald-200 transition-colors text-sm font-bold"
                           >+</button>
                         </div>
                         <div className="flex flex-col overflow-hidden max-w-[120px] xl:max-w-[150px]">
                           <span className="text-[13px] font-semibold truncate" style={{ color: sidebarTextPrim }}>{item.product.name}</span>
+                          {item.size.label && (
+                            <span
+                              className="text-[10px] font-bold w-fit px-1.5 py-[1px] rounded mt-0.5"
+                              style={{ backgroundColor: sidebarSurfaceBg2, color: sidebarAccent }}
+                            >
+                              {item.size.label}
+                            </span>
+                          )}
                           {item.note && !isNoteSectionOpen && (
                             <span className="text-[11px] truncate italic opacity-90 flex items-center gap-1 mt-0.5" style={{ color: sidebarTextMuted }}>
                               <MessageSquare className="w-2.5 h-2.5 shrink-0" /> {item.note}
@@ -580,7 +689,7 @@ export default function Order({
                           type="text"
                           placeholder="No spicy, extra cheese, etc..."
                           value={item.note}
-                          onChange={e => handleUpdateItemNote(item.product.id, e.target.value)}
+                          onChange={e => handleUpdateItemNote(item.product.id, item.size.label, e.target.value)}
                           style={{
                             backgroundColor: sidebarSurfaceBg2,
                             borderColor: sidebarBorderCol,
@@ -660,6 +769,53 @@ export default function Order({
         </aside>
       </div>
 
+      {/* Size / ML Picker Modal - only rendered when a product truly has 2+ sizes */}
+      {sizeModalProduct && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
+          onClick={() => setSizeModalProduct(null)}
+        >
+          <div
+            style={{ backgroundColor: surfaceBg, borderColor: borderCol }}
+            className="w-full max-w-sm rounded-2xl border p-5 flex flex-col gap-4 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col gap-0.5">
+                <h3 className="text-base font-bold" style={{ color: textPrim }}>{sizeModalProduct.name}</h3>
+                {sizeModalProduct.description && (
+                  <p className="text-xs" style={{ color: textMuted }}>{sizeModalProduct.description}</p>
+                )}
+              </div>
+              <button
+                onClick={() => setSizeModalProduct(null)}
+                style={{ color: textMuted }}
+                className="shrink-0 p-1 rounded-lg hover:opacity-70 transition-opacity"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              {(getRealSizes(sizeModalProduct) ?? []).map(size => (
+                <button
+                  key={size.label}
+                  onClick={() => handleSelectSize(sizeModalProduct, size)}
+                  style={{ backgroundColor: surfaceBg2, borderColor: borderCol }}
+                  className="flex flex-col items-center justify-center gap-1 rounded-xl border py-3 px-2 transition-all duration-150 hover:-translate-y-0.5 hover:brightness-[1.03] active:scale-[0.98]"
+                  onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = accent)}
+                  onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = borderCol)}
+                >
+                  <span className="text-sm font-bold" style={{ color: textPrim }}>{size.label}</span>
+                  <span className="text-xs font-semibold" style={{ color: accent }}>Rs.{size.price.toFixed(2)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <PaymentModal
         isOpen={isPaymentOpen}
         onClose={handlePaymentComplete}
@@ -672,9 +828,10 @@ export default function Order({
         tableId={null}
         cart={cart.map(item => ({
           productId: item.product.id,
+          variantId: item.size.id,
           quantity: item.quantity,
-          name: item.product.name,
-          price: parseFloat(item.product.price),
+          name: item.size.label ? `${item.product.name} (${item.size.label})` : item.product.name,
+          price: item.size.price,
           notes: item.note.trim() || undefined,
         }))}
       />

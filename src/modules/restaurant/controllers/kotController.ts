@@ -50,6 +50,7 @@ export async function listKotTickets(outletId: string) {
             
               quantity: true,
               notes: true,
+              variantLabel: true,
             },
             with: {
               product: {
@@ -98,6 +99,7 @@ export async function getKotTicketById(outletId: string, kotId: string) {
             columns: {
               quantity: true,
               notes: true,
+              variantLabel: true,
             },
             with: {
               product: {

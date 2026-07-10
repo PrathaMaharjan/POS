@@ -712,14 +712,13 @@ export default function OrgStaffPage() {
                     <label className="mb-2 block text-sm font-semibold text-slate-500">Password</label>
                     <div className="relative">
                       <Lock className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                      <input
-                        disabled={isSaving}
-                        type={showPassword ? "text" : "password"}
-                        value={form.password}
-                        onChange={(e) => setForm({ ...form, password: e.target.value })}
-                        placeholder="••••••••"
-                        className="w-full rounded-xl border border-slate-200/80 py-3 pl-10 pr-12 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                      />
+                  <input
+  type={showPassword ? "text" : "password"}
+  value={form.password}
+  onChange={(e) => setForm({ ...form, password: e.target.value })}
+  placeholder="Minimum 8 characters"
+  className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-9 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all [&::-ms-reveal]:hidden [&::-ms-clear]:hidden [&::-webkit-credentials-auto-fill-button]:hidden [&::-webkit-strong-password-auto-fill-button]:hidden"
+/>
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}

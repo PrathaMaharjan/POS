@@ -20,7 +20,7 @@ export function formatProduct<T extends {
   id: string;
   name: string;
   description?: string | null;
-  price: string;
+  price: string | null;
   imagePublicId: string | null;
   isActive?: boolean;
   isAvailable?: boolean;

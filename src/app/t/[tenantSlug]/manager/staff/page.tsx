@@ -576,13 +576,13 @@ function resetForm() {
     <label className="mb-1.5 block text-xs font-semibold text-slate-500 sm:text-sm sm:mb-2">Initial Password</label>
     <div className="relative">
       <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-      <input
-        type={showPassword ? "text" : "password"}
-        value={form.password}
-        onChange={(e) => setForm({ ...form, password: e.target.value })}
-        placeholder="Minimum 8 characters"
-        className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-9 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
-      />
+     <input
+  type={showPassword ? "text" : "password"}
+  value={form.password}
+  onChange={(e) => setForm({ ...form, password: e.target.value })}
+  placeholder="Minimum 8 characters"
+  className="w-full rounded-lg border border-slate-200/80 py-2.5 pl-9 pr-9 text-sm text-slate-800 placeholder:text-slate-400/80 bg-slate-50/30 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all [&::-ms-reveal]:hidden [&::-ms-clear]:hidden [&::-webkit-credentials-auto-fill-button]:hidden [&::-webkit-strong-password-auto-fill-button]:hidden"
+/>
    <button
   type="button"
   onClick={() => setShowPassword((prev) => !prev)}

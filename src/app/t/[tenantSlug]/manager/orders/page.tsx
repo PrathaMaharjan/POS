@@ -68,7 +68,7 @@ export default function ManagerOrdersPage() {
           total: parseFloat(o.total ?? "0"),
           createdAt: o.createdAt,
           items: (o.items ?? []).map((item: any) => ({
-            name: item.product?.name ?? "Unknown",
+            name: item.variantLabel ? `${item.product?.name ?? "Unknown"} (${item.variantLabel})` : (item.product?.name ?? "Unknown"),
             quantity: item.quantity,
             subtotal: parseFloat(item.subtotal ?? "0"),
           })),

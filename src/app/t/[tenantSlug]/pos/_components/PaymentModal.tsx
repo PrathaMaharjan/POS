@@ -14,6 +14,7 @@ type HullNumber = number;
 
 interface CartItem {
   productId?: string;
+  variantId?: string;
   quantity: number;
   notes?: string;
   name?: string;
@@ -72,8 +73,7 @@ export default function PaymentModal({
   const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
   const [isDownloadingReceipt, setIsDownloadingReceipt] = useState<boolean>(false);
 
-  // ── FIX — tax rate is now fetched live from the backend, ──
-  // ── never read from localStorage. See useEffect below.   ──
+
   const [taxRate, setTaxRate] = useState<number>(0);
   const [isTaxLoading, setIsTaxLoading] = useState<boolean>(true);
 
@@ -81,15 +81,7 @@ export default function PaymentModal({
 
   const cachedName = typeof window !== 'undefined' && tenantSlug ? localStorage.getItem(`org_name_${tenantSlug}`) : null;
 
-  // ── FIX — fetch the outlet's REAL, current tax rate every time
-  //          the modal opens. This replaces the old localStorage
-  //          read (`taxRate_${outletId}`), which could silently
-  //          go stale and disagree with what the backend actually
-  //          charges at order-creation time.
-// ── FIX — fetch the outlet's REAL, current tax rate every time
-  //          the modal opens, via the dedicated single-outlet route.
-  //          This replaces the old localStorage read AND the old
-  //          "/outlets" list-then-find approach.
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -130,11 +122,7 @@ export default function PaymentModal({
     return () => { cancelled = true; };
   }, [isOpen]);
 
-  // NOTE: for DINE_IN orders, this assumes `totalAmount` passed in from
-  // the parent is a PRE-TAX subtotal (same treatment as TAKEAWAY).
-  // If the parent is actually passing the order's already tax-inclusive
-  // `order.total` from the database here, this will double-apply tax.
-  // Confirm what the parent sends before relying on this for dine-in.
+
   const actualSubtotal = orderType === 'TAKEAWAY' ? subtotalAmount : totalAmount;
   const tax = Math.round(actualSubtotal * (taxRate / 100) * 100) / 100;
   const grandTotal = Math.round((actualSubtotal + tax) * 100) / 100;
@@ -156,6 +144,7 @@ export default function PaymentModal({
           customerPhone: customerPhone.trim() || undefined,
           items: cart.map(item => ({
             productId: item.productId,
+            variantId: item.variantId,
             notes: item.notes || undefined,
             quantity: item.quantity,
           })),
@@ -234,8 +223,7 @@ export default function PaymentModal({
     try {
       setIsDownloadingReceipt(true);
 
-      // Dynamic import keeps this client-only (html2pdf.js touches window/document,
-      // which breaks SSR if imported statically at the top of the file).
+
       const html2pdf = (await import('html2pdf.js')).default;
 
       const opt: any = {
@@ -347,7 +335,7 @@ export default function PaymentModal({
               </button>
             </div>
 
-            {/* Hidden receipt template used to generate the PDF via html2pdf.js */}
+
             <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', pointerEvents: 'none' }}>
               <div
                 ref={receiptRef}

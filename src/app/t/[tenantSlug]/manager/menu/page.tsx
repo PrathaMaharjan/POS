@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import {
   Plus, Search, Pencil, Trash2, X,
-  UtensilsCrossed, Loader2, Settings2, ImagePlus
+  UtensilsCrossed, Loader2, Settings2, ImagePlus, Ruler
 } from "lucide-react";
 import api from "@/lib/api";
 import { useImageUpload } from "@/lib/hooks/useImageUpload";
@@ -12,6 +12,12 @@ import { useImageUpload } from "@/lib/hooks/useImageUpload";
 interface Category {
   id: string;
   name: string;
+}
+
+interface ProductSize {
+  id?: string;
+  label: string;
+  price: number;
 }
 
 interface MenuItem {
@@ -23,6 +29,13 @@ interface MenuItem {
   imageUrl: string | null;
   description?: string | null;
   isAvailable?: boolean;
+  sizes?: ProductSize[];
+}
+
+interface SizeDraft {
+  id?: string;
+  label: string;
+  price: string;
 }
 
 interface FormDraft {
@@ -30,6 +43,8 @@ interface FormDraft {
   categoryId: string;
   price: string;
   description: string;
+  hasSizes: boolean;
+  sizes: SizeDraft[];
 }
 
 const EMPTY_DRAFT: FormDraft = {
@@ -37,7 +52,24 @@ const EMPTY_DRAFT: FormDraft = {
   categoryId: "",
   price: "",
   description: "",
+  hasSizes: false,
+  sizes: [{ label: "", price: "" }, { label: "", price: "" }],
 };
+
+// ── Variants API helper ──────────────────────────────────────────────
+async function fetchVariants(productId: string): Promise<ProductSize[]> {
+  try {
+    const res = await api.get(`/product/${productId}/variants`);
+    const variants = res.data.variants ?? [];
+    return variants.map((v: any) => ({
+      id: v.id,
+      label: v.label,
+      price: Number(v.price),
+    }));
+  } catch {
+    return [];
+  }
+}
 
 export default function MenuManagement() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -52,6 +84,7 @@ export default function MenuManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<FormDraft>(EMPTY_DRAFT);
+  const [originalSizes, setOriginalSizes] = useState<ProductSize[]>([]);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -100,14 +133,20 @@ export default function MenuManagement() {
         categories.map((cat) =>
           api
             .get(`/categories/${cat.id}/products`)
-            .then((res) => {
+            .then(async (res) => {
               const products = res.data.products ?? res.data ?? [];
-              return products.map((p: any) => ({
-                ...p,
-                category: cat.name,
-                categoryId: cat.id,
-                imageUrl: p.imageUrl ?? null,
-              }));
+              return Promise.all(
+                products.map(async (p: any) => {
+                  const sizes = await fetchVariants(p.id);
+                  return {
+                    ...p,
+                    category: cat.name,
+                    categoryId: cat.id,
+                    imageUrl: p.imageUrl ?? null,
+                    sizes: sizes.length > 0 ? sizes : undefined,
+                  };
+                })
+              );
             })
             .catch(() => [])
         )
@@ -125,14 +164,20 @@ export default function MenuManagement() {
         const data = res.data.products;
         const productsList = Array.isArray(data) ? data : (data?.products ?? []);
 
-        setMenuItems(
-          productsList.map((p: any) => ({
-            ...p,
-            category: cat?.name ?? "",
-            categoryId: activeCategoryId,
-            imageUrl: p.imageUrl ?? null,
-          }))
+        const withSizes = await Promise.all(
+          productsList.map(async (p: any) => {
+            const sizes = await fetchVariants(p.id);
+            return {
+              ...p,
+              category: cat?.name ?? "",
+              categoryId: activeCategoryId,
+              imageUrl: p.imageUrl ?? null,
+              sizes: sizes.length > 0 ? sizes : undefined,
+            };
+          })
         );
+
+        setMenuItems(withSizes);
       } catch (err: any) {
         setErrorMsg(err?.response?.data?.error ?? "Failed to load products.");
       } finally {
@@ -159,9 +204,26 @@ export default function MenuManagement() {
     setExistingImageUrl(null);
   }
 
+  // ── Size row helpers ─────────────────────────────────────────────────
+  function updateSizeRow(index: number, field: keyof SizeDraft, value: string) {
+    setDraft((p) => ({
+      ...p,
+      sizes: p.sizes.map((s, i) => (i === index ? { ...s, [field]: value } : s)),
+    }));
+  }
+
+  function addSizeRow() {
+    setDraft((p) => ({ ...p, sizes: [...p.sizes, { label: "", price: "" }] }));
+  }
+
+  function removeSizeRow(index: number) {
+    setDraft((p) => ({ ...p, sizes: p.sizes.filter((_, i) => i !== index) }));
+  }
+
   const openAdd = () => {
     setEditingId(null);
-    setDraft({ ...EMPTY_DRAFT, categoryId: categories[0]?.id ?? "" });
+    setDraft({ ...EMPTY_DRAFT, categoryId: categories[0]?.id ?? "", sizes: [{ label: "", price: "" }, { label: "", price: "" }] });
+    setOriginalSizes([]);
     setImageFile(null);
     setImagePreview(null);
     setExistingImageUrl(null);
@@ -170,12 +232,18 @@ export default function MenuManagement() {
 
   const openEdit = (item: MenuItem) => {
     setEditingId(item.id);
+    const hasSizes = !!item.sizes && item.sizes.length > 1;
     setDraft({
       name: item.name,
       categoryId: item.categoryId,
       price: String(item.price),
       description: item.description ?? "",
+      hasSizes,
+      sizes: hasSizes
+        ? item.sizes!.map((s) => ({ id: s.id, label: s.label, price: String(s.price) }))
+        : [{ label: "", price: "" }, { label: "", price: "" }],
     });
+    setOriginalSizes(item.sizes ?? []);
     setImageFile(null);
     setImagePreview(null);
     setExistingImageUrl(item.imageUrl);
@@ -186,15 +254,62 @@ export default function MenuManagement() {
     setIsModalOpen(false);
     setEditingId(null);
     setDraft(EMPTY_DRAFT);
+    setOriginalSizes([]);
     setImageFile(null);
     setImagePreview(null);
     setExistingImageUrl(null);
   };
 
+  // ── Sync variants against the backend ───────────────────────────────
+  async function syncVariants(
+    productId: string,
+    original: ProductSize[],
+    updated: ProductSize[]
+  ) {
+    const updatedIds = new Set(updated.map((s) => s.id).filter(Boolean));
+
+    // Delete variants that were removed
+    const toDelete = original.filter((s) => s.id && !updatedIds.has(s.id));
+    await Promise.all(
+      toDelete.map((s) => api.delete(`/product/${productId}/variants/${s.id}`))
+    );
+
+    // Create new / update changed variants
+    for (const size of updated) {
+      if (size.id) {
+        const before = original.find((o) => o.id === size.id);
+        if (before && (before.label !== size.label || before.price !== size.price)) {
+          await api.patch(`/product/${productId}/variants/${size.id}`, {
+            label: size.label,
+            price: size.price.toFixed(2),
+          });
+        }
+      } else {
+        await api.post(`/product/${productId}/variants`, {
+          label: size.label,
+          price: size.price.toFixed(2),
+        });
+      }
+    }
+  }
+
   const handleSaveItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaving(true);
     setErrorMsg(null);
+
+    // Validate sizes if the toggle is on: need at least 2 complete rows
+    let validSizes: ProductSize[] = [];
+    if (draft.hasSizes) {
+      validSizes = draft.sizes
+        .filter((s) => s.label.trim() && s.price.trim())
+        .map((s) => ({ id: s.id, label: s.label.trim(), price: Number(s.price) }));
+      if (validSizes.length < 2) {
+        setErrorMsg("Add at least 2 sizes with a label and price, or turn off multiple sizes.");
+        return;
+      }
+    }
+
+    setIsSaving(true);
 
     try {
       let imagePublicId: string | undefined = undefined;
@@ -208,22 +323,42 @@ export default function MenuManagement() {
         imagePublicId = result.publicId;
       }
 
+      const basePrice = draft.hasSizes
+        ? Math.min(...validSizes.map((s) => s.price))
+        : Number(draft.price);
+
+      let savedId = editingId;
+
       if (editingId) {
         await api.patch(`/product/${editingId}`, {
           name: draft.name,
           categoryId: draft.categoryId,
-          price: Number(draft.price),
+          price: basePrice,
           description: draft.description || undefined,
           ...(imagePublicId && { imagePublicId }),
         });
       } else {
-        await api.post("/product", {
+        const res = await api.post("/product", {
           name: draft.name,
           categoryId: draft.categoryId,
-          price: Number(draft.price),
+          price: basePrice,
           description: draft.description || undefined,
           imagePublicId: imagePublicId ?? undefined,
         });
+        savedId = typeof res.data === 'string' ? res.data : (res.data?.product?.id ?? res.data?.id ?? null);
+      }
+
+      // Sync size/variant rows against the backend
+      if (savedId) {
+        if (draft.hasSizes) {
+          await syncVariants(savedId, originalSizes, validSizes);
+        } else if (originalSizes.length > 0) {
+          await Promise.all(
+            originalSizes
+              .filter((s) => s.id)
+              .map((s) => api.delete(`/product/${savedId}/variants/${s.id}`))
+          );
+        }
       }
 
       setRefreshKey(prev => prev + 1);
@@ -409,56 +544,80 @@ export default function MenuManagement() {
               </div>
             </div>
 
-            {filteredItems.map((item) => (
-              <div key={item.id} className={`bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow ${!item.isAvailable ? "opacity-75" : ""}`}>
-                <div className="relative h-36 md:h-40 w-full shrink-0 bg-slate-100">
-                  {item.imageUrl ? (
-                    <Image
-                      src={item.imageUrl}
-                      alt={item.name}
-                      fill
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                      className="object-cover"
-                      priority={filteredItems.indexOf(item) < 4}
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-slate-50">
-                      <UtensilsCrossed className="h-8 w-8 text-slate-300" />
-                    </div>
-                  )}
-                  <span className="absolute left-3 bottom-3 bg-white text-emerald-700 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md border border-emerald-100 shadow-sm z-10">
-                    {item.category}
-                  </span>
-                  {!item.isAvailable && (
-                    <div className="absolute inset-0 flex items-center justify-center backdrop-blur-[1.5px] z-20 animate-in fade-in duration-200" style={{ backgroundColor: 'rgba(15, 15, 17, 0.7)' }}>
-                      <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-neutral-200 bg-neutral-800/90 border border-neutral-700/50 shadow-sm">
-                        Out of Stock
+            {filteredItems.map((item) => {
+              const hasMultipleSizes = !!item.sizes && item.sizes.length > 1;
+              const displayPrice = hasMultipleSizes
+                ? Math.min(...item.sizes!.map((s) => s.price))
+                : Number(item.price);
+              return (
+                <div key={item.id} className={`bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow ${!item.isAvailable ? "opacity-75" : ""}`}>
+                  <div className="relative h-36 md:h-40 w-full shrink-0 bg-slate-100">
+                    {item.imageUrl ? (
+                      <Image
+                        src={item.imageUrl}
+                        alt={item.name}
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                        className="object-cover"
+                        priority={filteredItems.indexOf(item) < 4}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-slate-50">
+                        <UtensilsCrossed className="h-8 w-8 text-slate-300" />
+                      </div>
+                    )}
+                    <span className="absolute left-3 bottom-3 bg-white text-emerald-700 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md border border-emerald-100 shadow-sm z-10">
+                      {item.category}
+                    </span>
+                    {hasMultipleSizes && (
+                      <span className="absolute right-3 bottom-3 flex items-center gap-1 bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md shadow-sm z-10">
+                        <Ruler className="w-2.5 h-2.5" /> {item.sizes!.length} sizes
                       </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-3 flex flex-col gap-2.5 flex-1 justify-between">
-                  <div className="flex flex-col gap-1">
-                    <div className="flex justify-between items-start gap-2">
-                      <h4 className="text-sm font-semibold text-slate-800 line-clamp-2 break-words">{item.name}</h4>
-                      <span className="text-sm font-bold text-emerald-600 shrink-0 whitespace-nowrap">Rs.{Number(item.price).toFixed(2)}</span>
-                    </div>
-                    {item.description && (
-                      <p className="text-xs text-slate-500 line-clamp-2 break-words mt-0.5">{item.description}</p>
+                    )}
+                    {!item.isAvailable && (
+                      <div className="absolute inset-0 flex items-center justify-center backdrop-blur-[1.5px] z-20 animate-in fade-in duration-200" style={{ backgroundColor: 'rgba(15, 15, 17, 0.7)' }}>
+                        <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-neutral-200 bg-neutral-800/90 border border-neutral-700/50 shadow-sm">
+                          Out of Stock
+                        </span>
+                      </div>
                     )}
                   </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => openEdit(item)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-slate-100 hover:bg-emerald-600 text-slate-500 hover:text-white text-xs font-semibold transition-colors">
-                      <Pencil className="w-3 h-3" /> Edit
-                    </button>
-                    <button onClick={() => setDeleteConfirmId(item.id)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-slate-100 hover:bg-red-500 text-slate-500 hover:text-white text-xs font-semibold transition-colors">
-                      <Trash2 className="w-3 h-3" /> Delete
-                    </button>
+
+                  <div className="p-3 flex flex-col gap-2.5 flex-1 justify-between">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between items-start gap-2">
+                        <h4 className="text-sm font-semibold text-slate-800 line-clamp-2 break-words">{item.name}</h4>
+                        {hasMultipleSizes ? (
+                          <div className="flex flex-col gap-0.5 shrink-0 whitespace-nowrap">
+                            {item.sizes!.map((s) => (
+                              <div key={s.id} className="flex justify-end gap-2 text-xs">
+                                <span className="text-slate-500">{s.label}:</span>
+                                <span className="font-bold text-emerald-600">Rs.{s.price.toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-sm font-bold text-emerald-600 shrink-0 whitespace-nowrap">
+                            Rs.{displayPrice.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                      {item.description && (
+                        <p className="text-xs text-slate-500 line-clamp-2 break-words mt-0.5">{item.description}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => openEdit(item)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-slate-100 hover:bg-emerald-600 text-slate-500 hover:text-white text-xs font-semibold transition-colors">
+                        <Pencil className="w-3 h-3" /> Edit
+                      </button>
+                      <button onClick={() => setDeleteConfirmId(item.id)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-slate-100 hover:bg-red-500 text-slate-500 hover:text-white text-xs font-semibold transition-colors">
+                        <Trash2 className="w-3 h-3" /> Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {filteredItems.length === 0 && !isLoadingProducts && (
               <div className="col-span-full flex flex-col items-center justify-center py-20 text-slate-400 text-sm">
@@ -554,15 +713,74 @@ export default function MenuManagement() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Price (Rs.)</label>
-                  <input
-                    type="number" step="0.01" required placeholder="e.g. 250"
-                    value={draft.price}
-                    onChange={(e) => setDraft((p) => ({ ...p, price: e.target.value }))}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
-                  />
+                {/* Multiple sizes toggle */}
+                <div className="flex items-center justify-between rounded-lg border border-slate-200 px-3.5 py-3 bg-slate-50">
+                  <div className="flex items-center gap-2">
+                    <Ruler className="w-4 h-4 text-emerald-600" />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">This item has multiple sizes</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDraft((p) => ({ ...p, hasSizes: !p.hasSizes }))}
+                    className={`relative shrink-0 w-10 h-6 rounded-full transition-colors ${draft.hasSizes ? "bg-emerald-600" : "bg-slate-300"}`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${draft.hasSizes ? "translate-x-4" : ""}`}
+                    />
+                  </button>
                 </div>
+
+                {draft.hasSizes ? (
+                  <div className="space-y-2">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide">Sizes &amp; Prices</label>
+                    {draft.sizes.map((size, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="e.g. 500ML"
+                          value={size.label}
+                          onChange={(e) => updateSizeRow(idx, "label", e.target.value)}
+                          className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="Rs. price"
+                          value={size.price}
+                          onChange={(e) => updateSizeRow(idx, "price", e.target.value)}
+                          className="w-28 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeSizeRow(idx)}
+                          disabled={draft.sizes.length <= 1}
+                          className="shrink-0 p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={addSizeRow}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-700 pt-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add another size
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Price (Rs.)</label>
+                    <input
+                      type="number" step="0.01" required placeholder="e.g. 250"
+                      value={draft.price}
+                      onChange={(e) => setDraft((p) => ({ ...p, price: e.target.value }))}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Description (optional)</label>

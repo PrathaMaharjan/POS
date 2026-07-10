@@ -392,11 +392,11 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
 
           (ticket.items ?? []).forEach((ki: any) => {
             const oi = ki.orderItem ?? {};
-            const itemName = oi.product?.name ?? ki.product?.name ?? oi.name ?? ki.name ?? 'Unknown Product';
+            const baseItemName = oi.product?.name ?? ki.product?.name ?? oi.name ?? ki.name ?? 'Unknown Product';
+            const itemName = oi.variantLabel ? `${baseItemName} (${oi.variantLabel})` : baseItemName;
             const quantity = oi.quantity ?? 1;
             const notes = oi.notes ?? undefined;
 
-            // Load status from localStorage or fallback to ticket status
             const localState = localStorage.getItem(`kds_item_state_${ticket.id}_${itemName}`);
 
             let mappedState: TicketState = 'PENDING';
@@ -913,8 +913,8 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
                     value={wastageForm.stockItemId}
                     onChange={(e) => setWastageForm({ ...wastageForm, stockItemId: e.target.value })}
                     className={`w-full rounded-xl border px-3 py-2.5 text-xs focus:outline-none transition-all ${isDark
-                        ? 'bg-[#18181b] border-[#3f3f46] text-white focus:border-[#e5b83b]/60'
-                        : 'bg-white border-neutral-200 text-neutral-800 focus:border-neutral-400 shadow-sm'
+                      ? 'bg-[#18181b] border-[#3f3f46] text-white focus:border-[#e5b83b]/60'
+                      : 'bg-white border-neutral-200 text-neutral-800 focus:border-neutral-400 shadow-sm'
                       }`}
                   >
                     <option value="">-- Choose an item --</option>
@@ -942,8 +942,8 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
                     onChange={(e) => setWastageForm({ ...wastageForm, quantity: e.target.value })}
                     placeholder={selectedStockItem ? `Max current stock is ${selectedStockItem.currentStock}` : "Select item first"}
                     className={`w-full rounded-xl border px-3.5 py-2.5 text-xs focus:outline-none transition-all ${isDark
-                        ? 'bg-[#18181b] border-[#3f3f46] text-white focus:border-[#e5b83b]/60'
-                        : 'bg-white border-neutral-200 text-neutral-800 focus:border-neutral-400 shadow-sm'
+                      ? 'bg-[#18181b] border-[#3f3f46] text-white focus:border-[#e5b83b]/60'
+                      : 'bg-white border-neutral-200 text-neutral-800 focus:border-neutral-400 shadow-sm'
                       }`}
                   />
                 </div>
@@ -960,8 +960,8 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
                   placeholder="e.g. Expired, spilled during preparation, overcooked..."
                   rows={3}
                   className={`w-full rounded-xl border px-3.5 py-2.5 text-xs focus:outline-none transition-all resize-none ${isDark
-                      ? 'bg-[#18181b] border-[#3f3f46] text-white focus:border-[#e5b83b]/60'
-                      : 'bg-white border-neutral-200 text-neutral-800 focus:border-neutral-400 shadow-sm'
+                    ? 'bg-[#18181b] border-[#3f3f46] text-white focus:border-[#e5b83b]/60'
+                    : 'bg-white border-neutral-200 text-neutral-800 focus:border-neutral-400 shadow-sm'
                     }`}
                 />
               </div>
@@ -972,8 +972,8 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
                   disabled={isSubmittingWastage}
                   onClick={() => setIsWastageModalOpen(false)}
                   className={`flex-1 py-3 rounded-xl border text-[12px] font-bold text-center transition-all ${isDark
-                      ? 'bg-transparent border-[#3f3f46] text-[#a1a1aa] hover:bg-[#27272a] hover:text-white'
-                      : 'bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                    ? 'bg-transparent border-[#3f3f46] text-[#a1a1aa] hover:bg-[#27272a] hover:text-white'
+                    : 'bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50'
                     }`}
                 >
                   Cancel
