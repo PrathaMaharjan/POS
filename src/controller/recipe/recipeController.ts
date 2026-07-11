@@ -39,11 +39,48 @@ function formatRecipe(recipe: {
   };
 }
 //--------------------------- get recipe wala -----------------------------
+// export async function getRecipe(
+//   outletId: string,
+//   productId: string,
+// ): Promise<ControllerResult<ReturnType<typeof formatRecipe> | null>> {
+//   // verify product belongs to outlet
+//   const product = await db.query.products.findFirst({
+//     where: (p, { eq, and }) =>
+//       and(eq(p.id, productId), eq(p.outletId, outletId), eq(p.isActive, true)),
+//     columns: { id: true, name: true },
+//   });
+//   if (!product) {
+//     return { success: false, error: "Product not found", status: 404 };
+//   }
+//   const recipe = await db.query.recipes.findFirst({
+//     where: (r, { eq, and }) =>
+//       and(eq(r.productId, productId), eq(r.outletId, outletId)),
+//     with: {
+//       product: {
+//         columns: { name: true },
+//       },
+//       recipeItems: {
+//         with: {
+//           stockItem: {
+//             columns: { id: true, name: true, unit: true },
+//           },
+//         },
+//       },
+//     },
+//   });
+//   // no recipe set up yet — return null not 404
+//   // so frontend can show "No recipe set up" instead of error
+//   if (!recipe) {
+//     return { success: true, data: null };
+//   }
+
+//   return { success: true, data: formatRecipe(recipe) };
+// }
 export async function getRecipe(
   outletId: string,
   productId: string,
+  variantId?: string | null, // ← new
 ): Promise<ControllerResult<ReturnType<typeof formatRecipe> | null>> {
-  // verify product belongs to outlet
   const product = await db.query.products.findFirst({
     where: (p, { eq, and }) =>
       and(eq(p.id, productId), eq(p.outletId, outletId), eq(p.isActive, true)),
@@ -52,24 +89,36 @@ export async function getRecipe(
   if (!product) {
     return { success: false, error: "Product not found", status: 404 };
   }
+
+  // ── if a variantId was given, verify it belongs to THIS product ──
+  if (variantId) {
+    const variant = await db.query.productVariants.findFirst({
+      where: (v, { eq, and }) => and(eq(v.id, variantId), eq(v.productId, productId)),
+      columns: { id: true },
+    });
+    if (!variant) {
+      return { success: false, error: "Variant does not belong to this product", status: 400 };
+    }
+  }
+
   const recipe = await db.query.recipes.findFirst({
-    where: (r, { eq, and }) =>
-      and(eq(r.productId, productId), eq(r.outletId, outletId)),
+    where: (r, { eq, and, isNull }) =>
+      and(
+        eq(r.productId, productId),
+        eq(r.outletId, outletId),
+        variantId ? eq(r.variantId, variantId) : isNull(r.variantId), // ← key change
+      ),
     with: {
-      product: {
-        columns: { name: true },
-      },
+      product: { columns: { name: true } },
+      variant: { columns: { id: true, label: true } }, // ← new relation, added earlier
       recipeItems: {
         with: {
-          stockItem: {
-            columns: { id: true, name: true, unit: true },
-          },
+          stockItem: { columns: { id: true, name: true, unit: true } },
         },
       },
     },
   });
-  // no recipe set up yet — return null not 404
-  // so frontend can show "No recipe set up" instead of error
+
   if (!recipe) {
     return { success: true, data: null };
   }
@@ -77,98 +126,214 @@ export async function getRecipe(
   return { success: true, data: formatRecipe(recipe) };
 }
 
+// export async function createRecipe(
+//   outletId: string,
+//   productId: string,
+//   input: {
+//     items: {
+//       stockItemId: string;
+//       quantity: number;
+//     }[];
+//   },
+// ): Promise<ControllerResult<ReturnType<typeof formatRecipe>>> {
+//   const { items } = input;
+
+//   if (items.length === 0) {
+//     return {
+//       success: false,
+//       error: "Recipe must have at least one ingredient",
+//       status: 400,
+//     };
+//   }
+//   const product = await db.query.products.findFirst({
+//     where: (p, { eq, and }) =>
+//       and(eq(p.id, productId), eq(p.outletId, outletId), eq(p.isActive, true)),
+//     columns: { id: true, name: true },
+//   });
+
+//   if (!product) {
+//     return { success: false, error: "Product not found", status: 404 };
+//   }
+//   // ── 2. check recipe doesn't already exist ──
+//   const existing = await db.query.recipes.findFirst({
+//     where: (r, { eq, and }) =>
+//       and(eq(r.productId, productId), eq(r.outletId, outletId)),
+//     columns: { id: true },
+//   });
+
+//   if (existing) {
+//     return {
+//       success: false,
+//       error: "Recipe already exists for this product. Use update instead.",
+//       status: 409,
+//     };
+//   }
+//   // ── 3. verify all stock items belong to this outlet ──
+//   const stockItemIds = items.map((i) => i.stockItemId);
+
+//   const validStockItems = await db.query.stockItems.findMany({
+//     where: (s, { eq, and, inArray }) =>
+//       and(
+//         eq(s.outletId, outletId),
+//         eq(s.isActive, true),
+//         inArray(s.id, stockItemIds),
+//       ),
+//     columns: { id: true },
+//   });
+
+//   if (validStockItems.length !== stockItemIds.length) {
+//     return {
+//       success: false,
+//       error:
+//         "One or more ingredients are invalid or do not belong to this outlet",
+//       status: 400,
+//     };
+//   }
+//   // ── 4. validate quantities ──
+//   const invalidQty = items.find((i) => i.quantity <= 0);
+//   if (invalidQty) {
+//     return {
+//       success: false,
+//       error: "All ingredient quantities must be greater than 0",
+//       status: 400,
+//     };
+//   }
+//   try {
+//     // ── 5. create recipe ──
+//     const [recipe] = await db
+//       .insert(recipes)
+//       .values({ productId, outletId })
+//       .returning();
+
+//     // ── 6. insert all recipe items ──
+//     await db.insert(recipeItems).values(
+//       items.map((item) => ({
+//         recipeId: recipe.id,
+//         stockItemId: item.stockItemId,
+//         quantity: item.quantity.toFixed(3),
+//       })),
+//     );
+//     // ── 7. fetch full recipe to return ──
+//     const full = await db.query.recipes.findFirst({
+//       where: (r, { eq }) => eq(r.id, recipe.id),
+//       with: {
+//         product: { columns: { name: true } },
+//         recipeItems: {
+//           with: {
+//             stockItem: { columns: { id: true, name: true, unit: true } },
+//           },
+//         },
+//       },
+//     });
+
+//     return { success: true, data: formatRecipe(full!) };
+//   } catch (error) {
+//     console.error("createRecipe error:", error);
+//     return { success: false, error: "Failed to create recipe", status: 500 };
+//   }
+// }
+
+// ------------Delete recipe---------------------------------
+
 export async function createRecipe(
   outletId: string,
   productId: string,
   input: {
-    items: {
-      stockItemId: string;
-      quantity: number;
-    }[];
+    variantId?: string | null; // ← new
+    items: { stockItemId: string; quantity: number }[];
   },
 ): Promise<ControllerResult<ReturnType<typeof formatRecipe>>> {
-  const { items } = input;
+  const { items, variantId } = input;
 
   if (items.length === 0) {
-    return {
-      success: false,
-      error: "Recipe must have at least one ingredient",
-      status: 400,
-    };
+    return { success: false, error: "Recipe must have at least one ingredient", status: 400 };
   }
+
   const product = await db.query.products.findFirst({
     where: (p, { eq, and }) =>
       and(eq(p.id, productId), eq(p.outletId, outletId), eq(p.isActive, true)),
-    columns: { id: true, name: true },
+    columns: { id: true, name: true, hasVariants: true },
   });
 
   if (!product) {
     return { success: false, error: "Product not found", status: 404 };
   }
-  // ── 2. check recipe doesn't already exist ──
+
+  // ── if variantId provided, verify it belongs to this product ──
+  if (variantId) {
+    const variant = await db.query.productVariants.findFirst({
+      where: (v, { eq, and }) => and(eq(v.id, variantId), eq(v.productId, productId)),
+      columns: { id: true, label: true },
+    });
+    if (!variant) {
+      return { success: false, error: "Variant does not belong to this product", status: 400 };
+    }
+  }
+
+  // ── check for an existing recipe at the SAME scope (product-level vs this specific variant) ──
   const existing = await db.query.recipes.findFirst({
-    where: (r, { eq, and }) =>
-      and(eq(r.productId, productId), eq(r.outletId, outletId)),
+    where: (r, { eq, and, isNull }) =>
+      and(
+        eq(r.productId, productId),
+        eq(r.outletId, outletId),
+        variantId ? eq(r.variantId, variantId) : isNull(r.variantId), // ← key change
+      ),
     columns: { id: true },
   });
 
   if (existing) {
     return {
       success: false,
-      error: "Recipe already exists for this product. Use update instead.",
+      error: variantId
+        ? "Recipe already exists for this variant. Use update instead."
+        : "Recipe already exists for this product. Use update instead.",
       status: 409,
     };
   }
-  // ── 3. verify all stock items belong to this outlet ──
-  const stockItemIds = items.map((i) => i.stockItemId);
 
+  const stockItemIds = items.map((i) => i.stockItemId);
   const validStockItems = await db.query.stockItems.findMany({
     where: (s, { eq, and, inArray }) =>
-      and(
-        eq(s.outletId, outletId),
-        eq(s.isActive, true),
-        inArray(s.id, stockItemIds),
-      ),
+      and(eq(s.outletId, outletId), eq(s.isActive, true), inArray(s.id, stockItemIds)),
     columns: { id: true },
   });
 
   if (validStockItems.length !== stockItemIds.length) {
     return {
       success: false,
-      error:
-        "One or more ingredients are invalid or do not belong to this outlet",
+      error: "One or more ingredients are invalid or do not belong to this outlet",
       status: 400,
     };
   }
-  // ── 4. validate quantities ──
+
   const invalidQty = items.find((i) => i.quantity <= 0);
   if (invalidQty) {
-    return {
-      success: false,
-      error: "All ingredient quantities must be greater than 0",
-      status: 400,
-    };
+    return { success: false, error: "All ingredient quantities must be greater than 0", status: 400 };
   }
+
   try {
-    // ── 5. create recipe ──
     const [recipe] = await db
       .insert(recipes)
-      .values({ productId, outletId })
+      .values({
+        productId,
+        outletId,
+        variantId: variantId ?? null, // ← new
+      })
       .returning();
 
-    // ── 6. insert all recipe items ──
     await db.insert(recipeItems).values(
       items.map((item) => ({
-        recipeId: recipe.id,
+        recipeId:    recipe.id,
         stockItemId: item.stockItemId,
-        quantity: item.quantity.toFixed(3),
+        quantity:    item.quantity.toFixed(3),
       })),
     );
-    // ── 7. fetch full recipe to return ──
+
     const full = await db.query.recipes.findFirst({
       where: (r, { eq }) => eq(r.id, recipe.id),
       with: {
         product: { columns: { name: true } },
+        variant: { columns: { id: true, label: true } }, // ← new
         recipeItems: {
           with: {
             stockItem: { columns: { id: true, name: true, unit: true } },
@@ -184,14 +349,21 @@ export async function createRecipe(
   }
 }
 
-// ------------Delete recipe---------------------------------
+
+
+// ------------------delete --------------------------------
 export async function deleteRecipe(
   outletId: string,
   productId: string,
+  variantId?: string | null, // ← new
 ): Promise<ControllerResult<null>> {
   const existing = await db.query.recipes.findFirst({
-    where: (r, { eq, and }) =>
-      and(eq(r.productId, productId), eq(r.outletId, outletId)),
+    where: (r, { eq, and, isNull }) =>
+      and(
+        eq(r.productId, productId),
+        eq(r.outletId, outletId),
+        variantId ? eq(r.variantId, variantId) : isNull(r.variantId), // ← key change
+      ),
     columns: { id: true },
   });
 
@@ -201,7 +373,6 @@ export async function deleteRecipe(
 
   try {
     await db.delete(recipes).where(eq(recipes.id, existing.id));
-
     return { success: true, data: null };
   } catch (error) {
     console.error("deleteRecipe error:", error);
@@ -213,13 +384,12 @@ export async function updateRecipe(
   outletId: string,
   productId: string,
   input: {
-    items: {
-      stockItemId: string;
-      quantity: number;
-    }[];
+    variantId?: string | null; // ← new
+    items: { stockItemId: string; quantity: number }[];
   },
 ): Promise<ControllerResult<ReturnType<typeof formatRecipe>>> {
-  const { items } = input;
+  const { items, variantId } = input;
+
   if (items.length === 0) {
     return {
       success: false,
@@ -227,11 +397,17 @@ export async function updateRecipe(
       status: 400,
     };
   }
+
   const existing = await db.query.recipes.findFirst({
-    where: (r, { eq, and }) =>
-      and(eq(r.productId, productId), eq(r.outletId, outletId)),
+    where: (r, { eq, and, isNull }) =>
+      and(
+        eq(r.productId, productId),
+        eq(r.outletId, outletId),
+        variantId ? eq(r.variantId, variantId) : isNull(r.variantId), // ← key change
+      ),
     columns: { id: true },
   });
+
   if (!existing) {
     return {
       success: false,
@@ -239,54 +415,48 @@ export async function updateRecipe(
       status: 404,
     };
   }
+
   const stockItemIds = items.map((i) => i.stockItemId);
   const validStockItems = await db.query.stockItems.findMany({
     where: (s, { eq, and, inArray }) =>
-      and(
-        eq(s.outletId, outletId),
-        eq(s.isActive, true),
-        inArray(s.id, stockItemIds),
-      ),
+      and(eq(s.outletId, outletId), eq(s.isActive, true), inArray(s.id, stockItemIds)),
     columns: { id: true },
   });
 
   if (validStockItems.length !== stockItemIds.length) {
     return {
       success: false,
-      error:
-        "One or more ingredients are invalid or do not belong to this outlet",
+      error: "One or more ingredients are invalid or do not belong to this outlet",
       status: 400,
     };
   }
+
   const invalidQty = items.find((i) => i.quantity <= 0);
   if (invalidQty) {
-    return {
-      success: false,
-      error: "All ingredient quantities must be greater than 0",
-      status: 400,
-    };
+    return { success: false, error: "All ingredient quantities must be greater than 0", status: 400 };
   }
+
   try {
-    //delete all existing recipe items ──
     await db.delete(recipeItems).where(eq(recipeItems.recipeId, existing.id));
 
-    // ── 5. insert new recipe items ──
     await db.insert(recipeItems).values(
       items.map((item) => ({
-        recipeId: existing.id,
+        recipeId:    existing.id,
         stockItemId: item.stockItemId,
-        quantity: item.quantity.toFixed(3),
+        quantity:    item.quantity.toFixed(3),
       })),
     );
-    // update recipe data
+
     await db
       .update(recipes)
       .set({ updatedAt: new Date() })
       .where(eq(recipes.id, existing.id));
+
     const full = await db.query.recipes.findFirst({
       where: (r, { eq }) => eq(r.id, existing.id),
       with: {
         product: { columns: { name: true } },
+        variant: { columns: { id: true, label: true } }, // ← new
         recipeItems: {
           with: {
             stockItem: { columns: { id: true, name: true, unit: true } },
