@@ -340,7 +340,10 @@ export default function RecipeManagementPage() {
       return;
     }
 
-    const payload = {
+    const productId = selectedRowKey?.substring(0, 36);
+    const variantId = selectedRowKey && selectedRowKey.length > 36 ? selectedRowKey.substring(37) : undefined;
+
+    const payload: any = {
       items: cleanedItems.map((item) => ({
         stockItemId: item.stockItemId,
         quantity: Number(item.quantity),
@@ -348,10 +351,12 @@ export default function RecipeManagementPage() {
       outletId: activeOutletId,
     };
 
+    if (variantId) {
+      payload.variantId = variantId;
+    }
+
     setSaving(true);
     try {
-      const productId = selectedRowKey?.split('-')[0];
-      const variantId = selectedRowKey?.includes('-') ? selectedRowKey.split('-')[1] : undefined;
       const variantQuery = variantId ? `&variantId=${variantId}` : '';
 
       let res;
@@ -369,7 +374,16 @@ export default function RecipeManagementPage() {
       closeRecipeModal();
     } catch (err: any) {
       console.error("Save recipe failed:", err);
-      setSaveError(err?.response?.data?.error ?? "Failed to save product recipe.");
+      let errMsg = "Failed to save product recipe.";
+      if (err?.response?.data?.error) {
+         const apiErr = err.response.data.error;
+         if (typeof apiErr === "string") {
+            errMsg = apiErr;
+         } else if (typeof apiErr === "object") {
+            errMsg = (apiErr.formErrors?.[0] as string) || (Object.values(apiErr.fieldErrors || {}).flat()[0] as string) || "Validation error: Please check your input.";
+         }
+      }
+      setSaveError(errMsg);
     } finally {
       setSaving(false);
     }
@@ -380,8 +394,8 @@ export default function RecipeManagementPage() {
     if (!deleteConfirmId) return;
     setDeleting(true);
     try {
-      const productId = deleteConfirmId?.split('-')[0];
-      const variantId = deleteConfirmId?.includes('-') ? deleteConfirmId.split('-')[1] : undefined;
+      const productId = deleteConfirmId?.substring(0, 36);
+      const variantId = deleteConfirmId && deleteConfirmId.length > 36 ? deleteConfirmId.substring(37) : undefined;
       const variantQuery = variantId ? `&variantId=${variantId}` : '';
 
       await api.delete(`/recipe/${productId}?outletId=${activeOutletId}${variantQuery}`);

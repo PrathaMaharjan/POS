@@ -79,12 +79,12 @@ export const recipes = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (t) => [
-    uniqueIndex("rec_product_outlet_unique")
+    uniqueIndex("rec_prod_outlet_null_var_uniq")
       .on(t.productId, t.outletId)
       .where(sql`${t.variantId} IS NULL`),
 
     // one recipe per variant when variant-specific
-    uniqueIndex("rec_variant_outlet_unique")
+    uniqueIndex("rec_var_outlet_not_null_uniq")
       .on(t.variantId, t.outletId)
       .where(sql`${t.variantId} IS NOT NULL`),
 
