@@ -23,7 +23,7 @@ export default function Navbar() {
         
          
 <Link
-  href="/signup"
+  href="/login"
   className="group relative h-9 rounded-full border border-neutral-200 bg-transparent hover:bg-white px-4 text-white hover:text-slate-900 flex items-center transition-colors duration-300"
 >
   <span className="relative inline-flex overflow-hidden">

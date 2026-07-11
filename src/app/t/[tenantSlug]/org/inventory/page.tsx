@@ -676,7 +676,7 @@ export default function ManagerInventoryPage() {
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Low Stock Warning Threshold</label>
                   <input
-                    type="number" step="0.1" min={0}
+                    type="number" step="1" min={0}
                     placeholder=""
                     value={form.minStockLevel}
                     onChange={e => setForm(p => ({ ...p, minStockLevel: e.target.value === "" ? "" : Number(e.target.value) }))}
@@ -746,7 +746,7 @@ export default function ManagerInventoryPage() {
                     <div>
                       <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Purchase Quantity</label>
                       <input
-                        type="number" step="0.001" min={0.001} required
+                        type="number" step="1" min={0.001} required
                         placeholder="e.g. 5.0"
                         value={adjustForm.quantity}
                         onChange={e => setAdjustForm(p => ({ ...p, quantity: e.target.value === "" ? "" : Number(e.target.value) }))}
@@ -757,7 +757,7 @@ export default function ManagerInventoryPage() {
                     <div>
                       <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">New Stock Count</label>
                       <input
-                        type="number" step="0.001" min={0} required
+                        type="number" step="1" min={0} required
                         placeholder="e.g. 17.5"
                         value={adjustForm.newQuantity}
                         onChange={e => setAdjustForm(p => ({ ...p, newQuantity: e.target.value === "" ? "" : Number(e.target.value) }))}

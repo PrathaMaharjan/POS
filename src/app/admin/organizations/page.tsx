@@ -378,7 +378,7 @@ const [showPassword, setShowPassword] = useState(false);
       <div className="rounded-xl bg-emerald-600 px-6 py-5 text-white shadow-sm flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Organizations</h1>
-          <p className="text-xs text-emerald-100 mt-1">Manage global enterprise tenants and system organizations</p>
+
         </div>
         <Building2 className="h-8 w-8 text-emerald-100 opacity-85 shrink-0" />
       </div>

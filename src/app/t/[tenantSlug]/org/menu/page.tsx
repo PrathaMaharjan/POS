@@ -598,7 +598,7 @@ export default function MenuManagement() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5 content-start pb-6">
             <div
               onClick={openAdd}
-              className="border-2 border-dashed border-slate-200 hover:border-emerald-400 bg-white hover:bg-emerald-50/30 rounded-xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all group h-[220px] md:h-[272px]"
+              className="border-2 border-dashed border-slate-200 hover:border-emerald-400 bg-white hover:bg-emerald-50/30 rounded-xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all group h-[320px] md:h-[320px]"
             >
               <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-emerald-50 border-2 border-emerald-200 group-hover:border-emerald-400 flex items-center justify-center transition-all">
                 <Plus className="w-5 h-5 md:w-6 md:h-6 text-emerald-500" />
@@ -813,8 +813,8 @@ export default function MenuManagement() {
                         />
                         <input
                           type="number"
-                          step="0.01"
-                          placeholder="Rs. price"
+                          step="1"
+                          placeholder="Price"
                           value={size.price}
                           onChange={(e) => updateSizeRow(idx, "price", e.target.value)}
                           className="w-28 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
@@ -841,7 +841,7 @@ export default function MenuManagement() {
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Price (Rs.)</label>
                     <input
-                      type="number" step="0.01" required placeholder="e.g. 250"
+                      type="number" step="1" required placeholder="e.g. 250"
                       value={draft.price}
                       onChange={(e) => setDraft((p) => ({ ...p, price: e.target.value }))}
                       className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
