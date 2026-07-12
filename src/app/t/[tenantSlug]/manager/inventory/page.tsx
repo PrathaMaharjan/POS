@@ -648,7 +648,7 @@ export default function ManagerInventoryPage() {
                     <div>
                       <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Purchase Quantity</label>
                       <input
-                        type="number" step="1" min={0.001} required
+                        type="number" step="1" min={1} required
                         placeholder="e.g. 5.0"
                         value={adjustForm.quantity}
                         onChange={e => setAdjustForm(p => ({ ...p, quantity: e.target.value === "" ? "" : Number(e.target.value) }))}
