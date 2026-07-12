@@ -50,7 +50,6 @@ export async function GET(
   const variantId = req.nextUrl.searchParams.get("variantId") ?? undefined;
 
   const result = await getRecipe(resolved.outletId, productId, variantId);
-  console.log(result);
 
   if (!result.success) {
     return NextResponse.json(
