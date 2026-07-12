@@ -76,48 +76,107 @@ function formatRecipe(recipe: {
 
 //   return { success: true, data: formatRecipe(recipe) };
 // }
+// export async function getRecipe(
+//   outletId: string,
+//   productId: string,
+//   variantId?: string | null, // ← new
+// ): Promise<ControllerResult<ReturnType<typeof formatRecipe> | null>> {
+//   const product = await db.query.products.findFirst({
+//     where: (p, { eq, and }) =>
+//       and(eq(p.id, productId), eq(p.outletId, outletId), eq(p.isActive, true)),
+//     columns: { id: true, name: true },
+//   });
+//   if (!product) {
+//     return { success: false, error: "Product not found", status: 404 };
+//   }
+
+//   // ── if a variantId was given, verify it belongs to THIS product ──
+//   if (variantId) {
+//     const variant = await db.query.productVariants.findFirst({
+//       where: (v, { eq, and }) => and(eq(v.id, variantId), eq(v.productId, productId)),
+//       columns: { id: true },
+//     });
+//     if (!variant) {
+//       return { success: false, error: "Variant does not belong to this product", status: 400 };
+//     }
+//   }
+
+//   const recipe = await db.query.recipes.findFirst({
+//     where: (r, { eq, and, isNull }) =>
+//       and(
+//         eq(r.productId, productId),
+//         eq(r.outletId, outletId),
+//         variantId ? eq(r.variantId, variantId) : isNull(r.variantId), // ← key change
+//       ),
+//     with: {
+//       product: { columns: { name: true } },
+//       variant: { columns: { id: true, label: true } }, // ← new relation, added earlier
+//       recipeItems: {
+//         with: {
+//           stockItem: { columns: { id: true, name: true, unit: true } },
+//         },
+//       },
+//     },
+//   });
+
+//   if (!recipe) {
+//     return { success: true, data: null };
+//   }
+
+//   return { success: true, data: formatRecipe(recipe) };
+// }
+
+
 export async function getRecipe(
   outletId: string,
   productId: string,
-  variantId?: string | null, // ← new
+  variantId?: string | null,
 ): Promise<ControllerResult<ReturnType<typeof formatRecipe> | null>> {
-  const product = await db.query.products.findFirst({
-    where: (p, { eq, and }) =>
-      and(eq(p.id, productId), eq(p.outletId, outletId), eq(p.isActive, true)),
-    columns: { id: true, name: true },
-  });
+
+  // ── run product check + variant check (if needed) + recipe fetch
+  //    ALL IN PARALLEL — none of these actually depend on each other's
+  //    result, they're just three independent reads ──
+  const [product, variant, recipe] = await Promise.all([
+    db.query.products.findFirst({
+      where: (p, { eq, and }) =>
+        and(eq(p.id, productId), eq(p.outletId, outletId), eq(p.isActive, true)),
+      columns: { id: true, name: true },
+    }),
+
+    variantId
+      ? db.query.productVariants.findFirst({
+          where: (v, { eq, and }) => and(eq(v.id, variantId), eq(v.productId, productId)),
+          columns: { id: true },
+        })
+      : Promise.resolve(null),
+
+    db.query.recipes.findFirst({
+      where: (r, { eq, and, isNull }) =>
+        and(
+          eq(r.productId, productId),
+          eq(r.outletId, outletId),
+          variantId ? eq(r.variantId, variantId) : isNull(r.variantId),
+        ),
+      with: {
+        product: { columns: { name: true } },
+        variant: { columns: { id: true, label: true } },
+        recipeItems: {
+          with: {
+            stockItem: { columns: { id: true, name: true, unit: true } },
+          },
+        },
+      },
+    }),
+  ]);
+
+  // ── now validate using whatever came back, no more waiting ──
   if (!product) {
     return { success: false, error: "Product not found", status: 404 };
   }
 
-  // ── if a variantId was given, verify it belongs to THIS product ──
-  if (variantId) {
-    const variant = await db.query.productVariants.findFirst({
-      where: (v, { eq, and }) => and(eq(v.id, variantId), eq(v.productId, productId)),
-      columns: { id: true },
-    });
-    if (!variant) {
-      return { success: false, error: "Variant does not belong to this product", status: 400 };
-    }
+  if (variantId && !variant) {
+    return { success: false, error: "Variant does not belong to this product", status: 400 };
   }
-
-  const recipe = await db.query.recipes.findFirst({
-    where: (r, { eq, and, isNull }) =>
-      and(
-        eq(r.productId, productId),
-        eq(r.outletId, outletId),
-        variantId ? eq(r.variantId, variantId) : isNull(r.variantId), // ← key change
-      ),
-    with: {
-      product: { columns: { name: true } },
-      variant: { columns: { id: true, label: true } }, // ← new relation, added earlier
-      recipeItems: {
-        with: {
-          stockItem: { columns: { id: true, name: true, unit: true } },
-        },
-      },
-    },
-  });
 
   if (!recipe) {
     return { success: true, data: null };
@@ -125,7 +184,6 @@ export async function getRecipe(
 
   return { success: true, data: formatRecipe(recipe) };
 }
-
 // export async function createRecipe(
 //   outletId: string,
 //   productId: string,
