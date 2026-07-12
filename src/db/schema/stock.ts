@@ -111,6 +111,7 @@ export const recipeItems = pgTable(
   (t) => [
     uniqueIndex("ri_recipe_stock_unique").on(t.recipeId, t.stockItemId),
     index("ri_recipe_idx").on(t.recipeId),
+     index("ri_stock_item_idx").on(t.stockItemId),
   ],
 );
 

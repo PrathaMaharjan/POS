@@ -39,43 +39,7 @@ function formatRecipe(recipe: {
   };
 }
 //--------------------------- get recipe wala -----------------------------
-// export async function getRecipe(
-//   outletId: string,
-//   productId: string,
-// ): Promise<ControllerResult<ReturnType<typeof formatRecipe> | null>> {
-//   // verify product belongs to outlet
-//   const product = await db.query.products.findFirst({
-//     where: (p, { eq, and }) =>
-//       and(eq(p.id, productId), eq(p.outletId, outletId), eq(p.isActive, true)),
-//     columns: { id: true, name: true },
-//   });
-//   if (!product) {
-//     return { success: false, error: "Product not found", status: 404 };
-//   }
-//   const recipe = await db.query.recipes.findFirst({
-//     where: (r, { eq, and }) =>
-//       and(eq(r.productId, productId), eq(r.outletId, outletId)),
-//     with: {
-//       product: {
-//         columns: { name: true },
-//       },
-//       recipeItems: {
-//         with: {
-//           stockItem: {
-//             columns: { id: true, name: true, unit: true },
-//           },
-//         },
-//       },
-//     },
-//   });
-//   // no recipe set up yet — return null not 404
-//   // so frontend can show "No recipe set up" instead of error
-//   if (!recipe) {
-//     return { success: true, data: null };
-//   }
 
-//   return { success: true, data: formatRecipe(recipe) };
-// }
 // export async function getRecipe(
 //   outletId: string,
 //   productId: string,
@@ -133,43 +97,43 @@ export async function getRecipe(
   variantId?: string | null,
 ): Promise<ControllerResult<ReturnType<typeof formatRecipe> | null>> {
 
-  // ── run product check + variant check (if needed) + recipe fetch
-  //    ALL IN PARALLEL — none of these actually depend on each other's
-  //    result, they're just three independent reads ──
-  const [product, variant, recipe] = await Promise.all([
-    db.query.products.findFirst({
-      where: (p, { eq, and }) =>
-        and(eq(p.id, productId), eq(p.outletId, outletId), eq(p.isActive, true)),
-      columns: { id: true, name: true },
-    }),
+  const productQuery = db.query.products.findFirst({
+    where: (p, { eq, and }) =>
+      and(eq(p.id, productId), eq(p.outletId, outletId), eq(p.isActive, true)),
+    columns: { id: true, name: true },
+  });
 
-    variantId
-      ? db.query.productVariants.findFirst({
-          where: (v, { eq, and }) => and(eq(v.id, variantId), eq(v.productId, productId)),
-          columns: { id: true },
-        })
-      : Promise.resolve(null),
+  const variantQuery = variantId
+    ? db.query.productVariants.findFirst({
+        where: (v, { eq, and }) => and(eq(v.id, variantId), eq(v.productId, productId)),
+        columns: { id: true },
+      })
+    : undefined;
 
-    db.query.recipes.findFirst({
-      where: (r, { eq, and, isNull }) =>
-        and(
-          eq(r.productId, productId),
-          eq(r.outletId, outletId),
-          variantId ? eq(r.variantId, variantId) : isNull(r.variantId),
-        ),
-      with: {
-        product: { columns: { name: true } },
-        variant: { columns: { id: true, label: true } },
-        recipeItems: {
-          with: {
-            stockItem: { columns: { id: true, name: true, unit: true } },
-          },
+  const recipeQuery = db.query.recipes.findFirst({
+    where: (r, { eq, and, isNull }) =>
+      and(
+        eq(r.productId, productId),
+        eq(r.outletId, outletId),
+        variantId ? eq(r.variantId, variantId) : isNull(r.variantId),
+      ),
+    with: {
+      product: { columns: { name: true } },
+      variant: { columns: { id: true, label: true } },
+      recipeItems: {
+        with: {
+          stockItem: { columns: { id: true, name: true, unit: true } },
         },
       },
-    }),
-  ]);
+    },
+  });
 
-  // ── now validate using whatever came back, no more waiting ──
+  // ── db.batch — sends all queries as ONE network round trip to Neon,
+  //    instead of Promise.all's concurrent-but-separate requests ──
+  const [product, variant, recipe] = variantId
+    ? await db.batch([productQuery, variantQuery!, recipeQuery])
+    : await db.batch([productQuery, recipeQuery]).then(([p, r]) => [p, null, r] as const);
+
   if (!product) {
     return { success: false, error: "Product not found", status: 404 };
   }
