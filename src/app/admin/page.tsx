@@ -29,7 +29,7 @@ import {
   Cell,
 } from "recharts";
 
-// Mock Data for Platform Statistics
+
 const STATS_DATA = {
   "30d": {
     orgs: 156,
