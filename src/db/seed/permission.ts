@@ -172,7 +172,7 @@ async function seedSystemRoles() {
       "inventory.stock.update",
     ]),
   );
-  const allRounder = await findOrCreateRole("All Rounder");
+  // const allRounder = await findOrCreateRole("All Rounder");
 
   console.log(
     "Seeded system roles: Owner, Manager, Cashier, Waiter, Kitchen Crew",
