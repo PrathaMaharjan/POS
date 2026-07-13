@@ -672,14 +672,21 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
                             const itemTicket = tickets.find((t: any) =>
                               (t.items ?? []).some((ki: any) => {
                                 const oi = ki.orderItem ?? {};
-                                const kiName = oi.product?.name ?? ki.product?.name ?? oi.name ?? ki.name ?? '';
+                                // ── FIX — was missing the variant label here,
+                                //    so ANY variant product ("Orange Juice (50ml)")
+                                //    never matched its own KOT item ("Orange Juice"),
+                                //    leaving status stuck on "Pending" and hiding
+                                //    the Pay item button entirely for variants ──
+                                const kiBase = oi.product?.name ?? ki.product?.name ?? oi.name ?? ki.name ?? '';
+                                const kiName = oi.variantLabel ? `${kiBase} (${oi.variantLabel})` : kiBase;
                                 return kiName === item.name;
                               })
                             );
                             const itemKi = itemTicket
                               ? (itemTicket.items ?? []).find((ki: any) => {
                                 const oi = ki.orderItem ?? {};
-                                const kiName = oi.product?.name ?? ki.product?.name ?? oi.name ?? ki.name ?? '';
+                                const kiBase = oi.product?.name ?? ki.product?.name ?? oi.name ?? ki.name ?? '';
+                                const kiName = oi.variantLabel ? `${kiBase} (${oi.variantLabel})` : kiBase;
                                 return kiName === item.name;
                               })
                               : null;

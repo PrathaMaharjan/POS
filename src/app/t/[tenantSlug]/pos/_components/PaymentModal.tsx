@@ -157,6 +157,19 @@ export default function PaymentModal({
   //    the modal show a receipt/confirmation instead of erroring. ──
   const alreadyFullySettled = orderType === 'DINE_IN' && grandTotal <= 0;
 
+  // ── NEW — the two things that can each independently be true:
+  //    1) some items were ALREADY paid individually before this
+  //       modal opened (hasPartialHistory)
+  //    2) a NEW payment is actually being processed right now for
+  //       whatever remains (hasNewPayment) — false only when the
+  //       table was fully settled via partial payments alone
+  //    Most real settlements have BOTH: a few items paid one at a
+  //    time, then the rest paid together at checkout — the receipt
+  //    needs to show both, not just whichever one happened last. ──
+  const hasPartialHistory = orderType === 'DINE_IN' && !!alreadyPaidSummary && alreadyPaidSummary.items.length > 0;
+  const hasNewPayment = !alreadyFullySettled;
+  const combinedGrandTotal = (hasPartialHistory ? alreadyPaidSummary!.total : 0) + (hasNewPayment ? grandTotal : 0);
+
   const handleConfirm = async () => {
     try {
       setIsSubmitting(true);
@@ -324,33 +337,37 @@ export default function PaymentModal({
             <div>
               <h2 className={`text-xl font-bold tracking-tight ${isDark ? "text-white" : "text-slate-800"}`}>Payment Completed Successfully!</h2>
               <p className={`text-sm mt-1.5 ${isDark ? "text-neutral-500" : "text-slate-500"}`}>
-                {alreadyPaidSummary
+                {alreadyFullySettled
                   ? 'Every item was already settled individually'
-                  : (<>Transaction settled via <span className={`font-medium ${isDark ? "text-[#e5b83b]" : "text-emerald-600"}`}>{paymentMethod}</span></>)
+                  : (<>Remaining balance settled via <span className={`font-medium ${isDark ? "text-[#e5b83b]" : "text-emerald-600"}`}>{paymentMethod}</span></>)
                 }
               </p>
             </div>
 
             <div className={`rounded-xl p-4 border flex flex-col gap-2 text-sm w-full ${isDark ? "bg-[#0c0c0d] border-neutral-900 text-neutral-400" : "bg-slate-50 border-slate-200 text-slate-650"
               }`}>
-              {/* ── UPDATED — show the REAL collected total when this
-                   table was settled entirely via individual item
-                   payments, instead of the (correctly zero) grandTotal
-                   this modal's own flow never actually charged ── */}
+              {/* ── UPDATED — now shows the COMBINED total across both
+                   what was already collected individually AND what
+                   was just charged in this transaction, instead of
+                   only ever showing one or the other ── */}
               <div className="flex justify-between items-center">
                 <span className={isDark ? "text-neutral-400" : "text-slate-500"}>
-                  {alreadyPaidSummary ? 'Total Collected' : 'Total Settled'}
+                  {hasPartialHistory ? 'Grand Total (All Payments)' : 'Total Settled'}
                 </span>
                 <span className={`font-bold text-base ${isDark ? "text-white" : "text-slate-800"}`}>
-                  Rs.{(alreadyPaidSummary ? alreadyPaidSummary.total : grandTotal).toFixed(2)}
+                  Rs.{combinedGrandTotal.toFixed(2)}
                 </span>
               </div>
 
-              {/* ── NEW — per-payment breakdown, each showing its own
-                   total, only relevant when settled via item payments ── */}
-              {alreadyPaidSummary && alreadyPaidSummary.items.length > 0 && (
+              {/* ── previously collected individual payments, shown
+                   whenever any exist — regardless of whether a NEW
+                   payment was also just processed ── */}
+              {hasPartialHistory && (
                 <div className={`flex flex-col gap-1.5 border-t pt-2 ${isDark ? "border-neutral-800" : "border-slate-200"}`}>
-                  {alreadyPaidSummary.items.map((it, idx) => (
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? "text-neutral-600" : "text-slate-400"}`}>
+                    Previously Paid — Rs.{alreadyPaidSummary!.total.toFixed(2)}
+                  </span>
+                  {alreadyPaidSummary!.items.map((it, idx) => (
                     <div key={idx} className="flex justify-between items-center text-xs">
                       <span className={isDark ? "text-neutral-500" : "text-slate-500"}>
                         {it.quantity} × {it.itemName} <span className="uppercase">({it.method})</span>
@@ -361,7 +378,20 @@ export default function PaymentModal({
                 </div>
               )}
 
-              {!alreadyPaidSummary && paymentMethod === 'Cash' && paymentResult && (
+              {/* ── the payment that was JUST processed in this
+                   transaction, shown whenever one actually happened ── */}
+              {hasNewPayment && (
+                <div className={`flex justify-between items-center border-t pt-2 ${isDark ? "border-neutral-800" : "border-slate-200"}`}>
+                  <span className={isDark ? "text-neutral-400" : "text-slate-500"}>
+                    {hasPartialHistory ? 'This Payment' : 'Amount Paid'}
+                  </span>
+                  <span className={`font-semibold ${isDark ? "text-white" : "text-slate-800"}`}>
+                    Rs.{grandTotal.toFixed(2)}
+                  </span>
+                </div>
+              )}
+
+              {hasNewPayment && paymentMethod === 'Cash' && paymentResult && (
                 <>
                   <div className={`flex justify-between items-center border-t pt-2 ${isDark ? "border-neutral-800" : "border-slate-200"}`}>
                     <span className={isDark ? "text-neutral-400" : "text-slate-500"}>Cash Received</span>
@@ -467,62 +497,74 @@ export default function PaymentModal({
                   <thead>
                     <tr style={{ borderBottom: '1px dashed #000' }}>
                       <th style={{ textAlign: 'left', padding: '6px 2px 6px 0', fontWeight: 'bold' }}>
-                        {alreadyPaidSummary ? 'ITEM' : orderType === 'DINE_IN' ? 'PAYMENT' : 'ITEM'}
+                        {orderType === 'DINE_IN' ? 'ITEM / PAYMENT' : 'ITEM'}
                       </th>
                       <th style={{ textAlign: 'center', padding: '6px 2px', fontWeight: 'bold' }}>
-                        {alreadyPaidSummary ? 'QTY' : orderType === 'DINE_IN' ? 'ITEMS' : 'QTY'}
+                        {orderType === 'DINE_IN' ? 'QTY' : 'QTY'}
                       </th>
                       <th style={{ textAlign: 'right', padding: '6px 0 6px 2px', fontWeight: 'bold' }}>TOTAL</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {alreadyPaidSummary && alreadyPaidSummary.items.length > 0 ? (
-                      // ── NEW — table was already fully settled via
-                      //    individual item payments BEFORE this modal
-                      //    opened. List each of those payments here,
-                      //    each showing its own total (mirrors exactly
-                      //    what the ordersList branch does for a normal
-                      //    settlement), tax already included per line. ──
-                      alreadyPaidSummary.items.map((it, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px dotted #eee' }}>
-                          <td style={{ padding: '6px 2px 6px 0', verticalAlign: 'top', wordBreak: 'break-word' }}>
-                            <div style={{ fontWeight: 'bold' }}>{it.itemName}</div>
-                            <div style={{ fontSize: '8px', color: '#666', textTransform: 'uppercase' }}>{it.method}</div>
-                          </td>
-                          <td style={{ textAlign: 'center', padding: '6px 2px', verticalAlign: 'top' }}>{it.quantity}</td>
-                          <td style={{ textAlign: 'right', padding: '6px 0 6px 2px', verticalAlign: 'top', fontWeight: 'bold', wordBreak: 'break-word' }}>
-                            Rs. {it.total.toFixed(2)}
-                          </td>
-                        </tr>
-                      ))
-                    ) : orderType === 'DINE_IN' ? (
-                      // ── FIX — was always rendering the full, ORIGINAL cart
-                      //    quantities here (stale once partial payments had
-                      //    already covered some units), which visibly
-                      //    contradicted the correct "remaining balance"
-                      //    summary shown below. ordersList already carries
-                      //    each order's correct REMAINING total, so list
-                      //    one row per order/payment here instead — each
-                      //    row shows that payment's own total, and they
-                      //    sum to exactly the grand total in the summary. ──
-                      (ordersList && ordersList.length > 0
-                        ? ordersList
-                        : (orderId ? [{ id: orderId, orderNumber: '', items: [], total: grandTotal }] : [])
-                      ).map((o: any, idx: number) => (
-                        <tr key={o.id ?? idx} style={{ borderBottom: '1px dotted #eee' }}>
-                          <td style={{ padding: '6px 2px 6px 0', verticalAlign: 'top', wordBreak: 'break-word' }}>
-                            <div style={{ fontWeight: 'bold' }}>
-                              Order {o.orderNumber ? `#${o.orderNumber}` : idx + 1}
-                            </div>
-                          </td>
-                          <td style={{ textAlign: 'center', padding: '6px 2px', verticalAlign: 'top' }}>
-                            {Array.isArray(o.items) ? o.items.length : '—'}
-                          </td>
-                          <td style={{ textAlign: 'right', padding: '6px 0 6px 2px', verticalAlign: 'top', fontWeight: 'bold', wordBreak: 'break-word' }}>
-                            Rs. {Number(o.total ?? 0).toFixed(2)}
-                          </td>
-                        </tr>
-                      ))
+                    {orderType === 'DINE_IN' ? (
+                      <>
+                        {/* ── FIX — previously this whole section only ever
+                             showed EITHER the partial-payment history OR
+                             the just-processed payment, never both. Most
+                             real settlements have BOTH (a few items paid
+                             individually, then the rest paid together at
+                             checkout), so now we show each section that
+                             actually applies, one after another. ── */}
+                        {hasPartialHistory && (
+                          <>
+                            <tr>
+                              <td colSpan={3} style={{ paddingTop: '10px', paddingBottom: '2px', fontSize: '8px', fontWeight: 'bold', color: '#555', letterSpacing: '0.5px' }}>
+                                PREVIOUSLY PAID (INDIVIDUAL)
+                              </td>
+                            </tr>
+                            {alreadyPaidSummary!.items.map((it, idx) => (
+                              <tr key={`prev-${idx}`} style={{ borderBottom: '1px dotted #eee' }}>
+                                <td style={{ padding: '6px 2px 6px 0', verticalAlign: 'top', wordBreak: 'break-word' }}>
+                                  <div style={{ fontWeight: 'bold' }}>{it.itemName}</div>
+                                  <div style={{ fontSize: '8px', color: '#666', textTransform: 'uppercase' }}>{it.method}</div>
+                                </td>
+                                <td style={{ textAlign: 'center', padding: '6px 2px', verticalAlign: 'top' }}>{it.quantity}</td>
+                                <td style={{ textAlign: 'right', padding: '6px 0 6px 2px', verticalAlign: 'top', fontWeight: 'bold', wordBreak: 'break-word' }}>
+                                  Rs. {it.total.toFixed(2)}
+                                </td>
+                              </tr>
+                            ))}
+                          </>
+                        )}
+
+                        {hasNewPayment && (
+                          <>
+                            <tr>
+                              <td colSpan={3} style={{ paddingTop: '10px', paddingBottom: '2px', fontSize: '8px', fontWeight: 'bold', color: '#555', letterSpacing: '0.5px' }}>
+                                {hasPartialHistory ? 'THIS PAYMENT' : 'PAYMENT'}
+                              </td>
+                            </tr>
+                            {(ordersList && ordersList.length > 0
+                              ? ordersList
+                              : (orderId ? [{ id: orderId, orderNumber: '', items: [], total: grandTotal }] : [])
+                            ).map((o: any, idx: number) => (
+                              <tr key={`order-${o.id ?? idx}`} style={{ borderBottom: '1px dotted #eee' }}>
+                                <td style={{ padding: '6px 2px 6px 0', verticalAlign: 'top', wordBreak: 'break-word' }}>
+                                  <div style={{ fontWeight: 'bold' }}>
+                                    Order {o.orderNumber ? `#${o.orderNumber}` : idx + 1}
+                                  </div>
+                                </td>
+                                <td style={{ textAlign: 'center', padding: '6px 2px', verticalAlign: 'top' }}>
+                                  {Array.isArray(o.items) ? o.items.length : '—'}
+                                </td>
+                                <td style={{ textAlign: 'right', padding: '6px 0 6px 2px', verticalAlign: 'top', fontWeight: 'bold', wordBreak: 'break-word' }}>
+                                  Rs. {Number(o.total ?? 0).toFixed(2)}
+                                </td>
+                              </tr>
+                            ))}
+                          </>
+                        )}
+                      </>
                     ) : (
                       cart.map((item, idx) => {
                         const price = item.price ?? item.product?.price ?? 0;
@@ -544,39 +586,42 @@ export default function PaymentModal({
                   </tbody>
                 </table>
 
-                {alreadyPaidSummary ? (
-                  // ── NEW — the item rows above already have tax baked
-                  //    into each total individually (they came from
-                  //    TableModal's per-item tax calculation), so we do
-                  //    NOT re-run Subtotal/Tax through this modal's own
-                  //    pipeline again — that would double-count tax.
-                  //    Just show the single grand total across every
-                  //    payment made, which is exactly what was asked:
-                  //    "at the last show the total of all the payment". ──
-                  <div style={{ boxSizing: 'border-box', width: '100%', borderTop: '1px dashed #000', paddingTop: '8px', fontSize: '10.5px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontWeight: 'bold', fontSize: '13px', margin: '8px 0 4px', borderTop: '1px dashed #000', paddingTop: '8px' }}>
-                      <span>GRAND TOTAL</span>
-                      <span>Rs. {alreadyPaidSummary.total.toFixed(2)}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ boxSizing: 'border-box', width: '100%', borderTop: '1px dashed #000', paddingTop: '8px', fontSize: '10.5px' }}>
+                {/* ── FIX — totals now ALWAYS build up to one combined
+                     GRAND TOTAL, showing each applicable piece along the
+                     way (previously paid, and/or this payment's own
+                     subtotal/tax), instead of only ever showing one
+                     total that ignored the other source. ── */}
+                <div style={{ boxSizing: 'border-box', width: '100%', borderTop: '1px dashed #000', paddingTop: '8px', fontSize: '10.5px' }}>
+                  {hasPartialHistory && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', margin: '4px 0' }}>
-                      <span>Subtotal</span>
-                      <span>Rs. {actualSubtotal.toFixed(2)}</span>
+                      <span>Previously Paid</span>
+                      <span>Rs. {alreadyPaidSummary!.total.toFixed(2)}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', margin: '4px 0' }}>
-                      <span>VAT / Tax ({taxRate}%)</span>
-                      <span>Rs. {tax.toFixed(2)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontWeight: 'bold', fontSize: '13px', margin: '8px 0 4px', borderTop: '1px dashed #000', paddingTop: '8px' }}>
-                      <span>TOTAL</span>
-                      <span>Rs. {grandTotal.toFixed(2)}</span>
-                    </div>
+                  )}
+                  {hasNewPayment && (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', margin: '4px 0' }}>
+                        <span>{hasPartialHistory ? 'This Payment — Subtotal' : 'Subtotal'}</span>
+                        <span>Rs. {actualSubtotal.toFixed(2)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', margin: '4px 0' }}>
+                        <span>VAT / Tax ({taxRate}%)</span>
+                        <span>Rs. {tax.toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontWeight: 'bold', fontSize: '13px', margin: '8px 0 4px', borderTop: '1px dashed #000', paddingTop: '8px' }}>
+                    <span>GRAND TOTAL</span>
+                    <span>Rs. {combinedGrandTotal.toFixed(2)}</span>
                   </div>
-                )}
+                </div>
 
-                {!alreadyPaidSummary && (
+                {/* ── shown whenever a NEW payment was actually processed
+                     (describes HOW that specific charge was paid) —
+                     hidden only when everything was already settled via
+                     partial payments alone, since no single method
+                     applies to that case ── */}
+                {hasNewPayment && (
                   <div style={{ boxSizing: 'border-box', width: '100%', borderTop: '1px dashed #000', paddingTop: '8px', marginTop: '8px', fontSize: '10.5px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', margin: '2px 0' }}>
                       <span>Payment Method:</span>
