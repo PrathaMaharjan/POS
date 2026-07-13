@@ -518,30 +518,35 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
       <div className={`w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden rounded-2xl border transition-all duration-200 ${isDark ? "bg-[#0c0c0d] border-neutral-800 text-white" : "bg-white border-slate-200 text-slate-800"
         }`}>
 
-        <div className={`flex flex-col sm:flex-row sm:items-center justify-between px-6 pt-5 pb-4 gap-4 shrink-0 border-b ${isDark ? "border-neutral-900/50" : "border-slate-100"
+        <div className={`flex flex-col sm:flex-row sm:items-center justify-between px-6 pt-5 pb-4 gap-4 shrink-0 border-b ${isDark ? "border-neutral-900/50" : "bg-emerald-600 border-emerald-700"
           }`}>
           <div className="flex items-center gap-3">
-            <h2 className={`text-xl font-bold tracking-tight ${isDark ? "text-white" : "text-slate-800"}`}>{table.label}</h2>
+            <h2 className={`text-xl font-bold tracking-tight text-white`}>{table.label}</h2>
             <div className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${statusMeta.bg} ${statusMeta.text}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dot}`} />
               {statusMeta.label}
             </div>
           </div>
 
-          <div className={`flex items-center gap-1 p-1 rounded-xl border ${isDark ? "bg-[#141416] border-neutral-800" : "bg-slate-100 border-slate-200"
+          <div className={`flex items-center gap-1 p-1 rounded-xl border ${isDark ? "bg-[#141416] border-neutral-800" : "bg-white/20 border-white/30"
             }`}>
             {(Object.keys(isDark ? STATUS_META_DARK : STATUS_META_LIGHT) as TableStatus[]).map((statusKey) => {
               const meta = isDark ? STATUS_META_DARK[statusKey] : STATUS_META_LIGHT[statusKey];
               const isSelected = currentStatus === statusKey;
+              const isDisabled = statusKey === 'dirty' && orders.length > 0 && totalTableBalance > 0;
               return (
                 <button
                   key={statusKey}
                   type="button"
+                  disabled={isDisabled}
                   onClick={() => handleStatusClick(statusKey)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide transition-all duration-150 ${isSelected
-                    ? isDark ? 'bg-neutral-800 text-white shadow-sm' : 'bg-white text-slate-800 shadow-sm border border-slate-200/50'
-                    : isDark ? 'text-neutral-500 hover:text-neutral-300' : 'text-slate-500 hover:text-slate-800'
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide transition-all duration-150 ${isDisabled
+                      ? 'opacity-40 cursor-not-allowed'
+                      : isSelected
+                        ? isDark ? 'bg-neutral-800 text-white shadow-sm' : 'bg-white text-emerald-800 shadow-sm border border-transparent'
+                        : isDark ? 'text-neutral-500 hover:text-neutral-300' : 'text-white/70 hover:text-white hover:bg-white/10'
                     }`}
+                  title={isDisabled ? "Settle balance before cleaning" : undefined}
                 >
                   {meta.label}
                 </button>
@@ -551,7 +556,7 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
 
           <button
             onClick={onClose}
-            className={`transition-colors p-2 rounded-lg self-start sm:self-center ${isDark ? "text-neutral-500 hover:text-white hover:bg-neutral-800" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+            className={`transition-colors p-2 rounded-lg self-start sm:self-center ${isDark ? "text-neutral-500 hover:text-white hover:bg-neutral-800" : "text-white/70 hover:text-white hover:bg-white/10"
               }`}
           >
             <X className="w-5 h-5" strokeWidth={2} />
@@ -672,14 +677,21 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
                             const itemTicket = tickets.find((t: any) =>
                               (t.items ?? []).some((ki: any) => {
                                 const oi = ki.orderItem ?? {};
-                                const kiName = oi.product?.name ?? ki.product?.name ?? oi.name ?? ki.name ?? '';
+                                // ── FIX — was missing the variant label here,
+                                //    so ANY variant product ("Orange Juice (50ml)")
+                                //    never matched its own KOT item ("Orange Juice"),
+                                //    leaving status stuck on "Pending" and hiding
+                                //    the Pay item button entirely for variants ──
+                                const kiBase = oi.product?.name ?? ki.product?.name ?? oi.name ?? ki.name ?? '';
+                                const kiName = oi.variantLabel ? `${kiBase} (${oi.variantLabel})` : kiBase;
                                 return kiName === item.name;
                               })
                             );
                             const itemKi = itemTicket
                               ? (itemTicket.items ?? []).find((ki: any) => {
                                 const oi = ki.orderItem ?? {};
-                                const kiName = oi.product?.name ?? ki.product?.name ?? oi.name ?? ki.name ?? '';
+                                const kiBase = oi.product?.name ?? ki.product?.name ?? oi.name ?? ki.name ?? '';
+                                const kiName = oi.variantLabel ? `${kiBase} (${oi.variantLabel})` : kiBase;
                                 return kiName === item.name;
                               })
                               : null;
@@ -744,12 +756,12 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
                                   </span>
 
                                   <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border shrink-0 ${itemStatus === 'served'
-                                    ? 'bg-neutral-800 border-transparent text-[#a1a1aa]'
+                                    ? (isDark ? 'bg-neutral-800 border-transparent text-[#a1a1aa]' : 'bg-slate-100 border-slate-200 text-slate-500')
                                     : itemStatus === 'ready'
-                                      ? 'bg-orange-500/10 border-orange-500/20 text-orange-400'
+                                      ? (isDark ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : 'bg-orange-50 border-orange-200 text-orange-600')
                                       : itemStatus === 'preparing' || itemStatus === 'processing'
-                                        ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
-                                        : 'bg-amber-500/10 border-amber-500/20 text-amber-500'
+                                        ? (isDark ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-600')
+                                        : (isDark ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-amber-50 border-amber-200 text-amber-600')
                                     }`}>
                                     {itemStatus === 'served' ? 'Delivered' : itemStatus === 'ready' ? 'Ready' : itemStatus === 'preparing' || itemStatus === 'processing' ? 'Preparing' : 'Pending'}
                                   </span>
@@ -764,7 +776,7 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
                                     <button
                                       type="button"
                                       onClick={() => openPayPopup(order.id, orderItemId, item.name, paymentStatusItem.unpaidQty, paymentStatusItem.unitPrice)}
-                                      className={`text-[9px] font-bold uppercase tracking-wide underline ${isDark ? "text-[#e5b83b] hover:text-[#f5c847]" : "text-emerald-600 hover:text-emerald-700"}`}
+                                      className={`text-[9px] font-bold uppercase tracking-wide px-2.5 py-1.5 rounded-lg border transition-colors ${isDark ? "bg-[#e5b83b]/10 text-[#e5b83b] border-[#e5b83b]/20 hover:bg-[#e5b83b]/20" : "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100"}`}
                                     >
                                       Pay item ({paymentStatusItem.unpaidQty} left)
                                     </button>
@@ -966,7 +978,7 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
                   disabled={isSubmittingPayment}
                   className={`flex-1 text-center text-lg font-bold rounded-lg px-3 py-2 border outline-none transition-colors ${isDark
                     ? "bg-[#0c0c0d] border-neutral-800 text-white focus:border-[#e5b83b]"
-                    : "bg-white border-slate-200 text-slate-800 focus:border-emerald-500"
+                    : "bg-slate-50 border-slate-200 text-slate-800 focus:border-emerald-500"
                     }`}
                 />
                 <button
@@ -1007,7 +1019,7 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
                           : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-800'
                         }`}
                     >
-                      <span className={isSelected ? (isDark ? 'text-[#0c0c0d]' : 'text-white') : (isDark ? 'text-[#e5b83b]' : 'text-emerald-600')}>
+                      <span className={isSelected ? (isDark ? 'text-[#0c0c0d]' : 'text-white') : (isDark ? 'text-[#e5b83b]' : 'text-slate-400')}>
                         {icon}
                       </span>
                       {label}
@@ -1024,11 +1036,11 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
               }`}>
               <div className={`flex justify-between text-sm ${isDark ? "text-neutral-400" : "text-slate-500"}`}>
                 <span>Subtotal</span>
-                <span className={isDark ? "" : "font-medium"}>Rs.{payPopupSubtotal.toFixed(2)}</span>
+                <span className={isDark ? "" : "font-medium text-slate-800"}>Rs.{payPopupSubtotal.toFixed(2)}</span>
               </div>
               <div className={`flex justify-between text-sm ${isDark ? "text-neutral-400" : "text-slate-500"}`}>
                 <span>Tax ({payPopupTaxRate}%)</span>
-                <span className={isDark ? "" : "font-medium"}>Rs.{payPopupTax.toFixed(2)}</span>
+                <span className={isDark ? "" : "font-medium text-slate-800"}>Rs.{payPopupTax.toFixed(2)}</span>
               </div>
               <div className={`flex justify-between font-bold border-t pt-2 mt-1 ${isDark ? "text-white border-neutral-800" : "text-slate-800 border-slate-200"
                 }`}>
@@ -1073,4 +1085,4 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
       )}
     </div>
   );
-}
+};

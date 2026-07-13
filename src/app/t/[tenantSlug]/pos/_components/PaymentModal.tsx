@@ -314,7 +314,7 @@ export default function PaymentModal({
           <div className="flex flex-col items-center justify-center text-center py-4 gap-6 animate-fadeIn">
             <div className={`w-16 h-16 rounded-full flex items-center justify-center border ${isDark
               ? 'bg-[#22c55e]/10 border-[#22c55e]/30 text-[#22c55e]'
-              : 'bg-emerald-50 border-emerald-200 text-emerald-600'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-500'
               }`}>
               <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
@@ -326,12 +326,12 @@ export default function PaymentModal({
               <p className={`text-sm mt-1.5 ${isDark ? "text-neutral-500" : "text-slate-500"}`}>
                 {alreadyPaidSummary
                   ? 'Every item was already settled individually'
-                  : (<>Transaction settled via <span className={`font-medium ${isDark ? "text-[#e5b83b]" : "text-emerald-600"}`}>{paymentMethod}</span></>)
+                  : (<>Transaction settled via <span className={`font-medium ${isDark ? "text-[#e5b83b]" : "text-slate-800 font-bold"}`}>{paymentMethod}</span></>)
                 }
               </p>
             </div>
 
-            <div className={`rounded-xl p-4 border flex flex-col gap-2 text-sm w-full ${isDark ? "bg-[#0c0c0d] border-neutral-900 text-neutral-400" : "bg-slate-50 border-slate-200 text-slate-650"
+            <div className={`rounded-xl p-4 border flex flex-col gap-2 text-sm w-full ${isDark ? "bg-[#0c0c0d] border-neutral-900 text-neutral-400" : "bg-slate-50 border-slate-200 text-slate-800"
               }`}>
               {/* ── UPDATED — show the REAL collected total when this
                    table was settled entirely via individual item
@@ -385,7 +385,7 @@ export default function PaymentModal({
               <button
                 onClick={handleDownloadReceipt}
                 disabled={isDownloadingReceipt}
-                className={`w-full font-semibold py-3 rounded-xl border transition-all duration-150 text-sm disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? "border-neutral-700 text-neutral-300 hover:bg-neutral-800" : "border-slate-300 text-slate-600 hover:bg-slate-50"
+                className={`w-full font-semibold py-3 rounded-xl border transition-all duration-150 text-sm disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? "border-neutral-700 text-neutral-300 hover:bg-neutral-800" : "border-slate-200 text-slate-650 hover:bg-slate-50"
                   }`}
               >
                 {isDownloadingReceipt ? 'Generating PDF...' : 'Download Receipt PDF'}
@@ -622,7 +622,7 @@ export default function PaymentModal({
               </button>
             </div>
 
-            <div className={`rounded-xl p-5 flex flex-col items-center text-center gap-3 border ${isDark ? "bg-[#0c0c0d] border-emerald-900/40" : "bg-emerald-50 border-emerald-100"
+            <div className={`rounded-xl p-5 flex flex-col items-center text-center gap-3 border ${isDark ? "bg-[#0c0c0d] border-emerald-900/40" : "bg-emerald-50/50 border-emerald-100"
               }`}>
               <div className={`w-12 h-12 rounded-full flex items-center justify-center border ${isDark
                 ? 'bg-[#22c55e]/10 border-[#22c55e]/30 text-[#22c55e]'
@@ -676,11 +676,11 @@ export default function PaymentModal({
               }`}>
               <div className={`flex justify-between text-sm ${isDark ? "text-neutral-400" : "text-slate-500"}`}>
                 <span>Subtotal</span>
-                <span className={isDark ? "" : "font-medium"}>Rs.{actualSubtotal.toFixed(2)}</span>
+                <span className={isDark ? "" : "font-medium text-slate-800"}>Rs.{actualSubtotal.toFixed(2)}</span>
               </div>
               <div className={`flex justify-between text-sm ${isDark ? "text-neutral-400" : "text-slate-500"}`}>
                 <span>Tax {isTaxLoading ? "(...)" : `(${taxRate}%)`}</span>
-                <span className={isDark ? "" : "font-medium"}>Rs.{tax.toFixed(2)}</span>
+                <span className={isDark ? "" : "font-medium text-slate-800"}>Rs.{tax.toFixed(2)}</span>
               </div>
               <div className={`flex justify-between font-bold border-t pt-2 mt-1 ${isDark ? "text-white border-neutral-800" : "text-slate-800 border-slate-200"
                 }`}>
@@ -715,10 +715,10 @@ export default function PaymentModal({
                           : 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                         : isDark
                           ? 'bg-[#0c0c0d] text-neutral-400 border-neutral-800 hover:border-neutral-600 hover:text-white'
-                          : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-800 shadow-sm'
+                          : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-800'
                         }`}
                     >
-                      <span className={isSelected ? (isDark ? 'text-[#0c0c0d]' : 'text-white') : (isDark ? 'text-[#e5b83b]' : 'text-emerald-600')}>
+                      <span className={isSelected ? (isDark ? 'text-[#0c0c0d]' : 'text-white') : (isDark ? 'text-[#e5b83b]' : 'text-slate-400')}>
                         {icon}
                       </span>
                       {id}
