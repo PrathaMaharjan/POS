@@ -69,7 +69,6 @@ interface PaymentStatusItem {
   fullyPaid: boolean;
 }
 
-// ── UPDATED — now carries taxRate, snapshotted on the order itself ──
 interface PaymentStatus {
   status: string;
   taxRate: number;
@@ -86,12 +85,6 @@ interface PayingItemInfo {
   unitPrice: number;
 }
 
-// ── NEW — one record per successful partial payment, tracked
-//    client-side for this table session, so we can tell the
-//    final PaymentModal receipt what was ACTUALLY collected
-//    (it has no other way of knowing — its own settlement flow
-//    only ever sees the REMAINING balance, which becomes 0 once
-//    everything was already paid off individually) ──
 interface PaymentRecord {
   itemName: string;
   quantity: number;
@@ -121,9 +114,7 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
   const [payMethod, setPayMethod] = useState<PayMethod>('cash');
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
 
-  // ── NEW — running history of every partial payment made this
-  //    session, so the final receipt isn't blank once the table
-  //    is fully settled via individual item payments ──
+
   const [paymentHistory, setPaymentHistory] = useState<PaymentRecord[]>([]);
 
   useEffect(() => {
@@ -192,7 +183,7 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
               items: (dbOrder.items ?? []).map((item: any) => {
                 const baseName = item.product?.name ?? 'Unknown Item';
                 return {
-                  orderItemId: item.id, // ── stored for reliable ID-based matching in ordersForFinalSettlement ──
+                  orderItemId: item.id, 
                   quantity: item.quantity,
                   name: item.variantLabel ? `${baseName} (${item.variantLabel})` : baseName,
                   subtotal: Number(item.subtotal),
@@ -220,14 +211,7 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
                 })
                 : null;
 
-              // ── FIX — was reading localStorage FIRST (isLocalDelivered),
-              //    which could carry stale "true" values from a previous
-              //    session/order reuse and silently mark the whole order
-              //    "DELIVERED" even though nobody clicked anything and the
-              //    live KOT status still correctly says "ready". Now this
-              //    is derived PURELY from live backend KOT status — the
-              //    only way this becomes true is a real toggleDelivery()
-              //    click, which actually PATCHes the ticket to 'served'. ──
+
               const isItemServed = itemKi
                 ? (itemKi.status === 'served' || itemTicket?.status === 'served')
                 : (itemTicket ? itemTicket.status === 'served' : false);
@@ -290,12 +274,7 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
       .filter(order => (remainingBalanceByOrder[order.id] ?? 0) > 0)
       .map(order => {
         const status = paymentStatusMap[order.id];
-        // ── Filter items to only those with remaining unpaid quantity so the
-        //    PaymentModal's "This Payment" section doesn't list already-settled
-        //    items. Adjust each item's quantity and subtotal to the unpaid
-        //    portion so the numbers still reconcile with the remaining total.
-        //    Match by orderItemId (reliable) which we now store on each item,
-        //    with a name-based fallback for safety. ──
+
         const unpaidItems = (status && status !== 'error')
           ? order.items
               .map(item => {
@@ -360,15 +339,11 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
     setIsPaymentOpen(true);
   }
 
-  // ── Just close the modal — used as onClose so the table state is
-  //    preserved when the cashier dismisses without paying ──
   function handlePaymentModalClose() {
     setIsPaymentOpen(false);
   }
 
-  // ── Called only on payment success (onPaymentComplete in PaymentModal).
-  //    Resets all table state and changes status to cleaning ONLY after
-  //    the entire bill has been fully settled. ──
+
   function handlePaymentSuccessComplete() {
     setOrders([]);
     setRawOrderData([]);
@@ -451,9 +426,6 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
     setPayMethod('cash');
   }
 
-  // ── UPDATED — now also takes itemName/unitPrice/taxRate so it can
-  //    build a PaymentRecord after success, in addition to the
-  //    already-computed tax-inclusive amountTendered ──
   async function handlePayItem(
     orderId: string,
     orderItemId: string,
@@ -500,9 +472,7 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
         };
       });
 
-      // ── NEW — record this payment so the final receipt can
-      //    show what was actually collected, even if the whole
-      //    table ends up fully settled via item-level payments ──
+ 
       setPaymentHistory(prev => [
         ...prev,
         { itemName, quantity, method, total: amountTendered },
@@ -519,11 +489,7 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
 
   const statusMeta = isDark ? STATUS_META_DARK[currentStatus] : STATUS_META_LIGHT[currentStatus];
 
-  // ── NEW — tax breakdown for the currently open pay popup.
-  //    Mirrors createPartialPayment's EXACT rounding
-  //    (round to 2dp on the tax figure, then round the total)
-  //    so amountTendered always matches what the backend expects,
-  //    never off by a paisa/cent. ──
+
   const payPopupTaxRate = payingItem
     ? (() => {
       const status = paymentStatusMap[payingItem.orderId];
@@ -534,10 +500,7 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
   const payPopupTax = Math.round(payPopupSubtotal * (payPopupTaxRate / 100) * 100) / 100;
   const payPopupTotal = Math.round((payPopupSubtotal + payPopupTax) * 100) / 100;
 
-  // ── NEW — summary of everything paid this session, handed to
-  //    PaymentModal so its "already fully settled" receipt shows
-  //    the REAL collected total (and per-payment breakdown)
-  //    instead of Rs. 0.00 across the board ──
+  
   const alreadyPaidSummary = useMemo(() => {
     if (paymentHistory.length === 0) return null;
     return {
@@ -1068,9 +1031,7 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
               </div>
             </div>
 
-            {/* ── UPDATED — was a single "Amount" row, now a full
-                 Subtotal / Tax / Total breakdown, matching PaymentModal's
-                 summary card style for consistency ── */}
+      
             <div className={`rounded-xl p-4 space-y-2 border ${isDark ? "bg-[#0c0c0d] border-neutral-900" : "bg-slate-50 border-slate-200"
               }`}>
               <div className={`flex justify-between text-sm ${isDark ? "text-neutral-400" : "text-slate-500"}`}>
