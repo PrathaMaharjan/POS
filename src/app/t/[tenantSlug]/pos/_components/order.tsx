@@ -564,24 +564,43 @@ export default function Order({
                           </div>
                         )}
                       </div>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-[13px] font-semibold truncate" style={{ color: textPrim }}>{product.name}</span>
+                      <div
+                        className="flex flex-col gap-0.5 -mx-3 -mb-3 mt-1 px-3 pt-2.5 pb-3 rounded-b-2xl"
+                        style={{ backgroundColor: isDark ? 'transparent' : '#059669' }}
+                      >
+                        <span
+                          className="text-[13px] font-semibold truncate"
+                          style={{ color: isDark ? textPrim : '#ffffff' }}
+                        >
+                          {product.name}
+                        </span>
                         {product.description && (
-                          <span className="text-[11px] line-clamp-2 break-words" style={{ color: textMuted }}>
+                          <span
+                            className="text-[11px] line-clamp-2 break-words"
+                            style={{ color: isDark ? textMuted : 'rgba(255,255,255,0.75)' }}
+                          >
                             {product.description}
                           </span>
                         )}
                         {sizes ? (
-                          <div className="flex flex-col mt-0.5 gap-0.5">
+                          <div className="flex flex-col mt-1 gap-0.5">
                             {sizes.map((s) => (
                               <div key={s.id} className="flex justify-between items-center text-[12px]">
-                                <span style={{ color: textMuted }}>{s.label}</span>
-                                <span className="font-bold" style={{ color: accent }}>Rs.{s.price.toFixed(2)}</span>
+                                <span style={{ color: isDark ? textMuted : 'rgba(255,255,255,0.8)' }}>{s.label}</span>
+                                <span
+                                  className="font-bold"
+                                  style={{ color: isDark ? accent : '#ffffff' }}
+                                >
+                                  Rs.{s.price.toFixed(2)}
+                                </span>
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <span className="text-sm font-bold mt-0.5" style={{ color: accent }}>
+                          <span
+                            className="text-sm font-bold mt-0.5"
+                            style={{ color: isDark ? accent : '#ffffff' }}
+                          >
                             Rs.{displayPrice.toFixed(2)}
                           </span>
                         )}
@@ -776,21 +795,21 @@ export default function Order({
           onClick={() => setSizeModalProduct(null)}
         >
           <div
-            style={{ backgroundColor: surfaceBg, borderColor: borderCol }}
-            className="w-full max-w-sm rounded-2xl border p-5 flex flex-col gap-4 shadow-2xl"
+            className={`w-full max-w-sm rounded-2xl p-5 flex flex-col gap-4 shadow-2xl ${!isDark ? 'bg-emerald-600' : 'border'}`}
+            style={isDark ? { backgroundColor: surfaceBg, borderColor: borderCol } : undefined}
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex flex-col gap-0.5">
-                <h3 className="text-base font-bold" style={{ color: textPrim }}>{sizeModalProduct.name}</h3>
+                <h3 className={`text-base font-bold ${!isDark ? 'text-white' : ''}`} style={isDark ? { color: textPrim } : undefined}>{sizeModalProduct.name}</h3>
                 {sizeModalProduct.description && (
-                  <p className="text-xs" style={{ color: textMuted }}>{sizeModalProduct.description}</p>
+                  <p className={`text-xs ${!isDark ? 'text-emerald-50' : ''}`} style={isDark ? { color: textMuted } : undefined}>{sizeModalProduct.description}</p>
                 )}
               </div>
               <button
                 onClick={() => setSizeModalProduct(null)}
-                style={{ color: textMuted }}
-                className="shrink-0 p-1 rounded-lg hover:opacity-70 transition-opacity"
+                className={`shrink-0 p-1 rounded-lg transition-all ${!isDark ? 'text-emerald-100 hover:text-white hover:bg-white/20' : 'hover:opacity-70'}`}
+                style={isDark ? { color: textMuted } : undefined}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -801,13 +820,16 @@ export default function Order({
                 <button
                   key={size.label}
                   onClick={() => handleSelectSize(sizeModalProduct, size)}
-                  style={{ backgroundColor: surfaceBg2, borderColor: borderCol }}
-                  className="flex flex-col items-center justify-center gap-1 rounded-xl border py-3 px-2 transition-all duration-150 hover:-translate-y-0.5 hover:brightness-[1.03] active:scale-[0.98]"
-                  onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = accent)}
-                  onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = borderCol)}
+                  className={`flex flex-col items-center justify-center gap-1 rounded-xl py-3 px-2 transition-all duration-150 hover:-translate-y-0.5 active:scale-[0.98] ${!isDark ? 'shadow-sm' : 'border hover:brightness-[1.03]'}`}
+                  style={{
+                    backgroundColor: isDark ? surfaceBg2 : '#ffffff',
+                    borderColor: isDark ? borderCol : undefined
+                  }}
+                  onMouseEnter={isDark ? e => ((e.currentTarget as HTMLElement).style.borderColor = accent) : undefined}
+                  onMouseLeave={isDark ? e => ((e.currentTarget as HTMLElement).style.borderColor = borderCol) : undefined}
                 >
-                  <span className="text-sm font-bold" style={{ color: textPrim }}>{size.label}</span>
-                  <span className="text-xs font-semibold" style={{ color: accent }}>Rs.{size.price.toFixed(2)}</span>
+                  <span className="text-sm font-bold" style={{ color: isDark ? textPrim : '#1e293b' }}>{size.label}</span>
+                  <span className="text-xs font-semibold" style={{ color: isDark ? accent : '#059669' }}>Rs.{size.price.toFixed(2)}</span>
                 </button>
               ))}
             </div>

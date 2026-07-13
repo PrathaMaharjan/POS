@@ -342,7 +342,9 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
 
   const [isWastageModalOpen, setIsWastageModalOpen] = useState(false);
   const [showWastageSuccess, setShowWastageSuccess] = useState(false);
+  const [wastageType, setWastageType] = useState<'ingredient' | 'menu_item'>('ingredient');
   const [stockItems, setStockItems] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [isLoadingStock, setIsLoadingStock] = useState(false);
   const [isSubmittingWastage, setIsSubmittingWastage] = useState(false);
   const [wastageError, setWastageError] = useState<string | null>(null);
@@ -355,26 +357,61 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
   useEffect(() => {
     if (!isWastageModalOpen) return;
 
-    const fetchStock = async () => {
+    const fetchData = async () => {
       setIsLoadingStock(true);
       setWastageError(null);
       try {
-        const res = await api.get("/inventory");
-        if (res.data && res.data.stockItems) {
-          setStockItems(res.data.stockItems);
+        const [invRes, prodRes] = await Promise.all([
+          api.get("/inventory"),
+          api.get("/product?limit=1000")
+        ]);
+        if (invRes.data && invRes.data.stockItems) {
+          setStockItems(invRes.data.stockItems);
         }
+        let loadedProducts: any[] = [];
+        if (prodRes.data && prodRes.data.products && Array.isArray(prodRes.data.products.products)) {
+          loadedProducts = prodRes.data.products.products;
+        } else if (prodRes.data && Array.isArray(prodRes.data.products)) {
+          loadedProducts = prodRes.data.products;
+        }
+
+        const withSizes = await Promise.all(
+          loadedProducts.map(async (p: any) => {
+            try {
+              const varRes = await api.get(`/product/${p.id}/variants`);
+              const variants = varRes.data.variants ?? [];
+              if (variants.length > 0) {
+                return variants.map((v: any) => ({
+                  id: `${p.id}_variant_${v.id}`,
+                  productId: p.id,
+                  variantId: v.id,
+                  name: `${p.name} (${v.label})`
+                }));
+              }
+            } catch (e) {
+              // ignore
+            }
+            return [{
+              id: p.id,
+              productId: p.id,
+              name: p.name
+            }];
+          })
+        );
+        setProducts(withSizes.flat());
       } catch (err: any) {
-        console.error("Failed to load stock items:", err);
-        setWastageError("Failed to load inventory items.");
+        console.error("Failed to load data for wastage:", err);
+        setWastageError("Failed to load items for wastage report.");
       } finally {
         setIsLoadingStock(false);
       }
     };
 
-    fetchStock();
+    fetchData();
   }, [isWastageModalOpen]);
 
   const selectedStockItem = stockItems.find(item => item.id === wastageForm.stockItemId);
+  const selectedProduct = products.find(item => item.id === wastageForm.stockItemId);
 
   const { tickets: rawTickets, refetch } = useKotTickets(10000);
 
@@ -860,27 +897,54 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
                   setWastageError("Quantity must be greater than zero");
                   return;
                 }
-                if (selectedStockItem && qtyVal > Number(selectedStockItem.currentStock)) {
+                
+                if (wastageType === 'ingredient' && selectedStockItem && qtyVal > Number(selectedStockItem.currentStock)) {
                   setWastageError(`Wastage quantity cannot exceed current stock level (${selectedStockItem.currentStock} ${selectedStockItem.unit})`);
                   return;
                 }
+
                 setIsSubmittingWastage(true);
                 setWastageError(null);
+
                 try {
-                  const res = await api.post(`/inventory/${wastageForm.stockItemId}/wastage`, {
-                    quantity: qtyVal,
-                    note: wastageForm.note || "Kitchen wastage",
-                  });
-                  if (res.data) {
-                    setShowWastageSuccess(true);
-                    setTimeout(() => setShowWastageSuccess(false), 3000);
-                    setIsWastageModalOpen(false);
-                    setWastageForm({
-                      stockItemId: "",
-                      quantity: "",
-                      note: "",
+                  if (wastageType === 'menu_item') {
+                    const [prodId, varId] = wastageForm.stockItemId.split('_variant_');
+                    const variantQuery = varId ? `?variantId=${varId}` : '';
+                    const recipeRes = await api.get(`/recipe/${prodId}${variantQuery}`);
+                    const recipeItems = recipeRes.data?.recipe?.items || [];
+
+                    if (recipeItems.length === 0) {
+                      setWastageError("No recipe found for this menu item. Cannot deduct ingredients.");
+                      setIsSubmittingWastage(false);
+                      return;
+                    }
+
+                    const promises = recipeItems.map((item: any) => {
+                      const requiredQty = Number(item.quantity) * qtyVal;
+                      return api.post(`/inventory/${item.stockItemId}/wastage`, {
+                        quantity: requiredQty,
+                        note: wastageForm.note || `Wasted menu item (${qtyVal}x)`
+                      });
+                    });
+
+                    await Promise.all(promises);
+
+                  } else {
+                    await api.post(`/inventory/${wastageForm.stockItemId}/wastage`, {
+                      quantity: qtyVal,
+                      note: wastageForm.note || "Kitchen wastage",
                     });
                   }
+
+                  setShowWastageSuccess(true);
+                  setTimeout(() => setShowWastageSuccess(false), 3000);
+                  setIsWastageModalOpen(false);
+                  setWastageForm({
+                    stockItemId: "",
+                    quantity: "",
+                    note: "",
+                  });
+                  setWastageType('ingredient');
                 } catch (err: any) {
                   console.error("Wastage report failure:", err);
                   const errMsg = err.response?.data?.error ?? err.message ?? "Failed to submit wastage";
@@ -897,14 +961,37 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
                 </div>
               )}
 
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setWastageType('ingredient'); setWastageForm({ ...wastageForm, stockItemId: '' }); }}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-all ${wastageType === 'ingredient'
+                    ? (isDark ? 'bg-[#e5b83b]/20 border-[#e5b83b]/50 text-[#e5b83b]' : 'bg-neutral-800 text-white border-neutral-800')
+                    : (isDark ? 'border-[#3f3f46] text-[#a1a1aa] hover:bg-[#27272a]' : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50')
+                    }`}
+                >
+                  Raw Ingredient
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setWastageType('menu_item'); setWastageForm({ ...wastageForm, stockItemId: '' }); }}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-all ${wastageType === 'menu_item'
+                    ? (isDark ? 'bg-[#e5b83b]/20 border-[#e5b83b]/50 text-[#e5b83b]' : 'bg-neutral-800 text-white border-neutral-800')
+                    : (isDark ? 'border-[#3f3f46] text-[#a1a1aa] hover:bg-[#27272a]' : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50')
+                    }`}
+                >
+                  Menu Item
+                </button>
+              </div>
+
               <div>
                 <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1.5 ${isDark ? 'text-[#a1a1aa]' : 'text-neutral-500'}`}>
-                  Select Inventory Item *
+                  Select {wastageType === 'ingredient' ? 'Inventory Item' : 'Menu Item'} *
                 </label>
                 {isLoadingStock ? (
                   <div className="flex items-center gap-2 text-xs text-neutral-400 py-2.5">
                     <Loader2 className="h-4.5 w-4.5 animate-spin text-neutral-500" />
-                    <span>Loading active stock items...</span>
+                    <span>Loading items...</span>
                   </div>
                 ) : (
                   <select
@@ -918,11 +1005,19 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
                       }`}
                   >
                     <option value="">-- Choose an item --</option>
-                    {stockItems.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name} ({item.currentStock} {item.unit})
-                      </option>
-                    ))}
+                    {wastageType === 'ingredient' ? (
+                      stockItems.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name} ({item.currentStock} {item.unit})
+                        </option>
+                      ))
+                    ) : (
+                      products.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))
+                    )}
                   </select>
                 )}
               </div>
@@ -930,7 +1025,7 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
               <div className="grid grid-cols-1 gap-4">
                 <div>
                   <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1.5 ${isDark ? 'text-[#a1a1aa]' : 'text-neutral-500'}`}>
-                    Quantity {selectedStockItem ? `(${selectedStockItem.unit})` : ""} *
+                    Quantity {wastageType === 'ingredient' && selectedStockItem ? `(${selectedStockItem.unit})` : (wastageType === 'menu_item' ? "(Dishes)" : "")} *
                   </label>
                   <input
                     type="number"
@@ -940,7 +1035,7 @@ function KdsBoardInner({ tenantSlug }: { tenantSlug: string }) {
                     disabled={isSubmittingWastage || !wastageForm.stockItemId}
                     value={wastageForm.quantity}
                     onChange={(e) => setWastageForm({ ...wastageForm, quantity: e.target.value })}
-                    placeholder={selectedStockItem ? `Max current stock is ${selectedStockItem.currentStock}` : "Select item first"}
+                    placeholder={wastageType === 'ingredient' && selectedStockItem ? `Max current stock is ${selectedStockItem.currentStock}` : "Enter quantity wasted"}
                     className={`w-full rounded-xl border px-3.5 py-2.5 text-xs focus:outline-none transition-all ${isDark
                       ? 'bg-[#18181b] border-[#3f3f46] text-white focus:border-[#e5b83b]/60'
                       : 'bg-white border-neutral-200 text-neutral-800 focus:border-neutral-400 shadow-sm'

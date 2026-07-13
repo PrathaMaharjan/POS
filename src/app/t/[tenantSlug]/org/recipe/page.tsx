@@ -71,6 +71,100 @@ interface RecipeItemDraft {
   quantity: string;
 }
 
+function SearchableSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+  required,
+  onToggle
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: { value: string; label: string; unit?: string }[];
+  placeholder?: string;
+  required?: boolean;
+  onToggle?: (isOpen: boolean) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const handleToggle = (open: boolean) => {
+    setIsOpen(open);
+    onToggle?.(open);
+  };
+  const [search, setSearch] = useState("");
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  const selectedOption = options.find((o) => o.value === value);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        if (isOpen) handleToggle(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter((o) =>
+    o.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <div
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-700 bg-white flex justify-between items-center cursor-pointer focus:outline-none focus:border-emerald-500"
+        onClick={() => handleToggle(!isOpen)}
+        tabIndex={0}
+      >
+        <span className={selectedOption ? "font-medium" : "text-slate-400"}>
+          {selectedOption ? `${selectedOption.label} ${selectedOption.unit ? `(${selectedOption.unit})` : ""}` : placeholder || "Select..."}
+        </span>
+        <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-[60] w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden">
+          <div className="p-2 border-b border-slate-100 bg-slate-50 sticky top-0">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="text"
+                autoFocus
+                placeholder="Search items..."
+                className="w-full text-xs pl-8 pr-2.5 py-1.5 border border-slate-200 rounded-md outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 bg-white"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+          <div className="max-h-48 overflow-y-auto p-1.5">
+            {filteredOptions.length === 0 ? (
+              <div className="text-xs text-slate-400 p-3 text-center">No matching items found</div>
+            ) : (
+              filteredOptions.map((o) => (
+                <div
+                  key={o.value}
+                  className={`px-2.5 py-2 text-xs cursor-pointer rounded-md transition-colors ${o.value === value ? "bg-emerald-50 text-emerald-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+                  onClick={() => {
+                    onChange(o.value);
+                    handleToggle(false);
+                    setSearch("");
+                  }}
+                >
+                  {o.label} {o.unit && <span className="text-slate-400 font-normal">({o.unit})</span>}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function RecipeManagementPage() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
 
@@ -107,6 +201,7 @@ export default function RecipeManagementPage() {
   const [formItems, setFormItems] = useState<RecipeItemDraft[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [openDropdownIndex, setOpenDropdownIndex] = useState<number | null>(null);
 
   // Deletion state
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -181,7 +276,7 @@ export default function RecipeManagementPage() {
         })
       );
       setProducts(withSizes);
-      setStockItems(inventoryRes.data.inventory ?? []);
+      setStockItems(inventoryRes.data.stockItems ?? []);
 
       if (withSizes.length > 0) {
         const recipePromises = withSizes.flatMap((p: Product) => {
@@ -292,8 +387,9 @@ export default function RecipeManagementPage() {
     setSelectedRowKey(null);
     setFormItems([]);
     setSaveError(null);
+    setOpenDropdownIndex(null);
   };
-  
+
   const hasExistingRecipe = React.useMemo(() => {
     if (!selectedRowKey) return false;
     return recipesMap[selectedRowKey] !== undefined && recipesMap[selectedRowKey] !== null;
@@ -317,7 +413,7 @@ export default function RecipeManagementPage() {
     setSaveError(null);
   }
 
- 
+
   async function handleSaveRecipe(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedRowKey) return;
@@ -376,12 +472,12 @@ export default function RecipeManagementPage() {
       console.error("Save recipe failed:", err);
       let errMsg = "Failed to save product recipe.";
       if (err?.response?.data?.error) {
-         const apiErr = err.response.data.error;
-         if (typeof apiErr === "string") {
-            errMsg = apiErr;
-         } else if (typeof apiErr === "object") {
-            errMsg = (apiErr.formErrors?.[0] as string) || (Object.values(apiErr.fieldErrors || {}).flat()[0] as string) || "Validation error: Please check your input.";
-         }
+        const apiErr = err.response.data.error;
+        if (typeof apiErr === "string") {
+          errMsg = apiErr;
+        } else if (typeof apiErr === "object") {
+          errMsg = (apiErr.formErrors?.[0] as string) || (Object.values(apiErr.fieldErrors || {}).flat()[0] as string) || "Validation error: Please check your input.";
+        }
       }
       setSaveError(errMsg);
     } finally {
@@ -524,7 +620,7 @@ export default function RecipeManagementPage() {
         </div>
       )}
 
-    
+
       <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
         <div className="relative flex-1 max-w-full lg:max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -552,8 +648,8 @@ export default function RecipeManagementPage() {
                 setCurrentPage(1);
               }}
               className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-colors whitespace-nowrap ${filterType === tab.id
-                  ? "bg-[#0f6b4a] text-white border-[#0f6b4a]"
-                  : "bg-white text-slate-500 border-slate-200 hover:text-slate-700 hover:bg-slate-50"
+                ? "bg-[#0f6b4a] text-white border-[#0f6b4a]"
+                : "bg-white text-slate-500 border-slate-200 hover:text-slate-700 hover:bg-slate-50"
                 }`}
             >
               {tab.label}
@@ -693,7 +789,7 @@ export default function RecipeManagementPage() {
               </button>
             </div>
 
-            {/* Modal Body / Worksheet Form */}
+            {/* Modal Body */}
             <div className="p-5 md:p-6">
               <form onSubmit={handleSaveRecipe} className="space-y-5">
                 {saveError && (
@@ -703,7 +799,7 @@ export default function RecipeManagementPage() {
                   </div>
                 )}
 
-                <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-1">
+                <div className={`space-y-3 overflow-y-auto pr-1 transition-all duration-300 ${openDropdownIndex !== null ? 'max-h-[70vh] pb-[220px]' : 'max-h-[40vh] pb-0'}`}>
                   <div className="grid grid-cols-12 gap-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
                     <div className="col-span-7">Ingredient (Raw Item)</div>
                     <div className="col-span-4">Qty Required</div>
@@ -719,24 +815,16 @@ export default function RecipeManagementPage() {
                       <div key={index} className="grid grid-cols-12 gap-3 items-center">
                         {/* Dropdown component selection */}
                         <div className="col-span-7">
-                          <select
+                          <SearchableSelect
                             required
                             value={item.stockItemId}
-                            onChange={(e) =>
-                              handleFormItemChange(index, "stockItemId", e.target.value)
+                            onChange={(val) =>
+                              handleFormItemChange(index, "stockItemId", val)
                             }
-                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-700 bg-white focus:outline-none focus:border-emerald-500"
-                          >
-                            <option value="" disabled>Select stock item...</option>
-                            {selectedItem && (
-                              <option value={selectedItem.id}>{selectedItem.name}</option>
-                            )}
-                            {availableItems.map((s) => (
-                              <option key={s.id} value={s.id}>
-                                {s.name} ({s.unit})
-                              </option>
-                            ))}
-                          </select>
+                            placeholder="Search stock item..."
+                            options={availableItems.map(s => ({ value: s.id, label: s.name, unit: s.unit }))}
+                            onToggle={(open) => setOpenDropdownIndex(open ? index : null)}
+                          />
                         </div>
 
                         {/* Qty field with unit tag */}
@@ -834,7 +922,7 @@ export default function RecipeManagementPage() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-slate-800">Wipe Product Recipe?</h3>
-             
+
               </div>
               <div className="flex gap-3 pt-2">
                 <button
