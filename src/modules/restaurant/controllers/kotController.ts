@@ -46,6 +46,7 @@ export async function listKotTickets(outletId: string) {
         with: {
           orderItem: {
             columns: {
+              id :true,
               quantity: true,
               notes: true,
               variantLabel: true, // ← added
@@ -95,6 +96,7 @@ export async function getKotTicketById(outletId: string, kotId: string) {
         with: {
           orderItem: {
             columns: {
+              id:true,
               quantity: true,
               notes: true,
               variantLabel: true, // ← added

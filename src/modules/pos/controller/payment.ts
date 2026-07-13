@@ -1,6 +1,6 @@
 import { ControllerResult } from "@/controller/orderController";
 import { db } from "@/db";
-import { diningTables, orders, payments } from "@/db/schema";
+import { diningTables, orders, paymentItems, payments } from "@/db/schema";
 import { and, desc, eq, gte, lte, ne, notInArray, sql } from "drizzle-orm";
 
 export type PaymentMethod = "cash" | "card" | "qr";
@@ -560,5 +560,140 @@ export async function createPayment(
       error: "Failed to record payment",
       status: 500,
     };
+  }
+}
+
+
+
+export async function createPartialPayment(
+  outletId: string,
+  orderId: string,
+  userId: string,
+  input: {
+    method: PaymentMethod;
+    items: { orderItemId: string; quantity: number }[]; // which units, how many
+    amountTendered: number;
+  }
+): Promise<ControllerResult<{
+  payment: typeof payments.$inferSelect;
+  orderFullyPaid: boolean;
+  changeDue: number;
+}>> {
+
+  const order = await db.query.orders.findFirst({
+    where: (o, { eq, and }) => and(eq(o.id, orderId), eq(o.outletId, outletId)),
+    columns: { id: true, status: true, total: true, taxRate: true },
+    with: {
+      items: {
+        columns: { id: true, quantity: true, unitPrice: true, productId: true },
+      },
+    },
+  });
+
+  if (!order) {
+    return { success: false, error: "Order not found", status: 404 };
+  }
+
+  if (order.status === "completed") {
+    return { success: false, error: "This order is already fully paid", status: 400 };
+  }
+
+  // ── fetch already-paid quantities for EVERY item on this order ──
+  const existingPaymentItems = await db.query.paymentItems.findMany({
+    where: (pi, { inArray }) => inArray(pi.orderItemId, order.items.map((i) => i.id)),
+  });
+
+  const paidQtyMap = new Map<string, number>();
+  for (const pi of existingPaymentItems) {
+    paidQtyMap.set(pi.orderItemId, (paidQtyMap.get(pi.orderItemId) ?? 0) + pi.quantity);
+  }
+
+  // ── validate: requested quantity doesn't exceed what's left unpaid ──
+  let amountDue = 0;
+
+  for (const reqItem of input.items) {
+    const orderItem = order.items.find((i) => i.id === reqItem.orderItemId);
+    if (!orderItem) {
+      return { success: false, error: "Item does not belong to this order", status: 400 };
+    }
+
+    const alreadyPaid = paidQtyMap.get(orderItem.id) ?? 0;
+    const remaining   = orderItem.quantity - alreadyPaid;
+
+    if (reqItem.quantity > remaining) {
+      return {
+        success: false,
+        error: `Only ${remaining} unpaid unit(s) remaining for this item`,
+        status: 400,
+      };
+    }
+
+    amountDue += Number(orderItem.unitPrice) * reqItem.quantity;
+  }
+
+  // ── apply proportional tax to just this partial payment ──
+  const taxRate  = Number(order.taxRate ?? 0);
+  const taxOnThis = parseFloat(((amountDue * taxRate) / 100).toFixed(2));
+  const totalDue  = parseFloat((amountDue + taxOnThis).toFixed(2));
+
+  if (input.amountTendered < totalDue) {
+    return {
+      success: false,
+      error: `Insufficient payment. Required: Rs.${totalDue.toFixed(2)}, received: Rs.${input.amountTendered.toFixed(2)}`,
+      status: 400,
+    };
+  }
+
+  const changeDue = input.method === "cash" ? input.amountTendered - totalDue : 0;
+
+  try {
+    const [payment] = await db
+      .insert(payments)
+      .values({
+        orderId,
+        outletId,
+        method:     input.method,
+        amount:     totalDue.toFixed(2),
+        receivedBy: userId,
+      })
+      .returning();
+
+    await db.insert(paymentItems).values(
+      input.items.map((item) => ({
+        paymentId:   payment.id,
+        orderItemId: item.orderItemId,
+        quantity:    item.quantity,
+      }))
+    );
+
+    // ── check if EVERY item on the order is now fully paid ──
+    const allPaymentItems = [
+      ...existingPaymentItems,
+      ...input.items.map((i) => ({ orderItemId: i.orderItemId, quantity: i.quantity })),
+    ];
+
+    const fullyPaidMap = new Map<string, number>();
+    for (const pi of allPaymentItems) {
+      fullyPaidMap.set(pi.orderItemId, (fullyPaidMap.get(pi.orderItemId) ?? 0) + pi.quantity);
+    }
+
+    const orderFullyPaid = order.items.every(
+      (item) => (fullyPaidMap.get(item.id) ?? 0) >= item.quantity
+    );
+
+    if (orderFullyPaid) {
+      await db
+        .update(orders)
+        .set({ status: "completed", updatedAt: new Date() })
+        .where(eq(orders.id, orderId));
+    }
+
+    return {
+      success: true,
+      data: { payment, orderFullyPaid, changeDue: Number(changeDue.toFixed(2)) },
+    };
+  } catch (error) {
+    console.error("createPartialPayment error:", error);
+    return { success: false, error: "Failed to process payment", status: 500 };
   }
 }
