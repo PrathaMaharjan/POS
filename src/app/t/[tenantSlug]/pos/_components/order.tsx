@@ -64,6 +64,7 @@ export interface OrderItemRecord {
   quantity: number;
   name: string;
   subtotal: number;
+  orderItemId?: string; // ── NEW — stored so TableModal can match by ID when filtering unpaid items ──
 }
 
 export interface CreatedOrder {

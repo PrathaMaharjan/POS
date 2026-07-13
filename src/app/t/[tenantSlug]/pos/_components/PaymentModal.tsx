@@ -168,7 +168,58 @@ export default function PaymentModal({
   //    needs to show both, not just whichever one happened last. ──
   const hasPartialHistory = orderType === 'DINE_IN' && !!alreadyPaidSummary && alreadyPaidSummary.items.length > 0;
   const hasNewPayment = !alreadyFullySettled;
-  const combinedGrandTotal = (hasPartialHistory ? alreadyPaidSummary!.total : 0) + (hasNewPayment ? grandTotal : 0);
+
+  // ── Grand Total = total bill amount minus what was already paid,
+  //    i.e. the amount actually being collected right now. If some
+  //    items were already paid individually, that amount is NOT
+  //    added back on top of the remaining balance — "grandTotal"
+  //    itself already reflects the remainder still owed. The only
+  //    time we fall back to the previously-paid figure is when
+  //    there's nothing new left to charge at all (alreadyFullySettled),
+  //    since in that case the previously-paid total IS the bill. ──
+  const combinedGrandTotal = hasNewPayment ? grandTotal : (alreadyPaidSummary?.total ?? 0);
+
+  // ── NEW — item-level breakdown of the payment being made RIGHT NOW,
+  //    so both the on-screen success summary and the printed receipt
+  //    can show item names (not just a lump total) for "This Payment" —
+  //    the same way "Previously Paid" already lists item names.
+  //    TAKEAWAY: comes straight from the cart.
+  //    DINE_IN: comes from each order's own item list; if an order has
+  //    no item-level detail available, falls back to one line per
+  //    order so the numbers still reconcile. ──
+  const currentPaymentItems: { itemName: string; quantity: number; total: number }[] = orderType === 'TAKEAWAY'
+    ? cart.map(item => {
+      const price = item.price ?? item.product?.price ?? 0;
+      const name = item.name ?? item.product?.name ?? 'Item';
+      return { itemName: name, quantity: item.quantity, total: price * item.quantity };
+    })
+    : (hasNewPayment
+      ? (ordersList && ordersList.length > 0
+        ? ordersList
+        : (orderId ? [{ id: orderId, items: [], total: grandTotal }] : [])
+      ).flatMap((o: any, oIdx: number) => {
+        if (Array.isArray(o.items) && o.items.length > 0) {
+          return o.items.map((it: any) => ({
+            itemName: it.name ?? it.product?.name ?? it.productName ?? 'Item',
+            quantity: it.quantity ?? 1,
+            // ── DINE_IN items from TableModal have `subtotal` (pre-computed),
+            //    not a separate `price` field — prefer it directly so the
+            //    displayed total matches the actual amount charged, instead
+            //    of falling through to `price ?? 0` and showing Rs. 0.00 ──
+            total: it.subtotal != null
+              ? Number(it.subtotal)
+              : Number(it.price ?? it.product?.price ?? 0) * (it.quantity ?? 1),
+          }));
+        }
+        // fallback — no item-level detail available for this order,
+        // show it as a single line so the total still reconciles
+        return [{
+          itemName: o.orderNumber ? `Order #${o.orderNumber}` : `Order ${oIdx + 1}`,
+          quantity: 1,
+          total: Number(o.total ?? 0),
+        }];
+      })
+      : []);
 
   const handleConfirm = async () => {
     try {
@@ -379,15 +430,24 @@ export default function PaymentModal({
               )}
 
               {/* ── the payment that was JUST processed in this
-                   transaction, shown whenever one actually happened ── */}
+                   transaction, shown whenever one actually happened —
+                   now including the item names it covers, the same
+                   way "Previously Paid" already lists item names ── */}
               {hasNewPayment && (
-                <div className={`flex justify-between items-center border-t pt-2 ${isDark ? "border-neutral-800" : "border-slate-200"}`}>
-                  <span className={isDark ? "text-neutral-400" : "text-slate-500"}>
-                    {hasPartialHistory ? 'This Payment' : 'Amount Paid'}
-                  </span>
-                  <span className={`font-semibold ${isDark ? "text-white" : "text-slate-800"}`}>
-                    Rs.{grandTotal.toFixed(2)}
-                  </span>
+                <div className={`flex flex-col gap-1.5 border-t pt-2 ${isDark ? "border-neutral-800" : "border-slate-200"}`}>
+                  <div className="flex justify-between items-center">
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? "text-neutral-600" : "text-slate-400"}`}>
+                      {hasPartialHistory ? 'This Payment' : 'Amount Paid'} — Rs.{grandTotal.toFixed(2)}
+                    </span>
+                  </div>
+                  {currentPaymentItems.map((it, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-xs">
+                      <span className={isDark ? "text-neutral-500" : "text-slate-500"}>
+                        {it.quantity} × {it.itemName}
+                      </span>
+                      <span className={isDark ? "text-neutral-300" : "text-slate-700"}>Rs.{it.total.toFixed(2)}</span>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -544,21 +604,14 @@ export default function PaymentModal({
                                 {hasPartialHistory ? 'THIS PAYMENT' : 'PAYMENT'}
                               </td>
                             </tr>
-                            {(ordersList && ordersList.length > 0
-                              ? ordersList
-                              : (orderId ? [{ id: orderId, orderNumber: '', items: [], total: grandTotal }] : [])
-                            ).map((o: any, idx: number) => (
-                              <tr key={`order-${o.id ?? idx}`} style={{ borderBottom: '1px dotted #eee' }}>
+                            {currentPaymentItems.map((it, idx) => (
+                              <tr key={`new-${idx}`} style={{ borderBottom: '1px dotted #eee' }}>
                                 <td style={{ padding: '6px 2px 6px 0', verticalAlign: 'top', wordBreak: 'break-word' }}>
-                                  <div style={{ fontWeight: 'bold' }}>
-                                    Order {o.orderNumber ? `#${o.orderNumber}` : idx + 1}
-                                  </div>
+                                  <div style={{ fontWeight: 'bold' }}>{it.itemName}</div>
                                 </td>
-                                <td style={{ textAlign: 'center', padding: '6px 2px', verticalAlign: 'top' }}>
-                                  {Array.isArray(o.items) ? o.items.length : '—'}
-                                </td>
+                                <td style={{ textAlign: 'center', padding: '6px 2px', verticalAlign: 'top' }}>{it.quantity}</td>
                                 <td style={{ textAlign: 'right', padding: '6px 0 6px 2px', verticalAlign: 'top', fontWeight: 'bold', wordBreak: 'break-word' }}>
-                                  Rs. {Number(o.total ?? 0).toFixed(2)}
+                                  Rs. {it.total.toFixed(2)}
                                 </td>
                               </tr>
                             ))}
@@ -591,28 +644,44 @@ export default function PaymentModal({
                      way (previously paid, and/or this payment's own
                      subtotal/tax), instead of only ever showing one
                      total that ignored the other source. ── */}
-                <div style={{ boxSizing: 'border-box', width: '100%', borderTop: '1px dashed #000', paddingTop: '8px', fontSize: '10.5px' }}>
+                <div style={{ boxSizing: 'border-box', width: '100%', borderTop: '1px dashed #000', paddingTop: '10px', fontSize: '10.5px' }}>
                   {hasPartialHistory && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', margin: '4px 0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', margin: '4px 0', color: '#666' }}>
                       <span>Previously Paid</span>
                       <span>Rs. {alreadyPaidSummary!.total.toFixed(2)}</span>
                     </div>
                   )}
                   {hasNewPayment && (
                     <>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', margin: '4px 0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', margin: '4px 0', fontWeight: 600, color: '#222' }}>
                         <span>{hasPartialHistory ? 'This Payment — Subtotal' : 'Subtotal'}</span>
                         <span>Rs. {actualSubtotal.toFixed(2)}</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', margin: '4px 0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', margin: '4px 0', color: '#666' }}>
                         <span>VAT / Tax ({taxRate}%)</span>
                         <span>Rs. {tax.toFixed(2)}</span>
                       </div>
                     </>
                   )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontWeight: 'bold', fontSize: '13px', margin: '8px 0 4px', borderTop: '1px dashed #000', paddingTop: '8px' }}>
-                    <span>GRAND TOTAL</span>
-                    <span>Rs. {combinedGrandTotal.toFixed(2)}</span>
+
+                  {/* ── Grand total row — plain, no background box,
+                       just a top border and bold text so it reads
+                       as the final line of the totals stack. ── */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '8px',
+                    margin: '10px 0 0',
+                    paddingTop: '8px',
+                    borderTop: '1px solid #000',
+                  }}>
+                    <span style={{ fontWeight: 'bold', fontSize: '11.5px', letterSpacing: '0.5px' }}>
+                      GRAND TOTAL
+                    </span>
+                    <span style={{ fontWeight: 'bold', fontSize: '14px' }}>
+                      Rs. {combinedGrandTotal.toFixed(2)}
+                    </span>
                   </div>
                 </div>
 
@@ -719,6 +788,21 @@ export default function PaymentModal({
 
             <div className={`rounded-xl p-4 space-y-2 border ${isDark ? "bg-[#0c0c0d] border-transparent" : "bg-slate-50 border-slate-200"
               }`}>
+              {/* ── Item breakdown — shows which items are being paid for ── */}
+              {currentPaymentItems.length > 0 && (
+                <>
+                  <div className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isDark ? "text-neutral-600" : "text-slate-400"}`}>
+                    Items
+                  </div>
+                  {currentPaymentItems.map((it, idx) => (
+                    <div key={idx} className={`flex justify-between items-center text-xs ${isDark ? "text-neutral-400" : "text-slate-600"}`}>
+                      <span className="truncate mr-2">{it.quantity} × {it.itemName}</span>
+                      <span className={`shrink-0 font-medium ${isDark ? "text-neutral-300" : "text-slate-700"}`}>Rs.{it.total.toFixed(2)}</span>
+                    </div>
+                  ))}
+                  <div className={`border-t pt-2 mt-1 ${isDark ? "border-neutral-800" : "border-slate-200"}`} />
+                </>
+              )}
               <div className={`flex justify-between text-sm ${isDark ? "text-neutral-400" : "text-slate-500"}`}>
                 <span>Subtotal</span>
                 <span className={isDark ? "" : "font-medium text-slate-800"}>Rs.{actualSubtotal.toFixed(2)}</span>

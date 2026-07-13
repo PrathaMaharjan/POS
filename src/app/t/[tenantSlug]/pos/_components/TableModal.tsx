@@ -192,6 +192,7 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
               items: (dbOrder.items ?? []).map((item: any) => {
                 const baseName = item.product?.name ?? 'Unknown Item';
                 return {
+                  orderItemId: item.id, // ── stored for reliable ID-based matching in ordersForFinalSettlement ──
                   quantity: item.quantity,
                   name: item.variantLabel ? `${baseName} (${item.variantLabel})` : baseName,
                   subtotal: Number(item.subtotal),
@@ -287,12 +288,41 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
   const ordersForFinalSettlement = useMemo(() =>
     orders
       .filter(order => (remainingBalanceByOrder[order.id] ?? 0) > 0)
-      .map(order => ({
-        ...order,
-        total: remainingBalanceByOrder[order.id],
-        subtotal: remainingBalanceByOrder[order.id],
-      })),
-    [orders, remainingBalanceByOrder]
+      .map(order => {
+        const status = paymentStatusMap[order.id];
+        // ── Filter items to only those with remaining unpaid quantity so the
+        //    PaymentModal's "This Payment" section doesn't list already-settled
+        //    items. Adjust each item's quantity and subtotal to the unpaid
+        //    portion so the numbers still reconcile with the remaining total.
+        //    Match by orderItemId (reliable) which we now store on each item,
+        //    with a name-based fallback for safety. ──
+        const unpaidItems = (status && status !== 'error')
+          ? order.items
+              .map(item => {
+                const si = status.items.find(
+                  i => i.orderItemId === item.orderItemId ||
+                       (i as any).productName === item.name ||
+                       (i as any).name === item.name
+                );
+                const unpaidQty = si ? si.unpaidQty : item.quantity;
+                const unitPrice = si ? si.unitPrice : (item.subtotal / (item.quantity || 1));
+                return {
+                  ...item,
+                  quantity: unpaidQty,
+                  subtotal: Math.round(unpaidQty * unitPrice * 100) / 100,
+                };
+              })
+              .filter(item => item.quantity > 0)
+          : order.items;
+
+        return {
+          ...order,
+          items: unpaidItems,
+          total: remainingBalanceByOrder[order.id],
+          subtotal: remainingBalanceByOrder[order.id],
+        };
+      }),
+    [orders, remainingBalanceByOrder, paymentStatusMap]
   );
 
   const flattenedCartItems = useMemo(() =>
@@ -330,13 +360,21 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
     setIsPaymentOpen(true);
   }
 
-  function handlePaymentSuccessComplete() {
+  // ── Just close the modal — used as onClose so the table state is
+  //    preserved when the cashier dismisses without paying ──
+  function handlePaymentModalClose() {
     setIsPaymentOpen(false);
+  }
+
+  // ── Called only on payment success (onPaymentComplete in PaymentModal).
+  //    Resets all table state and changes status to cleaning ONLY after
+  //    the entire bill has been fully settled. ──
+  function handlePaymentSuccessComplete() {
     setOrders([]);
     setRawOrderData([]);
     setDeliveredOrders({});
     setPaymentStatusMap({});
-    setPaymentHistory([]); // ← reset once the table is fully closed out
+    setPaymentHistory([]);
     handleStatusClick('dirty');
     onClose();
   }
@@ -869,7 +907,8 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
 
       <PaymentModal
         isOpen={isPaymentOpen}
-        onClose={handlePaymentSuccessComplete}
+        onClose={handlePaymentModalClose}
+        onPaymentComplete={handlePaymentSuccessComplete}
         orderId={ordersForFinalSettlement[0]?.id}
         ordersList={ordersForFinalSettlement}
         totalAmount={totalTableBalance}
