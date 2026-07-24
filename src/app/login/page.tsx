@@ -7,14 +7,7 @@ import Link from "next/link";
 import Navbar from "../components/Navbar";
 import api from "@/lib/api";
 
-// Maps each role name to where they should land after login
-// const ROLE_ROUTES: Record<string, string> = {
-//   Owner: "admin/dashboard",
-//   Manager: "admin/dashboard",
-//   Cashier: "cashier",
-//   Waiter: "waiter",
-//   "Kitchen Crew": "kitchen",
-// };
+
 
 const ROLE_ROUTES: Record<string, string> = {
   Owner: "org",

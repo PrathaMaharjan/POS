@@ -25,7 +25,7 @@ const schema = z.object({
     .array(
       z.object({
         productId: z.string().uuid(),
-        variantId: z.string().uuid().optional(), // ← added
+        variantId: z.string().uuid().optional(), 
         quantity:  z.number().int().positive(),
         notes:     z.string().optional(),
       })

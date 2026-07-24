@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useCallback, Fragment } from "react";
 import {
   Plus, X, Pencil, Trash2, Search,
   Package, PackageCheck, PackageX, AlertTriangle,
-  ChevronDown, Scale, Loader2, Sliders, History, Store
+  ChevronDown, Scale, Loader2, Sliders, History, Store, Tag, Check
 } from "lucide-react";
 import api from "@/lib/api";
 
@@ -26,11 +26,38 @@ interface Material {
   createdAt: string;
 }
 
+
+const CATEGORY_LIST_KEY = "rawMaterialCategories";
+const CATEGORY_MAP_KEY = "rawMaterialCategoryMap";
+const UNCATEGORIZED = "Uncategorized";
+const ADD_NEW_VALUE = "__add_new__";
+
+function loadCategoryList(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(CATEGORY_LIST_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function loadCategoryMap(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(CATEGORY_MAP_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
 const EMPTY_FORM = {
   name: "",
   currentStock: "" as number | "",
   unit: "kg" as "g" | "kg" | "ml" | "L" | "pieces",
   minStockLevel: "" as number | "",
+  category: "" as string,
 };
 
 function getStockLevel(m: Material): StockLevel {
@@ -77,7 +104,55 @@ export default function ManagerInventoryPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyDateFilter, setHistoryDateFilter] = useState("");
 
-  // ── Outlet state ──────────────────────────────────────────────────────────
+  // ── Category state (local only — no API) ────────────────────────────────
+  const [categories, setCategories] = useState<string[]>([]);
+  const [categoryMap, setCategoryMap] = useState<Record<string, string>>({});
+  const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryInput, setNewCategoryInput] = useState("");
+
+  useEffect(() => {
+    setCategories(loadCategoryList());
+    setCategoryMap(loadCategoryMap());
+  }, []);
+
+  function persistCategories(list: string[]) {
+    setCategories(list);
+    localStorage.setItem(CATEGORY_LIST_KEY, JSON.stringify(list));
+  }
+
+  function persistCategoryMap(map: Record<string, string>) {
+    setCategoryMap(map);
+    localStorage.setItem(CATEGORY_MAP_KEY, JSON.stringify(map));
+  }
+
+  function addNewCategory() {
+    const trimmed = newCategoryInput.trim();
+    if (!trimmed) return;
+    const exists = categories.some(c => c.toLowerCase() === trimmed.toLowerCase());
+    if (!exists) {
+      persistCategories([...categories, trimmed]);
+    }
+    setForm(p => ({ ...p, category: trimmed }));
+    setNewCategoryInput("");
+    setIsAddingCategory(false);
+  }
+
+  function assignCategory(materialId: string, category: string) {
+    const next = { ...categoryMap };
+    if (category) {
+      next[materialId] = category;
+    } else {
+      delete next[materialId];
+    }
+    persistCategoryMap(next);
+  }
+
+  function getMaterialCategory(materialId: string): string {
+    return categoryMap[materialId] ?? UNCATEGORIZED;
+  }
+
+ 
   const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [activeOutletId, setActiveOutletId] = useState<string>("");
   const [outletDropdownOpen, setOutletDropdownOpen] = useState(false);
@@ -121,14 +196,17 @@ export default function ManagerInventoryPage() {
     setOutletDropdownOpen(false);
   };
 
-  const fetchMaterials = useCallback(async () => {
-    if (!activeOutletId) return;
+  const fetchMaterials = useCallback(async (): Promise<Material[]> => {
+    if (!activeOutletId) return [];
     setLoading(true);
     try {
       const res = await api.get(`/inventory?outletId=${activeOutletId}`);
-      setMaterials(res.data.stockItems ?? []);
+      const items: Material[] = res.data.stockItems ?? [];
+      setMaterials(items);
+      return items;
     } catch (error) {
       console.error("Error fetching inventory:", error);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -146,8 +224,9 @@ export default function ManagerInventoryPage() {
   const filtered = useMemo(() => materials.filter(m => {
     const matchSearch = m.name.toLowerCase().includes(search.toLowerCase());
     const matchStock = stockFilter === "ALL" || getStockLevel(m) === stockFilter;
-    return matchSearch && matchStock;
-  }), [materials, search, stockFilter]);
+    const matchCategory = categoryFilter === "ALL" || getMaterialCategory(m.id) === categoryFilter;
+    return matchSearch && matchStock && matchCategory;
+  }), [materials, search, stockFilter, categoryFilter, categoryMap]);
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
@@ -155,12 +234,22 @@ export default function ManagerInventoryPage() {
   function openAdd() {
     setForm(EMPTY_FORM);
     setEditingMaterial(null);
+    setIsAddingCategory(false);
+    setNewCategoryInput("");
     setIsModalOpen(true);
   }
 
   function openEdit(m: Material) {
     setEditingMaterial(m);
-    setForm({ name: m.name, currentStock: m.currentStock, unit: m.unit as typeof EMPTY_FORM["unit"], minStockLevel: m.minStockLevel });
+    setForm({
+      name: m.name,
+      currentStock: m.currentStock,
+      unit: m.unit as typeof EMPTY_FORM["unit"],
+      minStockLevel: m.minStockLevel,
+      category: categoryMap[m.id] ?? "",
+    });
+    setIsAddingCategory(false);
+    setNewCategoryInput("");
     setIsModalOpen(true);
   }
 
@@ -168,6 +257,8 @@ export default function ManagerInventoryPage() {
     setIsModalOpen(false);
     setEditingMaterial(null);
     setForm(EMPTY_FORM);
+    setIsAddingCategory(false);
+    setNewCategoryInput("");
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -194,6 +285,8 @@ export default function ManagerInventoryPage() {
           minStockLevel: Number(form.minStockLevel) || 0,
           outletId: activeOutletId,
         });
+        assignCategory(editingMaterial.id, form.category);
+        await fetchMaterials();
       } else {
         await api.post("/inventory", {
           name: form.name.trim(),
@@ -202,8 +295,17 @@ export default function ManagerInventoryPage() {
           minStockLevel: Number(form.minStockLevel) || 0,
           outletId: activeOutletId,
         });
+        const refreshed = await fetchMaterials();
+        // No id is known for the new item until after refetch, since the
+        // create endpoint's response shape isn't relied on here — match by
+        // name instead to attach the chosen category locally.
+        const created = refreshed.find(
+          m => m.name.toLowerCase() === normalizedNewName
+        );
+        if (created && form.category) {
+          assignCategory(created.id, form.category);
+        }
       }
-      await fetchMaterials();
       closeModal();
     } catch (error: any) {
       if (error.response?.status === 409) {
@@ -221,6 +323,7 @@ export default function ManagerInventoryPage() {
     setDeleting(true);
     try {
       await api.delete(`/inventory/${id}?outletId=${activeOutletId}`);
+      assignCategory(id, "");
       setDeleteConfirmId(null);
       await fetchMaterials();
     } catch (error) {
@@ -393,6 +496,18 @@ export default function ManagerInventoryPage() {
           <option value="out_of_stock">Depleted</option>
         </select>
 
+        <select
+          value={categoryFilter}
+          onChange={e => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-600 focus:border-emerald-500 focus:outline-none"
+        >
+          <option value="ALL">All Categories</option>
+          <option value={UNCATEGORIZED}>{UNCATEGORIZED}</option>
+          {categories.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+
         <button
           onClick={openAdd}
           className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-sm transition-colors sm:ml-auto"
@@ -409,6 +524,7 @@ export default function ManagerInventoryPage() {
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
                 <th className="py-3 px-4">Material</th>
+                <th className="py-3 px-4">Category</th>
                 <th className="py-3 px-4">Current Stock Level</th>
                 <th className="py-3 px-4">Threshold Alert</th>
                 <th className="py-3 px-4">Status</th>
@@ -419,19 +535,20 @@ export default function ManagerInventoryPage() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center text-sm text-slate-400">
+                  <td colSpan={7} className="py-16 text-center text-sm text-slate-400">
                     <Loader2 className="h-5 w-5 animate-spin inline mr-2" />Loading inventory...
                   </td>
                 </tr>
               ) : paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center text-sm text-slate-400">
+                  <td colSpan={7} className="py-16 text-center text-sm text-slate-400">
                     No raw materials match criteria.
                   </td>
                 </tr>
               ) : paginated.map(material => {
                 const stockLevel = getStockLevel(material);
                 const stockStyle = STOCK_STYLE[stockLevel];
+                const category = getMaterialCategory(material.id);
                 return (
                   <Fragment key={material.id}>
                     <tr
@@ -446,6 +563,16 @@ export default function ManagerInventoryPage() {
                             }`} />
                           <span className="font-semibold text-slate-800">{material.name}</span>
                         </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold border ${
+                          category === UNCATEGORIZED
+                            ? "bg-slate-50 border-slate-200 text-slate-400"
+                            : "bg-emerald-50 border-emerald-100 text-emerald-700"
+                        }`}>
+                          <Tag className="w-2.5 h-2.5" />
+                          {category}
+                        </span>
                       </td>
                       <td className="py-3 px-4">
                         <span className="font-bold text-slate-800">
@@ -486,7 +613,7 @@ export default function ManagerInventoryPage() {
                     </tr>
                     {expandedItemId === material.id && (
                       <tr className="bg-slate-50/30">
-                        <td colSpan={6} className="px-4 py-4 border-b border-slate-100">
+                        <td colSpan={7} className="px-4 py-4 border-b border-slate-100">
                           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm w-full animate-in slide-in-from-top-2 duration-200">
 
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
@@ -659,6 +786,61 @@ export default function ManagerInventoryPage() {
                     className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
                   />
                 </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Category</label>
+                  {!isAddingCategory ? (
+                    <select
+                      value={form.category}
+                      onChange={e => {
+                        if (e.target.value === ADD_NEW_VALUE) {
+                          setIsAddingCategory(true);
+                        } else {
+                          setForm(p => ({ ...p, category: e.target.value }));
+                        }
+                      }}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
+                    >
+                      <option value="">{UNCATEGORIZED}</option>
+                      {categories.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                      <option value={ADD_NEW_VALUE}>+ Add New Category</option>
+                    </select>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="New category name"
+                        value={newCategoryInput}
+                        onChange={e => setNewCategoryInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === "Enter") { e.preventDefault(); addNewCategory(); }
+                          if (e.key === "Escape") { setIsAddingCategory(false); setNewCategoryInput(""); }
+                        }}
+                        className="flex-1 rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={addNewCategory}
+                        title="Add category"
+                        className="p-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setIsAddingCategory(false); setNewCategoryInput(""); }}
+                        title="Cancel"
+                        className="p-2.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Unit</label>
                   <select

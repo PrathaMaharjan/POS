@@ -3,6 +3,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import {
   TrendingUp,
+  TrendingDown,
+  Minus,
   ShoppingBag,
   DollarSign,
   Users,
@@ -113,12 +115,18 @@ interface UIStaffItem {
   rank: number;
 }
 
+interface UITrendPoint {
+  label: string;
+  revenue: number;
+  orders: number;
+}
+
 interface UIReportData {
   revenue: number;
   orders: number;
   aov: number;
   staffCount: number;
-  trendData: { label: string; revenue: number; orders: number }[];
+  trendData: UITrendPoint[];
   items: UIPopularMenuItem[];
   staff: UIStaffItem[];
   payments: UIPaymentItem[];
@@ -142,6 +150,56 @@ const BRANCH_COLORS = [
   "#14b8a6",
   "#f97316",
 ];
+
+interface Comparison {
+  pct: number;
+  direction: "up" | "down" | "flat";
+  latest: UITrendPoint;
+  previous: UITrendPoint;
+}
+
+// Compares the most recent point in the trend to the one right before it
+// (e.g. today vs yesterday) using data already loaded for the chart —
+// no extra API call needed.
+function getComparison(trend: UITrendPoint[]): Comparison | null {
+  if (trend.length < 2) return null;
+
+  const latest = trend[trend.length - 1];
+  const previous = trend[trend.length - 2];
+
+  if (previous.revenue === 0) {
+    if (latest.revenue === 0) {
+      return { pct: 0, direction: "flat", latest, previous };
+    }
+    return { pct: 100, direction: "up", latest, previous };
+  }
+
+  const pct = ((latest.revenue - previous.revenue) / previous.revenue) * 100;
+  const direction = pct > 0.05 ? "up" : pct < -0.05 ? "down" : "flat";
+
+  return { pct, direction, latest, previous };
+}
+
+function ComparisonBadge({ comparison, label }: { comparison: Comparison; label: string }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${
+        comparison.direction === "up"
+          ? "bg-emerald-50 text-emerald-700"
+          : comparison.direction === "down"
+          ? "bg-rose-50 text-rose-700"
+          : "bg-slate-100 text-slate-500"
+      }`}
+      title={`${comparison.latest.label}: Rs. ${comparison.latest.revenue.toLocaleString()} vs ${comparison.previous.label}: Rs. ${comparison.previous.revenue.toLocaleString()}`}
+    >
+      {comparison.direction === "up" && <TrendingUp className="w-3 h-3" />}
+      {comparison.direction === "down" && <TrendingDown className="w-3 h-3" />}
+      {comparison.direction === "flat" && <Minus className="w-3 h-3" />}
+      {comparison.direction === "up" ? "+" : ""}
+      {comparison.pct.toFixed(1)}% {label}
+    </span>
+  );
+}
 
 
 
@@ -391,6 +449,13 @@ export default function ReportsPage() {
     value: Math.round((b.revenue / maxRevenue) * 100),
   }));
 
+  // Day-over-day (or bucket-over-bucket) revenue comparison, derived from
+  // the trend data we already fetched — no separate API call.
+  const comparison = useMemo(
+    () => (reportData ? getComparison(reportData.trendData) : null),
+    [reportData]
+  );
+
 
   if (loading) {
     return (
@@ -478,15 +543,20 @@ export default function ReportsPage() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Net Revenue",     value: `Rs. ${reportData.revenue.toLocaleString()}`, border: "border-l-emerald-500", iconBg: "bg-emerald-50 text-emerald-600", icon: <DollarSign className="h-5 w-5" /> },
-          { label: "Total Orders",    value: reportData.orders.toLocaleString(),            border: "border-l-indigo-500",  iconBg: "bg-indigo-50 text-indigo-600",   icon: <ShoppingBag className="h-5 w-5" /> },
-          { label: "Avg Order Value", value: `Rs. ${reportData.aov.toFixed(2)}`,            border: "border-l-amber-500",   iconBg: "bg-amber-50 text-amber-600",     icon: <TrendingUp className="h-5 w-5" /> },
-          { label: "Active Staff",    value: reportData.staffCount,                          border: "border-l-slate-400",   iconBg: "bg-slate-50 text-slate-600",     icon: <Users className="h-5 w-5" /> },
+          { label: "Net Revenue",     value: `Rs. ${reportData.revenue.toLocaleString()}`, border: "border-l-emerald-500", iconBg: "bg-emerald-50 text-emerald-600", icon: <DollarSign className="h-5 w-5" />, showComparison: true },
+          { label: "Total Orders",    value: reportData.orders.toLocaleString(),            border: "border-l-indigo-500",  iconBg: "bg-indigo-50 text-indigo-600",   icon: <ShoppingBag className="h-5 w-5" />, showComparison: false },
+          { label: "Avg Order Value", value: `Rs. ${reportData.aov.toFixed(2)}`,            border: "border-l-amber-500",   iconBg: "bg-amber-50 text-amber-600",     icon: <TrendingUp className="h-5 w-5" />, showComparison: false },
+          { label: "Active Staff",    value: reportData.staffCount,                          border: "border-l-slate-400",   iconBg: "bg-slate-50 text-slate-600",     icon: <Users className="h-5 w-5" />, showComparison: false },
         ].map(s => (
           <div key={s.label} className={`rounded-xl border-l-4 ${s.border} border border-slate-200 bg-white p-4 sm:p-5 shadow-sm flex items-center justify-between`}>
             <div>
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{s.label}</p>
               <p className="text-xl sm:text-2xl font-bold text-slate-800 mt-1">{s.value}</p>
+              {s.showComparison && comparison && (
+                <div className="mt-1.5">
+                  <ComparisonBadge comparison={comparison} label="vs previous day" />
+                </div>
+              )}
             </div>
             <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${s.iconBg}`}>
               {s.icon}
@@ -583,7 +653,12 @@ export default function ReportsPage() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
               <div>
                 <h2 className="text-sm font-semibold text-slate-700">Sales Trend</h2>
-                <p className="text-xs text-slate-400 mt-0.5">Revenue over the selected period</p>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <p className="text-xs text-slate-400">Revenue over the selected period</p>
+                  {comparison && (
+                    <ComparisonBadge comparison={comparison} label="vs previous day" />
+                  )}
+                </div>
               </div>
             </div>
             {reportData.trendData.length === 0 ? (

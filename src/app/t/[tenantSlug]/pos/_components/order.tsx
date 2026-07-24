@@ -64,7 +64,7 @@ export interface OrderItemRecord {
   quantity: number;
   name: string;
   subtotal: number;
-  orderItemId?: string; // ── NEW — stored so TableModal can match by ID when filtering unpaid items ──
+  orderItemId?: string;
 }
 
 export interface CreatedOrder {
@@ -256,7 +256,7 @@ export default function Order({
         }
       } catch (err) {
         console.error('Failed to fetch outlet tax rate, falling back to cached/default value:', err);
-        // Fall back to whatever's cached locally, or the 8% default, rather than blocking checkout
+
         if (typeof window !== 'undefined') {
           const storedOutletId = localStorage.getItem('activeOutletId');
           const storedTaxRate = storedOutletId ? localStorage.getItem(`taxRate_${storedOutletId}`) : null;
@@ -366,6 +366,8 @@ export default function Order({
         setIsPlacingOrder(true);
         const res = await api.post('/orders/dine-in', {
           tableId,
+          customerName: customerName.trim() || undefined,
+          customerPhone: customerPhone.trim() || undefined,
           items: cart.map(item => ({
             productId: item.product.id,
             variantId: item.size.id,
@@ -391,6 +393,8 @@ export default function Order({
 
         onOrderCreated?.(newOrder);
         handleClearCart();
+        setCustomerName('');
+        setCustomerPhone('');
       } catch (err) {
         console.error("Failed to create dine-in order", err);
       } finally {
@@ -727,7 +731,7 @@ export default function Order({
 
           {/* Totals + Actions Footer */}
           <div style={{ borderColor: sidebarBorderCol }} className="border-t pt-4 flex flex-col gap-3">
-            {orderType === 'TAKEAWAY' && (
+            {(orderType === 'TAKEAWAY' || role === 'waiter') && (
               <div className="flex flex-col gap-2">
                 <input
                   type="text"

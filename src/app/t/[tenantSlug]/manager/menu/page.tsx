@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import {
   Plus, Search, Pencil, Trash2, X,
-  UtensilsCrossed, Loader2, Settings2, ImagePlus, Ruler
+  UtensilsCrossed, Loader2, Settings2, ImagePlus, Ruler, Utensils
 } from "lucide-react";
 import api from "@/lib/api";
 import { useImageUpload } from "@/lib/hooks/useImageUpload";
@@ -36,6 +36,9 @@ interface SizeDraft {
   id?: string;
   label: string;
   price: string;
+  /** Stable client-side key: the variant id if it already exists, otherwise a generated temp id.
+   *  Used to track which recipe belongs to which size row, even before it's saved. */
+  key: string;
 }
 
 interface FormDraft {
@@ -47,13 +50,31 @@ interface FormDraft {
   sizes: SizeDraft[];
 }
 
+interface StockItem {
+  id: string;
+  name: string;
+  unit: "g" | "kg" | "ml" | "L" | "pieces";
+  currentStock?: number;
+}
+
+interface RecipeItemDraft {
+  stockItemId: string;
+  quantity: string;
+}
+
+let tempKeyCounter = 0;
+function makeTempKey() {
+  tempKeyCounter += 1;
+  return `tmp-${Date.now()}-${tempKeyCounter}`;
+}
+
 const EMPTY_DRAFT: FormDraft = {
   name: "",
   categoryId: "",
   price: "",
   description: "",
   hasSizes: false,
-  sizes: [{ label: "", price: "" }, { label: "", price: "" }],
+  sizes: [],
 };
 
 // ── Variants API helper ──────────────────────────────────────────────
@@ -68,6 +89,17 @@ async function fetchVariants(productId: string): Promise<ProductSize[]> {
     }));
   } catch {
     return [];
+  }
+}
+
+// ── Recipe API helper ────────────────────────────────────────────────
+async function fetchRecipeFor(productId: string, variantId?: string) {
+  try {
+    const query = variantId ? `?variantId=${variantId}` : "";
+    const res = await api.get(`/recipe/${productId}${query}`);
+    return res.data.recipe ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -102,6 +134,13 @@ export default function MenuManagement() {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [categoryManageMode, setCategoryManageMode] = useState(false);
 
+  // Recipe (ingredients) state — keyed by "base" for a size-less item, or the size's `key` otherwise
+  const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  const [recipesDraft, setRecipesDraft] = useState<Record<string, RecipeItemDraft[]>>({});
+  const [originalRecipeKeys, setOriginalRecipeKeys] = useState<Set<string>>(new Set());
+  const [activeRecipeTab, setActiveRecipeTab] = useState<string>("base");
+  const [loadingRecipes, setLoadingRecipes] = useState(false);
+
   // Fetch categories
   async function fetchCategories() {
     setIsLoadingCategories(true);
@@ -118,6 +157,14 @@ export default function MenuManagement() {
 
   useEffect(() => {
     fetchCategories();
+  }, []);
+
+  // Fetch stock items (for recipe ingredient dropdown) once
+  useEffect(() => {
+    api
+      .get("/inventory")
+      .then((res) => setStockItems(res.data.stockItems ?? []))
+      .catch(() => {});
   }, []);
 
   // Fetch products
@@ -213,41 +260,136 @@ export default function MenuManagement() {
   }
 
   function addSizeRow() {
-    setDraft((p) => ({ ...p, sizes: [...p.sizes, { label: "", price: "" }] }));
+    setDraft((p) => ({ ...p, sizes: [...p.sizes, { label: "", price: "", key: makeTempKey() }] }));
   }
 
   function removeSizeRow(index: number) {
-    setDraft((p) => ({ ...p, sizes: p.sizes.filter((_, i) => i !== index) }));
+    const removedKey = draft.sizes[index]?.key;
+    const remaining = draft.sizes.filter((_, i) => i !== index);
+    setDraft((p) => ({ ...p, sizes: remaining }));
+
+    if (removedKey) {
+      setRecipesDraft((prev) => {
+        const next = { ...prev };
+        delete next[removedKey];
+        return next;
+      });
+      setOriginalRecipeKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(removedKey);
+        return next;
+      });
+      setActiveRecipeTab((prev) => (prev === removedKey ? (remaining[0]?.key ?? "base") : prev));
+    }
+  }
+
+  // ── Recipe row helpers ───────────────────────────────────────────────
+  function updateRecipeRow(key: string, index: number, field: keyof RecipeItemDraft, value: string) {
+    setRecipesDraft((prev) => {
+      const rows = prev[key] ?? [];
+      return { ...prev, [key]: rows.map((r, i) => (i === index ? { ...r, [field]: value } : r)) };
+    });
+  }
+
+  function addRecipeRow(key: string) {
+    setRecipesDraft((prev) => ({ ...prev, [key]: [...(prev[key] ?? []), { stockItemId: "", quantity: "" }] }));
+  }
+
+  function removeRecipeRow(key: string, index: number) {
+    setRecipesDraft((prev) => ({ ...prev, [key]: (prev[key] ?? []).filter((_, i) => i !== index) }));
+  }
+
+  function getAvailableStockItemsForRecipe(key: string, currentIndex: number) {
+    const rows = recipesDraft[key] ?? [];
+    const selectedIds = rows.map((r, i) => (i !== currentIndex ? r.stockItemId : "")).filter(Boolean);
+    return stockItems.filter((s) => !selectedIds.includes(s.id));
   }
 
   const openAdd = () => {
     setEditingId(null);
-    setDraft({ ...EMPTY_DRAFT, categoryId: categories[0]?.id ?? "", sizes: [{ label: "", price: "" }, { label: "", price: "" }] });
+    setDraft({
+      ...EMPTY_DRAFT,
+      categoryId: categories[0]?.id ?? "",
+      sizes: [
+        { label: "", price: "", key: makeTempKey() },
+        { label: "", price: "", key: makeTempKey() },
+      ],
+    });
     setOriginalSizes([]);
     setImageFile(null);
     setImagePreview(null);
     setExistingImageUrl(null);
+    setRecipesDraft({ base: [{ stockItemId: "", quantity: "" }] });
+    setOriginalRecipeKeys(new Set());
+    setActiveRecipeTab("base");
     setIsModalOpen(true);
   };
 
-  const openEdit = (item: MenuItem) => {
+  const openEdit = async (item: MenuItem) => {
     setEditingId(item.id);
     const hasSizes = !!item.sizes && item.sizes.length > 1;
+    const sizesDraft: SizeDraft[] = hasSizes
+      ? item.sizes!.map((s) => ({ id: s.id, label: s.label, price: String(s.price), key: s.id ?? makeTempKey() }))
+      : [
+          { label: "", price: "", key: makeTempKey() },
+          { label: "", price: "", key: makeTempKey() },
+        ];
+
     setDraft({
       name: item.name,
       categoryId: item.categoryId,
       price: String(item.price),
       description: item.description ?? "",
       hasSizes,
-      sizes: hasSizes
-        ? item.sizes!.map((s) => ({ id: s.id, label: s.label, price: String(s.price) }))
-        : [{ label: "", price: "" }, { label: "", price: "" }],
+      sizes: sizesDraft,
     });
     setOriginalSizes(item.sizes ?? []);
     setImageFile(null);
     setImagePreview(null);
     setExistingImageUrl(item.imageUrl);
+    setRecipesDraft({});
+    setOriginalRecipeKeys(new Set());
+    setActiveRecipeTab(hasSizes ? (sizesDraft[0]?.key ?? "base") : "base");
     setIsModalOpen(true);
+
+    // Load existing recipe(s) in the background
+    setLoadingRecipes(true);
+    const newRecipesDraft: Record<string, RecipeItemDraft[]> = {};
+    const newOriginalKeys = new Set<string>();
+
+    try {
+      if (hasSizes) {
+        await Promise.all(
+          sizesDraft.map(async (s) => {
+            const recipe = s.id ? await fetchRecipeFor(item.id, s.id) : null;
+            if (recipe) {
+              newRecipesDraft[s.key] = recipe.items.map((it: any) => ({
+                stockItemId: it.stockItemId,
+                quantity: String(it.quantity),
+              }));
+              newOriginalKeys.add(s.key);
+            } else {
+              newRecipesDraft[s.key] = [{ stockItemId: "", quantity: "" }];
+            }
+          })
+        );
+      } else {
+        const recipe = await fetchRecipeFor(item.id);
+        if (recipe) {
+          newRecipesDraft["base"] = recipe.items.map((it: any) => ({
+            stockItemId: it.stockItemId,
+            quantity: String(it.quantity),
+          }));
+          newOriginalKeys.add("base");
+        } else {
+          newRecipesDraft["base"] = [{ stockItemId: "", quantity: "" }];
+        }
+      }
+    } finally {
+      setRecipesDraft(newRecipesDraft);
+      setOriginalRecipeKeys(newOriginalKeys);
+      setLoadingRecipes(false);
+    }
   };
 
   const closeModal = () => {
@@ -258,14 +400,19 @@ export default function MenuManagement() {
     setImageFile(null);
     setImagePreview(null);
     setExistingImageUrl(null);
+    setRecipesDraft({});
+    setOriginalRecipeKeys(new Set());
+    setActiveRecipeTab("base");
   };
 
   // ── Sync variants against the backend ───────────────────────────────
+  // Returns the saved variants (same order as `updated`) including any freshly-created ids,
+  // so callers can map recipe drafts (keyed by `key`) to their real variant id.
   async function syncVariants(
     productId: string,
     original: ProductSize[],
-    updated: ProductSize[]
-  ) {
+    updated: (ProductSize & { key: string })[]
+  ): Promise<(ProductSize & { key: string })[]> {
     const updatedIds = new Set(updated.map((s) => s.id).filter(Boolean));
 
     // Delete variants that were removed
@@ -275,6 +422,7 @@ export default function MenuManagement() {
     );
 
     // Create new / update changed variants
+    const results: (ProductSize & { key: string })[] = [];
     for (const size of updated) {
       if (size.id) {
         const before = original.find((o) => o.id === size.id);
@@ -284,12 +432,41 @@ export default function MenuManagement() {
             price: size.price.toFixed(2),
           });
         }
+        results.push(size);
       } else {
-        await api.post(`/product/${productId}/variants`, {
+        const res = await api.post(`/product/${productId}/variants`, {
           label: size.label,
           price: size.price.toFixed(2),
         });
+        const newId = res.data?.variant?.id ?? res.data?.id;
+        results.push({ ...size, id: newId });
       }
+    }
+    return results;
+  }
+
+  // ── Persist a single recipe (base product or one variant) ────────────
+  async function persistRecipe(productId: string, key: string, variantId?: string) {
+    const rows = (recipesDraft[key] ?? []).filter((r) => r.stockItemId && r.quantity);
+    const hadExisting = originalRecipeKeys.has(key);
+    const query = variantId ? `?variantId=${variantId}` : "";
+
+    if (rows.length === 0) {
+      if (hadExisting) {
+        await api.delete(`/recipe/${productId}${query}`).catch(() => {});
+      }
+      return;
+    }
+
+    const payload: any = {
+      items: rows.map((r) => ({ stockItemId: r.stockItemId, quantity: Number(r.quantity) })),
+    };
+    if (variantId) payload.variantId = variantId;
+
+    if (hadExisting) {
+      await api.patch(`/recipe/${productId}${query}`, payload);
+    } else {
+      await api.post(`/recipe/${productId}${query}`, payload);
     }
   }
 
@@ -298,11 +475,11 @@ export default function MenuManagement() {
     setErrorMsg(null);
 
     // Validate sizes if the toggle is on: need at least 2 complete rows
-    let validSizes: ProductSize[] = [];
+    let validSizes: (ProductSize & { key: string })[] = [];
     if (draft.hasSizes) {
       validSizes = draft.sizes
         .filter((s) => s.label.trim() && s.price.trim())
-        .map((s) => ({ id: s.id, label: s.label.trim(), price: Number(s.price) }));
+        .map((s) => ({ id: s.id, label: s.label.trim(), price: Number(s.price), key: s.key }));
       if (validSizes.length < 2) {
         setErrorMsg("Add at least 2 sizes with a label and price, or turn off multiple sizes.");
         return;
@@ -348,16 +525,20 @@ export default function MenuManagement() {
         savedId = typeof res.data === 'string' ? res.data : (res.data?.product?.id ?? res.data?.id ?? null);
       }
 
-      // Sync size/variant rows against the backend
+      // Sync size/variant rows and recipes against the backend
       if (savedId) {
         if (draft.hasSizes) {
-          await syncVariants(savedId, originalSizes, validSizes);
-        } else if (originalSizes.length > 0) {
-          await Promise.all(
-            originalSizes
-              .filter((s) => s.id)
-              .map((s) => api.delete(`/product/${savedId}/variants/${s.id}`))
-          );
+          const savedVariants = await syncVariants(savedId, originalSizes, validSizes);
+          await Promise.all(savedVariants.map((v) => persistRecipe(savedId as string, v.key, v.id)));
+        } else {
+          if (originalSizes.length > 0) {
+            await Promise.all(
+              originalSizes
+                .filter((s) => s.id)
+                .map((s) => api.delete(`/product/${savedId}/variants/${s.id}`))
+            );
+          }
+          await persistRecipe(savedId, "base", undefined);
         }
       }
 
@@ -434,6 +615,7 @@ export default function MenuManagement() {
   };
 
   const modalImageSrc = imagePreview ?? existingImageUrl;
+  const activeRecipeKey = draft.hasSizes ? activeRecipeTab : "base";
 
   return (
     <div className="flex flex-col gap-4 md:gap-6 h-full p-4 md:p-0">
@@ -736,7 +918,7 @@ export default function MenuManagement() {
                   <div className="space-y-2">
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide">Sizes &amp; Prices</label>
                     {draft.sizes.map((size, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
+                      <div key={size.key} className="flex items-center gap-2">
                         <input
                           type="text"
                           placeholder="e.g. 500ML"
@@ -791,6 +973,96 @@ export default function MenuManagement() {
                     rows={2}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:border-emerald-500 focus:outline-none resize-none"
                   />
+                </div>
+
+                {/* Recipe / Ingredients */}
+                <div className="rounded-lg border border-slate-200 p-3.5 bg-slate-50 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Utensils className="w-4 h-4 text-emerald-600" />
+                    <p className="text-sm font-semibold text-slate-700">Recipe (optional)</p>
+                  </div>
+
+                  {stockItems.length === 0 ? (
+                    <p className="text-xs text-slate-400">No stock items found. Add ingredients in Inventory first.</p>
+                  ) : loadingRecipes ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading recipe...
+                    </div>
+                  ) : (
+                    <>
+                      {draft.hasSizes && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {draft.sizes.map((s, i) => (
+                            <button
+                              key={s.key}
+                              type="button"
+                              onClick={() => setActiveRecipeTab(s.key)}
+                              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
+                                activeRecipeTab === s.key
+                                  ? "bg-emerald-600 border-emerald-600 text-white"
+                                  : "bg-white border-slate-200 text-slate-500 hover:bg-slate-100"
+                              }`}
+                            >
+                              {s.label.trim() || `Size ${i + 1}`}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        {(recipesDraft[activeRecipeKey] ?? []).map((row, idx) => {
+                          const available = getAvailableStockItemsForRecipe(activeRecipeKey, idx);
+                          const selected = stockItems.find((s) => s.id === row.stockItemId);
+                          const unit = selected?.unit ?? "";
+                          return (
+                            <div key={idx} className="flex items-center gap-2">
+                              <select
+                                value={row.stockItemId}
+                                onChange={(e) => updateRecipeRow(activeRecipeKey, idx, "stockItemId", e.target.value)}
+                                className="flex-1 rounded-lg border border-slate-200 px-2.5 py-2 text-xs text-slate-700 bg-white focus:border-emerald-500 focus:outline-none"
+                              >
+                                <option value="">Select ingredient...</option>
+                                {selected && <option value={selected.id}>{selected.name}</option>}
+                                {available.map((s) => (
+                                  <option key={s.id} value={s.id}>{s.name} ({s.unit})</option>
+                                ))}
+                              </select>
+                              <div className="relative w-24 shrink-0">
+                                <input
+                                  type="number"
+                                  step="any"
+                                  min="0"
+                                  placeholder="Qty"
+                                  value={row.quantity}
+                                  onChange={(e) => updateRecipeRow(activeRecipeKey, idx, "quantity", e.target.value)}
+                                  className="w-full rounded-lg border border-slate-200 bg-white pl-2.5 pr-8 py-2 text-xs text-slate-700 focus:border-emerald-500 focus:outline-none"
+                                />
+                                {unit && (
+                                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-400 pointer-events-none">
+                                    {unit}
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeRecipeRow(activeRecipeKey, idx)}
+                                className="shrink-0 p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          onClick={() => addRecipeRow(activeRecipeKey)}
+                          className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-700 pt-0.5"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Add ingredient
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Image Upload Area */}

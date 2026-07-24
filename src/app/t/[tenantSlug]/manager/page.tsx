@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
 import {
-  TrendingUp, Users, ShoppingBag, RefreshCw,
+  TrendingUp, TrendingDown, Minus, Users, ShoppingBag, RefreshCw,
   Star, AlertTriangle, BarChart3, ArrowRight, ChevronRight
 } from "lucide-react";
 
@@ -47,10 +47,47 @@ const PERIODS: { value: Period; label: string; description: string }[] = [
   { value: "monthly", label: "30D", description: "Last 4 weeks" },
 ];
 
+// Label shown on the comparison badge, per period
+const COMPARISON_LABEL: Record<Period, string> = {
+  hourly: "vs previous hour",
+  weekly: "vs yesterday",
+  monthly: "vs last week",
+};
+
 function getAxisLabel(label: string, period: Period): string {
   if (period === "weekly") return label.slice(0, 3);
   if (period === "monthly") return label.replace("Week ", "W");
   return label;
+}
+
+interface Comparison {
+  pct: number;
+  direction: "up" | "down" | "flat";
+  latest: SalesTrendItem;
+  previous: SalesTrendItem;
+}
+
+// Compares the most recent bucket in the trend against the one before it
+// (today vs yesterday for the 7D view, this week vs last week for 30D, etc).
+// This is intentionally derived from data we already have, so it needs no
+// extra API calls or backend changes.
+function getComparison(trend: SalesTrendItem[]): Comparison | null {
+  if (trend.length < 2) return null;
+
+  const latest = trend[trend.length - 1];
+  const previous = trend[trend.length - 2];
+
+  if (previous.total === 0) {
+    if (latest.total === 0) {
+      return { pct: 0, direction: "flat", latest, previous };
+    }
+    return { pct: 100, direction: "up", latest, previous };
+  }
+
+  const pct = ((latest.total - previous.total) / previous.total) * 100;
+  const direction = pct > 0.05 ? "up" : pct < -0.05 ? "down" : "flat";
+
+  return { pct, direction, latest, previous };
 }
 
 export default function OverviewPage() {
@@ -125,6 +162,9 @@ export default function OverviewPage() {
   const currentPeriod = PERIODS.find((p) => p.value === period)!;
 
   const chartLoading = isLoading || isTrendLoading;
+
+  const comparison = getComparison(salesTrend);
+  const comparisonLabel = COMPARISON_LABEL[period];
 
   return (
     <div className="flex flex-col gap-8">
@@ -296,7 +336,7 @@ export default function OverviewPage() {
               </div>
 
               {!chartLoading && salesTrend.length > 0 && (
-                <div className="flex items-center gap-3 mt-1 pl-9">
+                <div className="flex items-center gap-3 mt-1 pl-9 flex-wrap">
                   <span className="text-xs text-slate-500">
                     <span className="font-bold text-slate-800">
                       Rs. {trendRevenue.toLocaleString()}
@@ -306,6 +346,28 @@ export default function OverviewPage() {
                   <span className="text-xs text-slate-500">
                     <span className="font-bold text-slate-800">{totalOrders}</span> orders
                   </span>
+
+                  {comparison && (
+                    <>
+                      <span className="w-1 h-1 rounded-full bg-slate-300" />
+                      <span
+                        className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                          comparison.direction === "up"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : comparison.direction === "down"
+                            ? "bg-rose-50 text-rose-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                        title={`${comparison.latest.label}: Rs. ${comparison.latest.total.toLocaleString()} vs ${comparison.previous.label}: Rs. ${comparison.previous.total.toLocaleString()}`}
+                      >
+                        {comparison.direction === "up" && <TrendingUp className="w-3 h-3" />}
+                        {comparison.direction === "down" && <TrendingDown className="w-3 h-3" />}
+                        {comparison.direction === "flat" && <Minus className="w-3 h-3" />}
+                        {comparison.direction === "up" ? "+" : ""}
+                        {comparison.pct.toFixed(1)}% {comparisonLabel}
+                      </span>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -342,6 +404,7 @@ export default function OverviewPage() {
                 {salesTrend.map((item, idx) => {
                   const heightPct = Math.max((item.total / maxSalesValue) * 100, 3);
                   const isMax = item.total === maxSalesValue;
+                  const isLatest = idx === salesTrend.length - 1;
 
                   return (
                     <div
@@ -377,6 +440,7 @@ export default function OverviewPage() {
                             ? "bg-emerald-200 border-emerald-600 group-hover:bg-emerald-300"
                             : "bg-emerald-100 border-emerald-400 group-hover:bg-emerald-200"
                           }
+                          ${isLatest ? "ring-1 ring-emerald-500/40" : ""}
                         `}
                       />
                     </div>
