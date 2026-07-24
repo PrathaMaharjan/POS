@@ -1113,30 +1113,39 @@ export default function Order({
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
-              {(getRealSizes(sizeModalProduct) ?? [])
-                .filter((size) => size.isAvailable !== false)
-                .map((size) => (
+              {(getRealSizes(sizeModalProduct) ?? []).map((size) => {
+                const isAvailable = size.isAvailable !== false;
+                return (
                   <button
                     key={size.label}
-                    onClick={() => handleSelectSize(sizeModalProduct, size)}
-                    className={`flex flex-col items-center justify-center gap-1 rounded-xl py-3 px-2 transition-all duration-150 hover:-translate-y-0.5 active:scale-[0.98] ${
-                      !isDark
-                        ? "shadow-sm bg-white"
-                        : "border hover:brightness-[1.03]"
+                    disabled={!isAvailable}
+                    onClick={() =>
+                      isAvailable && handleSelectSize(sizeModalProduct, size)
+                    }
+                    className={`flex flex-col items-center justify-center gap-1 rounded-xl py-3 px-2 transition-all duration-150 ${
+                      !isAvailable
+                        ? "opacity-50 cursor-not-allowed bg-neutral-200/50 dark:bg-neutral-800/40 border border-neutral-300 dark:border-neutral-700"
+                        : !isDark
+                        ? "shadow-sm bg-white hover:-translate-y-0.5 active:scale-[0.98]"
+                        : "border hover:brightness-[1.03] hover:-translate-y-0.5 active:scale-[0.98]"
                     }`}
-                    style={{
-                      backgroundColor: isDark ? surfaceBg2 : "#ffffff",
-                      borderColor: isDark ? borderCol : undefined,
-                    }}
+                    style={
+                      isAvailable
+                        ? {
+                            backgroundColor: isDark ? surfaceBg2 : "#ffffff",
+                            borderColor: isDark ? borderCol : undefined,
+                          }
+                        : undefined
+                    }
                     onMouseEnter={
-                      isDark
+                      isAvailable && isDark
                         ? (e) =>
                             ((e.currentTarget as HTMLElement).style.borderColor =
                               accent)
                         : undefined
                     }
                     onMouseLeave={
-                      isDark
+                      isAvailable && isDark
                         ? (e) =>
                             ((e.currentTarget as HTMLElement).style.borderColor =
                               borderCol)
@@ -1144,19 +1153,41 @@ export default function Order({
                     }
                   >
                     <span
-                      className="text-sm font-bold"
-                      style={{ color: isDark ? textPrim : "#1e293b" }}
+                      className={`text-sm font-bold ${!isAvailable ? "line-through" : ""}`}
+                      style={{
+                        color: !isAvailable
+                          ? isDark
+                            ? textFaint
+                            : "#94a3b8"
+                          : isDark
+                          ? textPrim
+                          : "#1e293b",
+                      }}
                     >
                       {size.label}
                     </span>
                     <span
                       className="text-xs font-semibold"
-                      style={{ color: isDark ? accent : "#059669" }}
+                      style={{
+                        color: !isAvailable
+                          ? isDark
+                            ? textFaint
+                            : "#94a3b8"
+                          : isDark
+                          ? accent
+                          : "#059669",
+                      }}
                     >
                       Rs.{size.price.toFixed(2)}
                     </span>
+                    {!isAvailable && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-rose-500/90 dark:text-rose-400/90 mt-0.5">
+                        Out of Stock
+                      </span>
+                    )}
                   </button>
-                ))}
+                );
+              })}
             </div>
           </div>
         </div>
