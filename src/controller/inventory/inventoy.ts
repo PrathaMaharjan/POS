@@ -69,16 +69,94 @@ interface DeductionResult {
 // HELPER — log a single stock movement
 // ─────────────────────────────────────────────
 
+// async function syncProductAvailability(outletId: string, stockItemId: string) {
+//   const stockItem = await db.query.stockItems.findFirst({
+//     where: (s, { eq }) => eq(s.id, stockItemId),
+//     columns: { currentStock: true, minStockLevel: true }, // ← minStockLevel now needed
+//   });
+
+//   const currentStock = Number(stockItem?.currentStock ?? 0);
+//   const minStock      = Number(stockItem?.minStockLevel ?? 0);
+
+//   // ── CHANGED — now triggers at/below the low-stock line, not just at zero ──
+//   if (currentStock > minStock) return;
+
+//   const affectedRecipes = await db.query.recipeItems.findMany({
+//     where: (ri, { eq }) => eq(ri.stockItemId, stockItemId),
+//     with: {
+//       recipe: {
+//         columns: { productId: true, variantId: true, outletId: true },
+//       },
+//     },
+//   });
+
+//   const outletRecipes = affectedRecipes.filter(
+//     (ri) => ri.recipe.outletId === outletId
+//   );
+
+//   if (outletRecipes.length === 0) return;
+
+//   const variantIdsToMarkUnavailable = outletRecipes
+//     .filter((ri) => ri.recipe.variantId !== null)
+//     .map((ri) => ri.recipe.variantId as string);
+
+//   const productIdsToMarkUnavailable = outletRecipes
+//     .filter((ri) => ri.recipe.variantId === null)
+//     .map((ri) => ri.recipe.productId);
+
+//   if (variantIdsToMarkUnavailable.length > 0) {
+//     await db
+//       .update(productVariants)
+//       .set({ isAvailable: false, updatedAt: new Date() })
+//       .where(inArray(productVariants.id, variantIdsToMarkUnavailable));
+//   }
+//   console.log("mark",productIdsToMarkUnavailable.length)
+
+//   if (productIdsToMarkUnavailable.length > 0) {
+//     await db
+//       .update(products)
+//       .set({ isAvailable: false, updatedAt: new Date() })
+//       .where(
+//         and(eq(products.outletId, outletId), inArray(products.id, productIdsToMarkUnavailable))
+//       );
+//   }
+// }
+// ── NEW — after a variant's own availability changes, check whether
+//    the PARENT PRODUCT should follow. Rule: if EVERY active variant
+//    of a product is unavailable, the product itself goes unavailable
+//    too (so the menu tile doesn't invite a customer in only to find
+//    every option greyed out). If AT LEAST ONE variant is available,
+//    the product is available. ──
+
+async function syncParentProductFromVariants(outletId: string, productIds: string[]) {
+  const uniqueProductIds = [...new Set(productIds)];
+
+  for (const productId of uniqueProductIds) {
+    const variants = await db.query.productVariants.findMany({
+      where: (v, { eq, and }) => and(eq(v.productId, productId), eq(v.isActive, true)),
+      columns: { isAvailable: true },
+    });
+
+    if (variants.length === 0) continue; // no active variants to judge availability by
+
+    const anyAvailable = variants.some((v) => v.isAvailable === true);
+
+    await db
+      .update(products)
+      .set({ isAvailable: anyAvailable, updatedAt: new Date() })
+      .where(and(eq(products.outletId, outletId), eq(products.id, productId)));
+  }
+}
+
 async function syncProductAvailability(outletId: string, stockItemId: string) {
   const stockItem = await db.query.stockItems.findFirst({
-    where: (s, { eq }) => eq(s.id, stockItemId),
-    columns: { currentStock: true, minStockLevel: true }, // ← minStockLevel now needed
+    where: (s, { eq, and }) => and(eq(s.id, stockItemId), eq(s.outletId, outletId)),
+    columns: { currentStock: true, minStockLevel: true },
   });
 
   const currentStock = Number(stockItem?.currentStock ?? 0);
   const minStock      = Number(stockItem?.minStockLevel ?? 0);
 
-  // ── CHANGED — now triggers at/below the low-stock line, not just at zero ──
   if (currentStock > minStock) return;
 
   const affectedRecipes = await db.query.recipeItems.findMany({
@@ -109,6 +187,14 @@ async function syncProductAvailability(outletId: string, stockItemId: string) {
       .update(productVariants)
       .set({ isAvailable: false, updatedAt: new Date() })
       .where(inArray(productVariants.id, variantIdsToMarkUnavailable));
+
+    // ── NEW — the touched variants' PARENT products, so we can
+    //    check whether ALL of a product's variants are now gone ──
+    const parentProductIds = outletRecipes
+      .filter((ri) => ri.recipe.variantId !== null)
+      .map((ri) => ri.recipe.productId);
+
+    await syncParentProductFromVariants(outletId, parentProductIds);
   }
 
   if (productIdsToMarkUnavailable.length > 0) {
@@ -120,9 +206,6 @@ async function syncProductAvailability(outletId: string, stockItemId: string) {
       );
   }
 }
-
-
-
 
 
 async function logStockMovement(input: {
@@ -459,6 +542,65 @@ export async function deductStockForOrder(
 // RESTORE STOCK ON ORDER CANCEL
 // ─────────────────────────────────────────────
 
+// async function restoreProductAvailability(outletId: string, stockItemId: string) {
+//   const affectedRecipes = await db.query.recipeItems.findMany({
+//     where: (ri, { eq }) => eq(ri.stockItemId, stockItemId),
+//     with: {
+//       recipe: {
+//         columns: { productId: true, variantId: true, outletId: true },
+//         with: {
+//           recipeItems: {
+//             with: {
+//               stockItem: { columns: { currentStock: true, minStockLevel: true } }, // ← minStockLevel added
+//             },
+//           },
+//         },
+//       },
+//     },
+//   });
+
+//   const outletRecipes = affectedRecipes.filter(
+//     (ri) => ri.recipe.outletId === outletId
+//   );
+
+//   if (outletRecipes.length === 0) return;
+
+//   const variantIdsToRestore: string[] = [];
+//   const productIdsToRestore: string[] = [];
+
+//   for (const ri of outletRecipes) {
+//     // ── CHANGED — every ingredient must be ABOVE its own min level,
+//     //    not just above zero, before we restore availability ──
+//     const allAboveMinLevel = ri.recipe.recipeItems.every(
+//       (item) => Number(item.stockItem.currentStock) > Number(item.stockItem.minStockLevel)
+//     );
+
+//     if (!allAboveMinLevel) continue;
+
+//     if (ri.recipe.variantId !== null) {
+//       variantIdsToRestore.push(ri.recipe.variantId);
+//     } else {
+//       productIdsToRestore.push(ri.recipe.productId);
+//     }
+//   }
+
+//   if (variantIdsToRestore.length > 0) {
+//     await db
+//       .update(productVariants)
+//       .set({ isAvailable: true, updatedAt: new Date() })
+//       .where(inArray(productVariants.id, variantIdsToRestore));
+//   }
+
+//   if (productIdsToRestore.length > 0) {
+//     await db
+//       .update(products)
+//       .set({ isAvailable: true, updatedAt: new Date() })
+//       .where(
+//         and(eq(products.outletId, outletId), inArray(products.id, productIdsToRestore))
+//       );
+//   }
+// }
+
 async function restoreProductAvailability(outletId: string, stockItemId: string) {
   const affectedRecipes = await db.query.recipeItems.findMany({
     where: (ri, { eq }) => eq(ri.stockItemId, stockItemId),
@@ -468,7 +610,7 @@ async function restoreProductAvailability(outletId: string, stockItemId: string)
         with: {
           recipeItems: {
             with: {
-              stockItem: { columns: { currentStock: true, minStockLevel: true } }, // ← minStockLevel added
+              stockItem: { columns: { currentStock: true, minStockLevel: true } },
             },
           },
         },
@@ -486,8 +628,6 @@ async function restoreProductAvailability(outletId: string, stockItemId: string)
   const productIdsToRestore: string[] = [];
 
   for (const ri of outletRecipes) {
-    // ── CHANGED — every ingredient must be ABOVE its own min level,
-    //    not just above zero, before we restore availability ──
     const allAboveMinLevel = ri.recipe.recipeItems.every(
       (item) => Number(item.stockItem.currentStock) > Number(item.stockItem.minStockLevel)
     );
@@ -506,6 +646,14 @@ async function restoreProductAvailability(outletId: string, stockItemId: string)
       .update(productVariants)
       .set({ isAvailable: true, updatedAt: new Date() })
       .where(inArray(productVariants.id, variantIdsToRestore));
+
+    // ── NEW — check whether the parent products should also
+    //    come back as available, now that at least this variant is ──
+    const parentProductIds = outletRecipes
+      .filter((ri) => ri.recipe.variantId !== null && variantIdsToRestore.includes(ri.recipe.variantId as string))
+      .map((ri) => ri.recipe.productId);
+
+    await syncParentProductFromVariants(outletId, parentProductIds);
   }
 
   if (productIdsToRestore.length > 0) {
@@ -517,12 +665,6 @@ async function restoreProductAvailability(outletId: string, stockItemId: string)
       );
   }
 }
-
-
-
-
-
-
 
 export async function restoreStockForOrder(
   outletId: string,
@@ -573,6 +715,7 @@ export async function restoreStockForOrder(
     await restoreProductAvailability(outletId, movement.stockItemId);
   }
 }
+ 
 // ─────────────────────────────────────────────
 // ADD STOCK — purchase (delivery arrived)
 // ─────────────────────────────────────────────
@@ -631,6 +774,47 @@ Manager finds 500ml of milk has expired
   → logs movement type: "wastage"
   → returns new stock level
 */
+// export async function logWastage(input: {
+//   outletId: string;
+//   stockItemId: string;
+//   quantity: number;
+//   note?: string;
+//   createdBy?: string;
+// }): Promise<{ newStock: number }> {
+//   const { outletId, stockItemId, quantity, note, createdBy } = input;
+
+//   await db
+//     .update(stockItems)
+//     .set({
+//       currentStock: sql`GREATEST(current_stock - ${quantity.toFixed(3)}::numeric, 0)`,
+//       updatedAt: new Date(),
+//     })
+//     .where(
+//       and(eq(stockItems.id, stockItemId), eq(stockItems.outletId, outletId)),
+//     );
+
+//   await logStockMovement({
+//     outletId,
+//     stockItemId,
+//     type: "wastage",
+//     quantity,
+//     note: note ?? "Stock wastage",
+//     createdBy,
+//   });
+
+//   const updated = await db.query.stockItems.findFirst({
+//     where: (s, { eq }) => eq(s.id, stockItemId),
+//     columns: { currentStock: true },
+//   });
+
+//   return { newStock: Number(updated?.currentStock ?? 0) };
+// }
+
+// ─────────────────────────────────────────────
+// GET LOW STOCK ALERTS
+// used by dashboard
+// ─────────────────────────────────────────────
+
 export async function logWastage(input: {
   outletId: string;
   stockItemId: string;
@@ -659,6 +843,13 @@ export async function logWastage(input: {
     createdBy,
   });
 
+  // ── NEW — wastage reduces stock just like a deduction, but this
+  //    function never checked whether that push the item below its
+  //    minStockLevel. Right now, marking an ingredient as wasted
+  //    could silently leave a now-unmakeable product showing as
+  //    available on the menu. ──
+  await syncProductAvailability(outletId, stockItemId);
+
   const updated = await db.query.stockItems.findFirst({
     where: (s, { eq }) => eq(s.id, stockItemId),
     columns: { currentStock: true },
@@ -666,12 +857,6 @@ export async function logWastage(input: {
 
   return { newStock: Number(updated?.currentStock ?? 0) };
 }
-
-// ─────────────────────────────────────────────
-// GET LOW STOCK ALERTS
-// used by dashboard
-// ─────────────────────────────────────────────
-
 /*
 getLowStockAlerts
 Why created: Dashboard needs to show which ingredients are running low so Manager can reorder before they run out completely. This feeds directly into the Alerts section we built.
@@ -725,6 +910,53 @@ Key difference from wastage:
 wastage   → "I know exactly what was wasted, subtract it"
 adjustment → "I don't know what happened, just set it to the correct number"
 */
+// export async function adjustStock(input: {
+//   outletId: string;
+//   stockItemId: string;
+//   newQuantity: number;
+//   note?: string;
+//   createdBy?: string;
+// }): Promise<{ newStock: number }> {
+//   const { outletId, stockItemId, newQuantity, note, createdBy } = input;
+
+//   const current = await db.query.stockItems.findFirst({
+//     where: (s, { eq }) => eq(s.id, stockItemId),
+//     columns: { currentStock: true },
+//   });
+
+//   const currentStock = Number(current?.currentStock ?? 0);
+//   const difference = Math.abs(newQuantity - currentStock);
+
+//   await db
+//     .update(stockItems)
+//     .set({
+//       currentStock: newQuantity.toFixed(3),
+//       updatedAt: new Date(),
+//     })
+//     .where(
+//       and(eq(stockItems.id, stockItemId), eq(stockItems.outletId, outletId)),
+//     );
+
+//   await logStockMovement({
+//     outletId,
+//     stockItemId,
+//     type: "adjustment",
+//     quantity: difference,
+//     note: note ?? `Manual adjustment: ${currentStock} → ${newQuantity}`,
+//     createdBy,
+//   });
+
+//   // ── sync availability based on new quantity ── ← ADD
+//   if (newQuantity <= 0) {
+//     await syncProductAvailability(outletId, stockItemId);
+//   } else {
+//     await restoreProductAvailability(outletId, stockItemId);
+//   }
+
+//   return { newStock: newQuantity };
+// }
+
+
 export async function adjustStock(input: {
   outletId: string;
   stockItemId: string;
@@ -761,12 +993,16 @@ export async function adjustStock(input: {
     createdBy,
   });
 
-  // ── sync availability based on new quantity ── ← ADD
-  if (newQuantity <= 0) {
-    await syncProductAvailability(outletId, stockItemId);
-  } else {
-    await restoreProductAvailability(outletId, stockItemId);
-  }
+  // ── FIX — was: `if (newQuantity <= 0) sync else restore`.
+  //    That guessed based on ZERO, not minStockLevel, so setting
+  //    stock to something like "5" when minStockLevel is "20"
+  //    would WRONGLY call restore (mark available) even though
+  //    it's still below the low-stock line. Since both functions
+  //    already guard themselves correctly against their own
+  //    condition internally, just call BOTH — whichever actually
+  //    applies will act, the other is a safe no-op. ──
+  await syncProductAvailability(outletId, stockItemId);
+  await restoreProductAvailability(outletId, stockItemId);
 
   return { newStock: newQuantity };
 }
