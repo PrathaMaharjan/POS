@@ -57,10 +57,7 @@ export async function GET(req: NextRequest) {
     organizationId,
     roleId,
     outletId as string
-  );
-  // console.log(organizationId);
-  // console.log(roleId);
-
+  )
   if (!result.success) {
     return NextResponse.json(
       { error: result.error },

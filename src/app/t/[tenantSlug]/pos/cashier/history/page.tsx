@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import api from '@/lib/api';
-import { Loader2, MessageSquare } from 'lucide-react';
+import { Loader2, MessageSquare, Calendar, X } from 'lucide-react';
 import { ThemeProvider, useTheme } from '../../context/ThemeContext';
 
 type OrderStatus = 'COMPLETED' | 'CANCELLED' | 'PENDING';
@@ -52,33 +52,33 @@ const STATUS_STYLES_LIGHT: Record<OrderStatus, { label: string; dot: string; tex
 function getPaymentBadge(method: string | undefined, isDark: boolean): { label: string; color: string } {
   switch (method?.toUpperCase()) {
     case 'CASH':
-      return { 
-        label: 'Cash Payment', 
-        color: isDark 
-          ? 'text-neutral-300 bg-neutral-900/50 border border-neutral-800 px-2 py-0.5 rounded-md text-[11px]' 
-          : 'text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md text-[11px] font-semibold' 
+      return {
+        label: 'Cash Payment',
+        color: isDark
+          ? 'text-neutral-300 bg-neutral-900/50 border border-neutral-800 px-2 py-0.5 rounded-md text-[11px]'
+          : 'text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md text-[11px] font-semibold'
       };
     case 'CARD':
-      return { 
-        label: 'Card Payment', 
-        color: isDark 
-          ? 'text-neutral-300 bg-neutral-900/50 border border-neutral-800 px-2 py-0.5 rounded-md text-[11px]' 
-          : 'text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md text-[11px] font-semibold' 
+      return {
+        label: 'Card Payment',
+        color: isDark
+          ? 'text-neutral-300 bg-neutral-900/50 border border-neutral-800 px-2 py-0.5 rounded-md text-[11px]'
+          : 'text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md text-[11px] font-semibold'
       };
     case 'FONEPAY':
     case 'QR':
-      return { 
-        label: 'QR Payment', 
-        color: isDark 
-          ? 'text-neutral-300 bg-[#e5b83b]/10 border border-[#e5b83b]/20 px-2 py-0.5 rounded-md text-[11px]' 
-          : 'text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md text-[11px] font-semibold' 
+      return {
+        label: 'QR Payment',
+        color: isDark
+          ? 'text-neutral-300 bg-[#e5b83b]/10 border border-[#e5b83b]/20 px-2 py-0.5 rounded-md text-[11px]'
+          : 'text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md text-[11px] font-semibold'
       };
     default:
-      return { 
-        label: 'Unpaid Shift', 
-        color: isDark 
-          ? 'text-neutral-500 bg-neutral-900/20 border border-neutral-900 px-2 py-0.5 rounded-md text-[11px] font-semibold' 
-          : 'text-emerald-600 bg-emerald-50/50 border border-emerald-100 px-2 py-0.5 rounded-md text-[11px] font-semibold' 
+      return {
+        label: 'Unpaid Shift',
+        color: isDark
+          ? 'text-neutral-500 bg-neutral-900/20 border border-neutral-900 px-2 py-0.5 rounded-md text-[11px] font-semibold'
+          : 'text-emerald-600 bg-emerald-50/50 border border-emerald-100 px-2 py-0.5 rounded-md text-[11px] font-semibold'
       };
   }
 }
@@ -91,6 +91,14 @@ function formatTime(iso: string): string {
 function formatDate(iso: string): string {
   if (!iso) return '';
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ── NEW — YYYY-MM-DD in LOCAL time, for the date inputs and quick filters ──
+function toLocalDateInputValue(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryProps) {
@@ -109,13 +117,24 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  // ── NEW — date range filter state, sent to the backend as
+  //    query params so filtering happens SERVER-SIDE (client-side
+  //    filtering would only ever search within whatever page of
+  //    orders was already fetched, missing older matches) ──
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+
   useEffect(() => {
     async function fetchOrders() {
       try {
         setIsLoading(true);
         setError(null);
-        const res = await api.get('/orders');
-        console.log(res)
+
+        const paramsObj: Record<string, string> = {};
+        if (startDate) paramsObj.startDate = startDate;
+        if (endDate) paramsObj.endDate = endDate;
+
+        const res = await api.get('/orders', { params: paramsObj });
         const dbOrders = res.data.orders ?? [];
 
         const mapped: Order[] = dbOrders.map((o: any) => {
@@ -156,7 +175,7 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
       }
     }
     fetchOrders();
-  }, []);
+  }, [startDate, endDate]); // ← refetch whenever the date filter changes
 
   const filtered = useMemo(() => {
     return orders.filter(o => {
@@ -179,6 +198,36 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
 
   const handleSearch = (v: string) => { setSearch(v); setCurrentPage(1); };
   const handleStatusFilter = (v: string) => { setStatusFilter(v); setCurrentPage(1); };
+
+  // ── NEW — date filter handlers ──
+  const handleStartDateChange = (v: string) => { setStartDate(v); setCurrentPage(1); };
+  const handleEndDateChange = (v: string) => { setEndDate(v); setCurrentPage(1); };
+
+  const handleQuickDate = (mode: 'today' | 'week' | 'all') => {
+    if (mode === 'all') {
+      setStartDate('');
+      setEndDate('');
+    } else if (mode === 'today') {
+      const today = toLocalDateInputValue(new Date());
+      setStartDate(today);
+      setEndDate(today);
+    } else if (mode === 'week') {
+      const now = new Date();
+      const weekAgo = new Date(now);
+      weekAgo.setDate(now.getDate() - 6); // last 7 days inclusive
+      setStartDate(toLocalDateInputValue(weekAgo));
+      setEndDate(toLocalDateInputValue(now));
+    }
+    setCurrentPage(1);
+  };
+
+  const clearDateFilter = () => {
+    setStartDate('');
+    setEndDate('');
+    setCurrentPage(1);
+  };
+
+  const hasDateFilter = !!startDate || !!endDate;
 
   const stats = useMemo(() => {
     const completed = orders.filter(o => o.status === 'COMPLETED');
@@ -209,7 +258,9 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
           <div className="flex items-center justify-between flex-wrap gap-4 rounded-2xl p-5 border bg-[#141416] border-neutral-800 shadow-sm">
             <div>
               <h1 className="text-2xl font-bold text-white tracking-tight">Order History</h1>
-              <p className="text-sm text-neutral-500 mt-0.5">All orders from today's shift</p>
+              <p className="text-sm text-neutral-500 mt-0.5">
+                {hasDateFilter ? 'Filtered orders' : "All orders"}
+              </p>
             </div>
             <button
               onClick={handleGoBack}
@@ -225,7 +276,9 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
           <div className="flex items-center justify-between flex-wrap gap-4 rounded-2xl p-5 border bg-[#059669] border-[#047857] text-white shadow-sm">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white">Order History</h1>
-              <p className="text-sm mt-0.5 text-emerald-100">All orders from today's shift</p>
+              <p className="text-sm mt-0.5 text-emerald-100">
+                {hasDateFilter ? 'Filtered orders' : "All orders"}
+              </p>
             </div>
             <button
               onClick={handleGoBack}
@@ -246,9 +299,8 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
             { label: 'Completed', value: stats.completed, color: isDark ? 'text-[#22c55e]' : 'text-emerald-600', barColor: isDark ? 'bg-[#e5b83b]' : 'bg-emerald-500' },
             { label: 'Pending', value: stats.pending, color: isDark ? 'text-[#e5b83b]' : 'text-amber-500', barColor: isDark ? 'bg-[#e5b83b]' : 'bg-amber-500' },
           ].map(s => (
-            <div key={s.label} className={`border rounded-2xl p-5 relative overflow-hidden shadow-sm transition-all ${
-              isDark ? "bg-[#141416] border-neutral-800" : "bg-white border-slate-200"
-            }`}>
+            <div key={s.label} className={`border rounded-2xl p-5 relative overflow-hidden shadow-sm transition-all ${isDark ? "bg-[#141416] border-neutral-800" : "bg-white border-slate-200"
+              }`}>
               <div className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl ${s.barColor}`} />
               <p className={`text-[10px] font-bold tracking-widest uppercase ${isDark ? 'text-neutral-500' : 'text-slate-400'}`}>{s.label}</p>
               <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
@@ -269,8 +321,8 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
               value={search}
               onChange={e => handleSearch(e.target.value)}
               className={`w-full focus:ring-1 focus:ring-opacity-50 rounded-xl py-2.5 pl-9 pr-4 text-sm outline-none transition-all border ${isDark
-                  ? "bg-[#141416] border-neutral-800 focus:border-[#e5b83b]/60 text-white placeholder-neutral-500"
-                  : "bg-white border-slate-200 focus:border-emerald-500/60 focus:ring-emerald-500/30 text-slate-800 placeholder-slate-400 shadow-sm"
+                ? "bg-[#141416] border-neutral-800 focus:border-[#e5b83b]/60 text-white placeholder-neutral-500"
+                : "bg-white border-slate-200 focus:border-emerald-500/60 focus:ring-emerald-500/30 text-slate-800 placeholder-slate-400 shadow-sm"
                 }`}
             />
           </div>
@@ -281,18 +333,90 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
                 key={s}
                 onClick={() => handleStatusFilter(s)}
                 className={`px-4 py-2 rounded-lg text-xs font-bold transition-all duration-150 border ${statusFilter === s
-                    ? isDark
-                      ? 'bg-[#e5b83b] border-[#e5b83b] text-[#0c0c0d]'
-                      : 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
-                    : isDark
-                      ? 'bg-[#141416] text-neutral-400 border-neutral-800 hover:text-white'
-                      : 'bg-white text-slate-500 border-slate-200 hover:text-slate-850 hover:bg-slate-50 shadow-sm'
+                  ? isDark
+                    ? 'bg-[#e5b83b] border-[#e5b83b] text-[#0c0c0d]'
+                    : 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
+                  : isDark
+                    ? 'bg-[#141416] text-neutral-400 border-neutral-800 hover:text-white'
+                    : 'bg-white text-slate-500 border-slate-200 hover:text-slate-850 hover:bg-slate-50 shadow-sm'
                   }`}
               >
                 {s === 'ALL' ? 'All' : s.charAt(0) + s.slice(1).toLowerCase()}
               </button>
             ))}
           </div>
+        </div>
+
+        {/* ── NEW — date filter row: quick presets + custom range ── */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider shrink-0 ${isDark ? "text-neutral-500" : "text-slate-400"}`}>
+            <Calendar className="w-3.5 h-3.5" />
+            Date
+          </div>
+
+          <div className="flex gap-2">
+            {([
+              { key: 'today', label: 'Today' },
+              { key: 'week', label: 'Last 7 Days' },
+              { key: 'all', label: 'All Time' },
+            ] as const).map(({ key, label }) => {
+              const today = toLocalDateInputValue(new Date());
+              const isTodayActive = key === 'today' && startDate === today && endDate === today;
+              const isAllActive = key === 'all' && !hasDateFilter;
+              const isActive = isTodayActive || isAllActive;
+              return (
+                <button
+                  key={key}
+                  onClick={() => handleQuickDate(key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 border ${isActive
+                    ? isDark
+                      ? 'bg-[#e5b83b] border-[#e5b83b] text-[#0c0c0d]'
+                      : 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
+                    : isDark
+                      ? 'bg-[#141416] text-neutral-400 border-neutral-800 hover:text-white'
+                      : 'bg-white text-slate-500 border-slate-200 hover:text-slate-800 hover:bg-slate-50 shadow-sm'
+                    }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => handleStartDateChange(e.target.value)}
+              max={endDate || undefined}
+              className={`rounded-lg py-1.5 px-2.5 text-xs outline-none border transition-colors ${isDark
+                ? "bg-[#141416] border-neutral-800 text-white focus:border-[#e5b83b]/60"
+                : "bg-white border-slate-200 text-slate-700 focus:border-emerald-500/60"
+                }`}
+            />
+            <span className={`text-xs ${isDark ? "text-neutral-600" : "text-slate-400"}`}>to</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => handleEndDateChange(e.target.value)}
+              min={startDate || undefined}
+              className={`rounded-lg py-1.5 px-2.5 text-xs outline-none border transition-colors ${isDark
+                ? "bg-[#141416] border-neutral-800 text-white focus:border-[#e5b83b]/60"
+                : "bg-white border-slate-200 text-slate-700 focus:border-emerald-500/60"
+                }`}
+            />
+          </div>
+
+          {hasDateFilter && (
+            <button
+              onClick={clearDateFilter}
+              className={`flex items-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg transition-colors ${isDark ? "text-neutral-500 hover:text-white hover:bg-neutral-800" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                }`}
+            >
+              <X className="w-3 h-3" />
+              Clear
+            </button>
+          )}
         </div>
 
         <div className="flex flex-col gap-3">
@@ -311,7 +435,7 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                 <polyline points="14 2 14 8 20 8" />
               </svg>
-              <p className="text-sm font-medium">No orders found</p>
+              <p className="text-sm font-medium">No orders found{hasDateFilter ? ' for this date range' : ''}</p>
             </div>
           ) : (
             paginatedOrders.map(order => {
@@ -325,8 +449,8 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
                 <div
                   key={order.id}
                   className={`border rounded-2xl overflow-hidden transition-all duration-200 shadow-sm group ${isDark
-                      ? "bg-[#141416] border-neutral-800 hover:border-neutral-700"
-                      : "bg-white border-slate-200 hover:border-slate-300"
+                    ? "bg-[#141416] border-neutral-800 hover:border-neutral-700"
+                    : "bg-white border-slate-200 hover:border-slate-300"
                     }`}
                 >
                   <div
@@ -390,8 +514,8 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
                                 </div>
                                 {item.notes && (
                                   <div className={`flex items-start gap-1.5 text-xs px-2.5 py-1 rounded-lg mt-1 border self-start max-w-full ${isDark
-                                      ? "text-[#e5b83b]/90 bg-[#e5b83b]/5 border-[#e5b83b]/10"
-                                      : "text-amber-800 bg-amber-50 border-amber-200"
+                                    ? "text-[#e5b83b]/90 bg-[#e5b83b]/5 border-[#e5b83b]/10"
+                                    : "text-amber-800 bg-amber-50 border-amber-200"
                                     }`}>
                                     <MessageSquare className="w-3.5 h-3.5 mt-0.5 shrink-0 opacity-70" />
                                     <span className="italic">{item.notes}</span>
@@ -444,8 +568,8 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 className={`p-2 border rounded-xl disabled:opacity-30 transition-colors ${isDark
-                    ? "bg-[#141416] border-neutral-800 text-neutral-400 hover:text-white"
-                    : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm"
+                  ? "bg-[#141416] border-neutral-800 text-neutral-400 hover:text-white"
+                  : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm"
                   }`}
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
@@ -456,12 +580,12 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
                   key={page}
                   onClick={() => setCurrentPage(page)}
                   className={`min-w-[36px] h-9 rounded-xl text-xs font-bold transition-all duration-150 border ${currentPage === page
-                      ? isDark
-                        ? 'bg-[#e5b83b] border-[#e5b83b] text-[#0c0c0d]'
-                        : 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
-                      : isDark
-                        ? 'bg-[#141416] border-neutral-800 text-neutral-400 hover:text-white'
-                        : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 shadow-sm'
+                    ? isDark
+                      ? 'bg-[#e5b83b] border-[#e5b83b] text-[#0c0c0d]'
+                      : 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
+                    : isDark
+                      ? 'bg-[#141416] border-neutral-800 text-neutral-400 hover:text-white'
+                      : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 shadow-sm'
                     }`}
                 >
                   {page}
@@ -472,8 +596,8 @@ function HistoryInner({ tenantSlug: propTenantSlug, role = 'cashier' }: HistoryP
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 className={`p-2 border rounded-xl disabled:opacity-30 transition-colors ${isDark
-                    ? "bg-[#141416] border-neutral-800 text-neutral-400 hover:text-white"
-                    : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm"
+                  ? "bg-[#141416] border-neutral-800 text-neutral-400 hover:text-white"
+                  : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm"
                   }`}
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>

@@ -16,9 +16,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-// ─────────────────────────────────────────────
-// TYPES
-// ─────────────────────────────────────────────
+
 interface Role {
   id:          string;
   name:        string;
@@ -39,9 +37,6 @@ interface Permission {
 
 type PermissionsByModule = Record<string, Permission[]>;
 
-// ─────────────────────────────────────────────
-// CONSTANTS — unchanged from original
-// ─────────────────────────────────────────────
 const MODULE_GROUPS = {
   pos: {
     name: "POS Operations",
@@ -78,9 +73,6 @@ const MODULE_GROUPS = {
 
 const ITEMS_PER_PAGE = 8;
 
-// ─────────────────────────────────────────────
-// COMPONENT
-// ─────────────────────────────────────────────
 export default function OrgRolesPage() {
   const { tenantSlug } = useParams();
 
@@ -112,13 +104,8 @@ export default function OrgRolesPage() {
   const [statusFilter, setStatusFilter] = useState<"ALL" | "system" | "custom" | "active" | "inactive">("ALL");
   const [currentPage,  setCurrentPage]  = useState(1);
 
-  // ── cache only used for hover prefetch
-  //    NOT used to skip on expand (avoids stale data)
-  const permCache = useRef<Record<string, PermissionsByModule>>({});
 
-  // ─────────────────────────────────────────────
-  // 1. LOAD ORG NAME
-  // ─────────────────────────────────────────────
+  const permCache = useRef<Record<string, PermissionsByModule>>({});
   useEffect(() => {
     async function fetchOrg() {
       try {
@@ -138,9 +125,7 @@ export default function OrgRolesPage() {
     fetchOrg();
   }, [tenantSlug]);
 
-  // ─────────────────────────────────────────────
-  // 2. LOAD OUTLETS + ROLES in parallel on mount
-  // ─────────────────────────────────────────────
+
   useEffect(() => {
     async function load() {
       setIsOutletsLoading(true);
@@ -177,9 +162,7 @@ export default function OrgRolesPage() {
     load();
   }, []);
 
-  // ─────────────────────────────────────────────
-  // 3. LOAD STAFF when outlet changes
-  // ─────────────────────────────────────────────
+
   useEffect(() => {
     if (!activeOutletId) return;
     async function loadStaff() {
@@ -220,27 +203,6 @@ export default function OrgRolesPage() {
     });
   }, [roles]);
 
-  // ─────────────────────────────────────────────
-  // 5. FETCH PERMISSIONS — always hits API fresh
-  //    Does NOT serve from cache to avoid stale data
-  //    when superadmin changes permissions
-  // ─────────────────────────────────────────────
-  // const fetchPermissions = async (roleId: string) => {
-  //   setIsPermissionsLoading((prev) => ({ ...prev, [roleId]: true }));
-  //   setPermissionsError((prev)     => ({ ...prev, [roleId]: null }));
-  //   try {
-  //     const { data } = await api.get("/permission", { params: { roleId } });
-  //     const perms: PermissionsByModule = data.permissions ?? {};
-  //     // update both cache and state with fresh data
-  //     permCache.current[roleId] = perms;
-  //     setRolePermissions((prev) => ({ ...prev, [roleId]: perms }));
-  //   } catch (err: any) {
-  //     const msg = err.response?.data?.error ?? "Failed to load permissions";
-  //     setPermissionsError((prev) => ({ ...prev, [roleId]: msg }));
-  //   } finally {
-  //     setIsPermissionsLoading((prev) => ({ ...prev, [roleId]: false }));
-  //   }
-  // };
 
 const fetchPermissions = async (roleId: string) => {
   setIsPermissionsLoading((prev) => ({ ...prev, [roleId]: true }));
@@ -263,9 +225,7 @@ const fetchPermissions = async (roleId: string) => {
   }
 };
 
-  // ── expand/collapse — ALWAYS re-fetches fresh data ──
-  // no "if (!rolePermissions[roleId])" guard
-  // so superadmin changes are always reflected
+
   const handleToggleExpand = async (roleId: string) => {
     if (expandedRole === roleId) { setExpandedRole(null); return; }
     setExpandedRole(roleId);
@@ -279,24 +239,7 @@ const fetchPermissions = async (roleId: string) => {
     await fetchPermissions(roleId);   // fetch fresh from DB
   };
 
-  // ── hover prefetch — starts loading before user clicks ──
-  // const handleRowHover = (roleId: string) => {
-  //   if (!permCache.current[roleId] && !isPermissionsLoading[roleId]) {
-  //     // only prefetch if not cached — this is just a speed optimisation
-  //     // the real fresh fetch happens on expand
-  //     api
-  //       .get("/permission", { params: { roleId } })
-  //       .then(({ data }) => {
-  //         const perms: PermissionsByModule = data.permissions ?? {};
-  //         permCache.current[roleId] = perms;
-  //         setRolePermissions((prev) => {
-  //           if (prev[roleId]) return prev;
-  //           return { ...prev, [roleId]: perms };
-  //         });
-  //       })
-  //       .catch(() => {});
-  //   }
-  // };
+
 const handleRowHover = (roleId: string) => {
   if (!permCache.current[roleId] && !isPermissionsLoading[roleId]) {
     const params: Record<string, string> = { roleId };
@@ -323,9 +266,6 @@ const handleRowHover = (roleId: string) => {
     return () => document.removeEventListener("click", handleOutsideClick);
   }, [outletDropdownOpen]);
 
-  // ─────────────────────────────────────────────
-  // HELPERS
-  // ─────────────────────────────────────────────
   const activeOutletName = useMemo(
     () => outlets.find((o) => o.id === activeOutletId)?.name ?? "Select Outlet",
     [activeOutletId, outlets]
@@ -388,9 +328,7 @@ const handleOutletChange = (id: string) => {
     return filteredRoles.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredRoles, currentPage]);
 
-  // ─────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────
+
   return (
     <div className="flex flex-col gap-6 select-none">
 

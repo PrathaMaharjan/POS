@@ -13,7 +13,6 @@ const createSchema = z.object({
   imagePublicId: z.string().optional(), // key from Cloudinary, not a URL
   sortOrder: z.number().int().optional(),
   outletId: z.string().uuid().optional(),
-
 });
 
 // create product

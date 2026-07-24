@@ -16,18 +16,15 @@ export async function POST(req: NextRequest) {
   const isOwner = auth.payload.role === "Owner";
 
   const createSchema = z.object({
-    name: z.string().min(2),
-    email: z.string().email(),
-    phone: z.string().optional(),
-    role: isOwner
-      ? z.enum(["Manager", "Cashier", "Waiter", "Kitchen Crew"])
-      : z.enum(["Cashier", "Waiter", "Kitchen Crew"]),
-    password: z.string().min(8),
-    // ← outletId only required when Owner is calling
-    outletId: isOwner
-      ? z.string().uuid()
-      : z.string().uuid().optional(),
-  });
+  name:     z.string().min(2),
+  email:    z.string().email(),
+  phone:    z.string().optional(),
+  role:     isOwner
+    ? z.enum(["Manager", "Cashier", "Waiter", "Kitchen Crew", "All Rounder"]) // ← add here
+    : z.enum(["Cashier", "Waiter", "Kitchen Crew", "All Rounder"]), // ← and here
+  password: z.string().min(8),
+  outletId: isOwner ? z.string().uuid() : z.string().uuid().optional(),
+});
 
   const body = await req.json();
   const parsed = createSchema.safeParse(body);

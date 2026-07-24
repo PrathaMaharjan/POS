@@ -70,9 +70,7 @@
 
 // export default api;
 
-
 import axios from "axios";
-
 const api = axios.create({
   baseURL: "/api",
   withCredentials: true,
@@ -128,7 +126,6 @@ api.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
       } catch (refreshError) {
-        // ── refresh failed — session truly expired, clear and redirect ──
         localStorage.removeItem("accessToken");
         localStorage.removeItem("permissions");
         localStorage.removeItem("role");

@@ -1,4 +1,4 @@
-import { eq, sql, inArray, Column, ne, and, notInArray } from "drizzle-orm";
+import { eq, sql, inArray, Column, ne, and, notInArray, gte, lte } from "drizzle-orm";
 import { payments } from "@/db/schema"; // add to existing imports
 import { db } from "@/db";
 import {
@@ -292,8 +292,160 @@ type OrderWithItems = {
 export interface CreateDineInOrderInput {
   tableId: string;
   items: OrderItemInput[];
+  customerName?: string;
+  customerPhone?: string;
 }
 
+export const createDineInOrder = async (
+  outletId: string,
+  userId: string,
+  input: CreateDineInOrderInput,
+) => {
+   const { items, tableId, customerName, customerPhone } = input;
+
+  // ── STEP 1: fetch table + outlet IN PARALLEL ──
+  const [table, outlet] = await Promise.all([
+    db.query.diningTables.findFirst({
+      where: (t, { eq, and }) =>
+        and(eq(t.id, tableId), eq(t.outletId, outletId), eq(t.isActive, true)),
+      columns: { id: true, status: true },
+    }),
+    db.query.outlets.findFirst({
+      where: (o, { eq }) => eq(o.id, outletId),
+      columns: {
+        skipKitchenWorkflow: true,
+        taxEnabled: true,
+        taxRate: true,
+        taxName: true,
+      },
+    }),
+  ]);
+
+  if (!table) {
+    return {
+      success: false,
+      error: "Invalid table for this outlet",
+      status: 400,
+    };
+  }
+
+  if (!outlet) {
+    return {
+      success: false,
+      error: "Outlet not found",
+      status: 404,
+    };
+  }
+
+  // ── STEP 2: price items + order number IN PARALLEL ──
+  const [priced, orderNumber] = await Promise.all([
+    priceItem(outletId, items),
+    getNextOrderNumber(outletId),
+  ]);
+
+  if (!priced.success) return priced;
+
+  const { itemRows, subtotal } = priced.data;
+
+  // ── TAX — read from outlet config instead of hardcoded 0.08 ──
+  // taxRate stored as percentage e.g. 13.00 means 13%
+  const taxRate = outlet.taxEnabled ? parseFloat(outlet.taxRate ?? "0") : 0;
+  const taxName = outlet.taxEnabled ? (outlet.taxName ?? "VAT") : null;
+  const taxAmount = parseFloat(((subtotal * taxRate) / 100).toFixed(2));
+  const total = parseFloat((subtotal + taxAmount).toFixed(2));
+
+  // ── KOT status from outlet config ──
+  const kotStatus = outlet.skipKitchenWorkflow ? "ready" : "pending";
+
+  try {
+    // ── STEP 3: insert order ──
+    const [order] = await db
+      .insert(orders)
+      .values({
+        outletId,
+        orderType: "dine_in",
+        tableId,
+        orderNumber,
+        status: "pending",
+        subtotal: subtotal.toFixed(2),
+        taxRate: taxRate.toFixed(2), // ← saved so receipt can show it later
+        taxAmount: taxAmount.toFixed(2), // ← actual tax in rupees
+        total: total.toFixed(2), // ← subtotal + taxAmount
+        createdBy: userId,
+        customerName : customerName,
+        customerPhone : customerPhone
+      })
+      .returning();
+
+    // ── STEP 4: insert order items ──
+    const insertedItems = await db
+      .insert(orderItems)
+      .values(itemRows.map((row) => ({ ...row, orderId: order.id })))
+      .returning();
+
+    // ── STEP 5: update table + insert KOT IN PARALLEL ──
+    const [kotTicket] = await Promise.all([
+      db
+        .insert(kotTickets)
+        .values({
+          orderId: order.id,
+          outletId: outletId,
+          status: kotStatus,
+        })
+        .returning()
+        .then((rows) => rows[0]),
+
+      db
+        .update(diningTables)
+        .set({ status: "occupied" })
+        .where(eq(diningTables.id, tableId)),
+    ]);
+
+    // ── STEP 6: insert KOT items ──
+    await db.insert(kotItems).values(
+      insertedItems.map((item) => ({
+        kotTicketId: kotTicket.id,
+        orderItemId: item.id,
+      })),
+    );
+
+    // ── STEP 7: deduct stock (non-blocking) ──
+   deductStockForOrder(
+    outletId,
+    order.id,
+    insertedItems.map((item) => ({
+      id:        item.id,
+      productId: item.productId,
+      variantId: item.variantId, // ← added
+      quantity:  item.quantity,
+    })),
+    userId,
+  ).catch((err) => console.error("deductStockForOrder error:", err));
+
+    return {
+      success: true,
+      data: {
+        order,
+        items: insertedItems,
+        tax: {
+          rate: taxRate, // e.g. 13
+          amount: taxAmount, // e.g. 104.00
+          name: taxName, // e.g. "VAT"
+        },
+        subtotal,
+        total,
+        stockWarnings: [],
+      },
+    };
+  } catch (error) {
+    console.error("createDineInOrder error:", error);
+    return {
+      success: false,
+      error: "Failed to create dine-in order",
+      status: 500,
+    };
+  }
+};
 // export const createDineInOrder = async (
 //   outletId: string,
 //   userId: string,
@@ -544,154 +696,7 @@ export interface CreateDineInOrderInput {
 //   }
 // };
 
-export const createDineInOrder = async (
-  outletId: string,
-  userId: string,
-  input: CreateDineInOrderInput,
-) => {
-  const { items, tableId } = input;
 
-  // ── STEP 1: fetch table + outlet IN PARALLEL ──
-  const [table, outlet] = await Promise.all([
-    db.query.diningTables.findFirst({
-      where: (t, { eq, and }) =>
-        and(eq(t.id, tableId), eq(t.outletId, outletId), eq(t.isActive, true)),
-      columns: { id: true, status: true },
-    }),
-    db.query.outlets.findFirst({
-      where: (o, { eq }) => eq(o.id, outletId),
-      columns: {
-        skipKitchenWorkflow: true,
-        taxEnabled: true,
-        taxRate: true,
-        taxName: true,
-      },
-    }),
-  ]);
-
-  if (!table) {
-    return {
-      success: false,
-      error: "Invalid table for this outlet",
-      status: 400,
-    };
-  }
-
-  if (!outlet) {
-    return {
-      success: false,
-      error: "Outlet not found",
-      status: 404,
-    };
-  }
-
-  // ── STEP 2: price items + order number IN PARALLEL ──
-  const [priced, orderNumber] = await Promise.all([
-    priceItem(outletId, items),
-    getNextOrderNumber(outletId),
-  ]);
-
-  if (!priced.success) return priced;
-
-  const { itemRows, subtotal } = priced.data;
-
-  // ── TAX — read from outlet config instead of hardcoded 0.08 ──
-  // taxRate stored as percentage e.g. 13.00 means 13%
-  const taxRate = outlet.taxEnabled ? parseFloat(outlet.taxRate ?? "0") : 0;
-  const taxName = outlet.taxEnabled ? (outlet.taxName ?? "VAT") : null;
-  const taxAmount = parseFloat(((subtotal * taxRate) / 100).toFixed(2));
-  const total = parseFloat((subtotal + taxAmount).toFixed(2));
-
-  // ── KOT status from outlet config ──
-  const kotStatus = outlet.skipKitchenWorkflow ? "ready" : "pending";
-
-  try {
-    // ── STEP 3: insert order ──
-    const [order] = await db
-      .insert(orders)
-      .values({
-        outletId,
-        orderType: "dine_in",
-        tableId,
-        orderNumber,
-        status: "pending",
-        subtotal: subtotal.toFixed(2),
-        taxRate: taxRate.toFixed(2), // ← saved so receipt can show it later
-        taxAmount: taxAmount.toFixed(2), // ← actual tax in rupees
-        total: total.toFixed(2), // ← subtotal + taxAmount
-        createdBy: userId,
-      })
-      .returning();
-
-    // ── STEP 4: insert order items ──
-    const insertedItems = await db
-      .insert(orderItems)
-      .values(itemRows.map((row) => ({ ...row, orderId: order.id })))
-      .returning();
-
-    // ── STEP 5: update table + insert KOT IN PARALLEL ──
-    const [kotTicket] = await Promise.all([
-      db
-        .insert(kotTickets)
-        .values({
-          orderId: order.id,
-          outletId: outletId,
-          status: kotStatus,
-        })
-        .returning()
-        .then((rows) => rows[0]),
-
-      db
-        .update(diningTables)
-        .set({ status: "occupied" })
-        .where(eq(diningTables.id, tableId)),
-    ]);
-
-    // ── STEP 6: insert KOT items ──
-    await db.insert(kotItems).values(
-      insertedItems.map((item) => ({
-        kotTicketId: kotTicket.id,
-        orderItemId: item.id,
-      })),
-    );
-
-    // ── STEP 7: deduct stock (non-blocking) ──
-   deductStockForOrder(
-    outletId,
-    order.id,
-    insertedItems.map((item) => ({
-      id:        item.id,
-      productId: item.productId,
-      variantId: item.variantId, // ← added
-      quantity:  item.quantity,
-    })),
-    userId,
-  ).catch((err) => console.error("deductStockForOrder error:", err));
-
-    return {
-      success: true,
-      data: {
-        order,
-        items: insertedItems,
-        tax: {
-          rate: taxRate, // e.g. 13
-          amount: taxAmount, // e.g. 104.00
-          name: taxName, // e.g. "VAT"
-        },
-        subtotal,
-        total,
-        stockWarnings: [],
-      },
-    };
-  } catch (error) {
-    console.error("createDineInOrder error:", error);
-    return {
-      success: false,
-      error: "Failed to create dine-in order",
-      status: 500,
-    };
-  }
-};
 export interface CreateTakeawayOrderInput {
   customerName?: string;
   customerPhone?: string;
@@ -761,9 +766,35 @@ export async function createTakeawayOrder(
   }
 }
 // read ..........
-export const listOrder = async (outletId: string) => {
+export const listOrder = async (
+  outletId: string,
+  options?: {
+    date?: string;       // single day, e.g. "2026-07-23"
+    startDate?: string;  // range start, e.g. "2026-07-01"
+    endDate?: string;    // range end, e.g. "2026-07-23"
+  }
+) => {
+  const conditions = [eq(orders.outletId, outletId)];
+  console.log(outletId)
+
+  if (options?.date) {
+    // ── filter to the whole day ──
+    const dayStart = new Date(`${options.date}T00:00:00.000Z`);
+    const dayEnd   = new Date(`${options.date}T23:59:59.999Z`);
+    conditions.push(gte(orders.createdAt, dayStart));
+    conditions.push(lte(orders.createdAt, dayEnd));
+  } else {
+    // ── or a custom range, either bound optional ──
+    if (options?.startDate) {
+      conditions.push(gte(orders.createdAt, new Date(`${options.startDate}T00:00:00.000Z`)));
+    }
+    if (options?.endDate) {
+      conditions.push(lte(orders.createdAt, new Date(`${options.endDate}T23:59:59.999Z`)));
+    }
+  }
+
   return db.query.orders.findMany({
-    where: (o, { eq }) => eq(o.outletId, outletId),
+    where: and(...conditions),
     orderBy: (o, { desc }) => desc(o.createdAt),
     limit: 50,
     with: {
@@ -777,6 +808,22 @@ export const listOrder = async (outletId: string) => {
     },
   });
 };
+// export const listOrder = async (outletId: string) => {
+//   return db.query.orders.findMany({
+//     where: (o, { eq }) => eq(o.outletId, outletId),
+//     orderBy: (o, { desc }) => desc(o.createdAt),
+//     limit: 50,
+//     with: {
+//       items: {
+//         with: {
+//           product: true,
+//         },
+//       },
+//       table: true,
+//       payments: true,
+//     },
+//   });
+// };
 // single order detail
 export async function getOrderById(outletId: string, orderId: string) {
   return db.query.orders.findFirst({
