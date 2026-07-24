@@ -101,7 +101,7 @@ export async function createStockItem(
   outletId: string,
   input: {
     name: string;
-    unit: "g" | "kg" | "ml" | "L" | "pieces";
+   unit: "g" | "kg" | "ml" | "L" | "pieces" | "pack" | "box" | "bottle" | "can" | "bag" | "other";
     currentStock?: number;
     minStockLevel?: number;
     categoryId: string;

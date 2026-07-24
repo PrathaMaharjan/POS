@@ -23,6 +23,12 @@ export const stockUnitEnum = pgEnum("stock_unit", [
   "ml",
   "L",
   "pieces",
+  "pack",
+  "box",
+  "bottle",
+  "can",
+  "bag",
+  "other",
 ]);
 
 export const stockMovementTypeEnum = pgEnum("stock_movement_type", [
