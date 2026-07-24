@@ -533,7 +533,7 @@ export default function SuperAdminOverviewPage() {
 
   return (
     <div className="flex flex-col gap-8 p-4 md:p-0">
-      {/* Header Banner */}
+      
       <div className="rounded-2xl bg-emerald-600 px-6 py-6 text-white shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Overview</h1>

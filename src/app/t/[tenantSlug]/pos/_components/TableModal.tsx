@@ -180,6 +180,8 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
               total: Number(dbOrder.total),
               subtotal: Number(dbOrder.subtotal),
               createdAt: dbOrder.createdAt,
+              customerName: dbOrder.customerName ?? null,
+              customerPhone: dbOrder.customerPhone ?? null,
               items: (dbOrder.items ?? []).map((item: any) => {
                 const baseName = item.product?.name ?? 'Unknown Item';
                 return {
@@ -663,6 +665,12 @@ export default function TableModal({ table, tenantSlug, role, onClose, onStatusC
                             <p className="text-[11px] text-neutral-500 mt-0.5">
                               {new Date(order.createdAt).toLocaleString()}
                             </p>
+                            {(order.customerName || order.customerPhone) && (
+                              <div className={`flex items-center gap-2 text-xs font-semibold mt-1 ${isDark ? 'text-[#e5b83b]/90' : 'text-emerald-700'}`}>
+                                {order.customerName && <span>Customer: {order.customerName}</span>}
+                                {order.customerPhone && <span className="opacity-80">({order.customerPhone})</span>}
+                              </div>
+                            )}
                           </div>
                           <span className={`text-sm font-bold ${isDark ? 'text-[#e5b83b]' : 'text-slate-800'}`}>Rs.{order.total.toFixed(2)}</span>
                         </div>

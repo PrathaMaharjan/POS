@@ -21,13 +21,15 @@ import { createDineInOrder } from "@/controller/orderController";
 
 const schema = z.object({
   tableId: z.string().uuid(),
+  customerName: z.string().optional(),
+  customerPhone: z.string().optional(),
   items: z
     .array(
       z.object({
         productId: z.string().uuid(),
-        variantId: z.string().uuid().optional(), 
-        quantity:  z.number().int().positive(),
-        notes:     z.string().optional(),
+        variantId: z.string().uuid().optional(),
+        quantity: z.number().int().positive(),
+        notes: z.string().optional(),
       })
     )
     .min(1),

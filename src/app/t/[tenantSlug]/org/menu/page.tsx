@@ -23,6 +23,7 @@ interface ProductSize {
   id?: string;
   label: string;
   price: number;
+  isAvailable?: boolean;
 }
 
 interface MenuItem {
@@ -41,8 +42,7 @@ interface SizeDraft {
   id?: string;
   label: string;
   price: string;
-  /** Stable client-side key: the variant id if it already exists, otherwise a generated temp id.
-   *  Used to track which recipe belongs to which size row, even before it's saved. */
+
   key: string;
 }
 
@@ -91,6 +91,7 @@ async function fetchVariants(productId: string, outletId: string): Promise<Produ
       id: v.id,
       label: v.label,
       price: Number(v.price),
+      isAvailable: v.isAvailable ?? true,
     }));
   } catch {
     return [];
@@ -220,7 +221,7 @@ export default function MenuManagement() {
         }
         const res = await api.get(url);
         const productsList = res.data.products?.products ?? res.data.products ?? [];
-        
+
         const withSizes = await Promise.all(
           productsList.map(async (p: any) => {
             const cat = categories.find((c) => c.id === p.categoryId);
@@ -366,9 +367,9 @@ export default function MenuManagement() {
     const sizesDraft: SizeDraft[] = hasSizes
       ? item.sizes!.map((s) => ({ id: s.id, label: s.label, price: String(s.price), key: s.id ?? makeTempKey() }))
       : [
-          { label: "", price: "", key: makeTempKey() },
-          { label: "", price: "", key: makeTempKey() },
-        ];
+        { label: "", price: "", key: makeTempKey() },
+        { label: "", price: "", key: makeTempKey() },
+      ];
 
     setDraft({
       name: item.name,
@@ -489,7 +490,7 @@ export default function MenuManagement() {
 
     if (rows.length === 0) {
       if (hadExisting) {
-        await api.delete(`/recipe/${productId}${query}`).catch(() => {});
+        await api.delete(`/recipe/${productId}${query}`).catch(() => { });
       }
       return;
     }
@@ -803,11 +804,16 @@ export default function MenuManagement() {
 
             {filteredItems.map((item) => {
               const hasMultipleSizes = !!item.sizes && item.sizes.length > 1;
+              const isItemAvailable =
+                item.isAvailable !== false &&
+                (!item.sizes ||
+                  item.sizes.length === 0 ||
+                  item.sizes.some((s) => s.isAvailable !== false));
               const displayPrice = hasMultipleSizes
                 ? Math.min(...item.sizes!.map((s) => s.price))
                 : Number(item.price);
               return (
-                <div key={item.id} className={`bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow ${!item.isAvailable ? "opacity-75" : ""}`}>
+                <div key={item.id} className={`bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow ${!isItemAvailable ? "opacity-75" : ""}`}>
                   <div className="relative h-36 md:h-40 w-full shrink-0 bg-slate-100">
                     {item.imageUrl ? (
                       <Image
@@ -831,7 +837,7 @@ export default function MenuManagement() {
                         <Ruler className="w-2.5 h-2.5" /> {item.sizes!.length} sizes
                       </span>
                     )}
-                    {!item.isAvailable && (
+                    {!isItemAvailable && (
                       <div className="absolute inset-0 flex items-center justify-center backdrop-blur-[1.5px] z-20 animate-in fade-in duration-200" style={{ backgroundColor: 'rgba(15, 15, 17, 0.7)' }}>
                         <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest text-neutral-200 bg-neutral-800/90 border border-neutral-700/50 shadow-sm">
                           Out of Stock
@@ -846,12 +852,19 @@ export default function MenuManagement() {
                         <h4 className="text-sm font-semibold text-slate-800 line-clamp-2 break-words">{item.name}</h4>
                         {hasMultipleSizes ? (
                           <div className="flex flex-col gap-0.5 shrink-0 whitespace-nowrap">
-                            {item.sizes!.map((s) => (
-                              <div key={s.id} className="flex justify-end gap-2 text-xs">
-                                <span className="text-slate-500">{s.label}:</span>
-                                <span className="font-bold text-emerald-600">Rs.{s.price.toFixed(2)}</span>
-                              </div>
-                            ))}
+                            {item.sizes!.map((s) => {
+                              const isSizeAvail = s.isAvailable !== false;
+                              return (
+                                <div key={s.id ?? s.label} className={`flex justify-end gap-2 text-xs ${!isSizeAvail ? "opacity-50 line-through" : ""}`}>
+                                  <span className={isSizeAvail ? "text-slate-500" : "text-slate-400"}>
+                                    {s.label} {!isSizeAvail ? "(Out of stock)" : ""}:
+                                  </span>
+                                  <span className={`font-bold ${isSizeAvail ? "text-emerald-600" : "text-slate-400"}`}>
+                                    Rs.{s.price.toFixed(2)}
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
                         ) : (
                           <span className="text-sm font-bold text-emerald-600 shrink-0 whitespace-nowrap">
@@ -1074,11 +1087,10 @@ export default function MenuManagement() {
                               key={s.key}
                               type="button"
                               onClick={() => setActiveRecipeTab(s.key)}
-                              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
-                                activeRecipeTab === s.key
+                              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${activeRecipeTab === s.key
                                   ? "bg-emerald-600 border-emerald-600 text-white"
                                   : "bg-white border-slate-200 text-slate-500 hover:bg-slate-100"
-                              }`}
+                                }`}
                             >
                               {s.label.trim() || `Size ${i + 1}`}
                             </button>

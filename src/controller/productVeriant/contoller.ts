@@ -31,13 +31,60 @@ export async function listVariants(
   const check = await verifyProductOwnership(outletId, productId);
   if (!check.success) return check;
 
-  const variants = await db.query.productVariants.findMany({
-    where: (v, { eq, and }) =>
-      and(eq(v.productId, productId), eq(v.isActive, true)),
-    orderBy: (v, { asc }) => [asc(v.sortOrder), asc(v.createdAt)],
+  const [variants, productRecipes] = await Promise.all([
+    db.query.productVariants.findMany({
+      where: (v, { eq, and }) =>
+        and(eq(v.productId, productId), eq(v.isActive, true)),
+      orderBy: (v, { asc }) => [asc(v.sortOrder), asc(v.createdAt)],
+    }),
+    db.query.recipes.findMany({
+      where: (r, { eq, and }) =>
+        and(eq(r.productId, productId), eq(r.outletId, outletId)),
+      with: {
+        recipeItems: {
+          with: {
+            stockItem: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  const baseRecipe = productRecipes.find((r) => r.variantId === null);
+  const variantRecipesMap = new Map(
+    productRecipes
+      .filter((r) => r.variantId !== null)
+      .map((r) => [r.variantId as string, r]),
+  );
+
+  const evaluatedVariants = variants.map((variant) => {
+    let isAvailable = variant.isAvailable;
+
+    if (isAvailable) {
+      const recipe = variantRecipesMap.get(variant.id) ?? baseRecipe;
+      if (recipe && recipe.recipeItems.length > 0) {
+        for (const item of recipe.recipeItems) {
+          const stock = item.stockItem;
+          if (!stock) continue;
+          const current = Number(stock.currentStock ?? 0);
+          const reqQty = Number(item.quantity ?? 0);
+          const minStock = Number(stock.minStockLevel ?? 0);
+
+          if (current < reqQty || current <= minStock) {
+            isAvailable = false;
+            break;
+          }
+        }
+      }
+    }
+
+    return {
+      ...variant,
+      isAvailable,
+    };
   });
 
-  return { success: true, data: variants };
+  return { success: true, data: evaluatedVariants };
 }
 
 export async function createVariant(
@@ -98,15 +145,15 @@ export async function createVariant(
 // UPDATE VARIANT
 // ─────────────────────────────────────────────
 export async function updateVariant(
-  outletId:  string,
+  outletId: string,
   productId: string,
   variantId: string,
   input: {
-    label?:     string;
-    price?:     string;
+    label?: string;
+    price?: string;
     isDefault?: boolean;
     sortOrder?: number;
-    isActive?:  boolean;
+    isActive?: boolean;
   }
 ): Promise<ControllerResult<typeof productVariants.$inferSelect>> {
   const check = await verifyProductOwnership(outletId, productId);
@@ -122,13 +169,13 @@ export async function updateVariant(
   }
 
   const updateValues: Record<string, unknown> = { updatedAt: new Date() };
-  if (input.label     !== undefined) updateValues.label     = input.label;
-  if (input.price     !== undefined) updateValues.price     = input.price;
+  if (input.label !== undefined) updateValues.label = input.label;
+  if (input.price !== undefined) updateValues.price = input.price;
   if (input.sortOrder !== undefined) updateValues.sortOrder = input.sortOrder;
-  if (input.isActive  !== undefined) updateValues.isActive  = input.isActive;
+  if (input.isActive !== undefined) updateValues.isActive = input.isActive;
 
   try {
-    // ── if setting this as default, unset any OTHER default for this product ──
+
     if (input.isDefault === true) {
       await db
         .update(productVariants)
@@ -152,7 +199,7 @@ export async function updateVariant(
     if (error?.code === "23505") {
       return {
         success: false,
-        error:  `A variant named "${input.label}" already exists for this product`,
+        error: `A variant named "${input.label}" already exists for this product`,
         status: 409,
       };
     }
@@ -163,7 +210,7 @@ export async function updateVariant(
 
 // deleyte
 export async function deleteVariant(
-  outletId:  string,
+  outletId: string,
   productId: string,
   variantId: string
 ): Promise<ControllerResult<null>> {

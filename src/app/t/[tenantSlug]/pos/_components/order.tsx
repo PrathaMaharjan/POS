@@ -31,7 +31,7 @@ interface ProductSize {
   id?: string;
   label: string;
   price: number;
-  
+  isAvailable?: boolean;
 }
 
 interface Product {
@@ -74,6 +74,8 @@ export interface CreatedOrder {
   total: number;
   subtotal: number;
   createdAt: string;
+  customerName?: string | null;
+  customerPhone?: string | null;
   items: OrderItemRecord[];
 }
 
@@ -436,6 +438,8 @@ export default function Order({
           subtotal,
           total,
           createdAt: new Date().toISOString(),
+          customerName: customerName.trim() || undefined,
+          customerPhone: customerPhone.trim() || undefined,
           items: cart.map((item) => ({
             quantity: item.quantity,
             name: item.size.label
@@ -624,6 +628,11 @@ export default function Order({
                     (item) => item.product.id === product.id,
                   );
                   const sizes = getRealSizes(product);
+                  const isAvailable =
+                    product.isAvailable !== false &&
+                    (!sizes ||
+                      sizes.length === 0 ||
+                      sizes.some((s) => s.isAvailable !== false));
                   const priceNum = parseFloat(product.price);
                   const displayPrice = sizes
                     ? Math.min(...sizes.map((s) => s.price))
@@ -632,7 +641,7 @@ export default function Order({
                     <div
                       key={`${product.id}-${idx}`}
                       onClick={
-                        product.isAvailable
+                        isAvailable
                           ? () => handleProductClick(product)
                           : undefined
                       }
@@ -644,7 +653,7 @@ export default function Order({
                           : "none",
                       }}
                       className={`relative border rounded-2xl p-3 flex flex-col gap-2 overflow-hidden transition-all duration-200 ${
-                        product.isAvailable
+                        isAvailable
                           ? "cursor-pointer hover:-translate-y-0.5 hover:brightness-[1.03]"
                           : "cursor-not-allowed opacity-60"
                       }`}
@@ -689,7 +698,7 @@ export default function Order({
                             </div>
                           </div>
                         )}
-                        {!product.isAvailable && (
+                        {!isAvailable && (
                           <div
                             className="absolute inset-0 flex items-center justify-center backdrop-blur-[1.5px]"
                             style={{ backgroundColor: "rgba(15, 15, 17, 0.7)" }}
@@ -726,28 +735,45 @@ export default function Order({
                         )}
                         {sizes ? (
                           <div className="flex flex-col mt-1 gap-0.5">
-                            {sizes.map((s) => (
-                              <div
-                                key={s.id}
-                                className="flex justify-between items-center text-[12px]"
-                              >
-                                <span
-                                  style={{
-                                    color: isDark
-                                      ? textMuted
-                                      : "rgba(255,255,255,0.8)",
-                                  }}
+                            {sizes.map((s) => {
+                              const isSizeAvailable = s.isAvailable !== false;
+                              return (
+                                <div
+                                  key={s.id ?? s.label}
+                                  className={`flex justify-between items-center text-[12px] ${
+                                    !isSizeAvailable ? "opacity-50 line-through" : ""
+                                  }`}
                                 >
-                                  {s.label}
-                                </span>
-                                <span
-                                  className="font-bold"
-                                  style={{ color: isDark ? accent : "#ffffff" }}
-                                >
-                                  Rs.{s.price.toFixed(2)}
-                                </span>
-                              </div>
-                            ))}
+                                  <span
+                                    style={{
+                                      color: isDark
+                                        ? isSizeAvailable
+                                          ? textMuted
+                                          : textFaint
+                                        : isSizeAvailable
+                                          ? "rgba(255,255,255,0.8)"
+                                          : "rgba(255,255,255,0.5)",
+                                    }}
+                                  >
+                                    {s.label} {!isSizeAvailable ? "(Out of stock)" : ""}
+                                  </span>
+                                  <span
+                                    className="font-bold"
+                                    style={{
+                                      color: isDark
+                                        ? isSizeAvailable
+                                          ? accent
+                                          : textFaint
+                                        : isSizeAvailable
+                                          ? "#ffffff"
+                                          : "rgba(255,255,255,0.5)",
+                                    }}
+                                  >
+                                    Rs.{s.price.toFixed(2)}
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
                         ) : (
                           <span
@@ -948,46 +974,44 @@ export default function Order({
             style={{ borderColor: sidebarBorderCol }}
             className="border-t pt-4 flex flex-col gap-3"
           >
-            {orderType === "TAKEAWAY" && (
-              <div className="flex flex-col gap-2">
-                <input
-                  type="text"
-                  placeholder="Customer name (optional)"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  style={{
-                    backgroundColor: sidebarSurfaceBg,
-                    borderColor: sidebarBorderCol,
-                    color: sidebarTextPrim,
-                  }}
-                  className="w-full border rounded-xl py-2 px-3 text-sm outline-none transition-all duration-150 placeholder-white/50"
-                  onFocus={(e) =>
-                    (e.currentTarget.style.borderColor = sidebarAccent)
-                  }
-                  onBlur={(e) =>
-                    (e.currentTarget.style.borderColor = sidebarBorderCol)
-                  }
-                />
-                <input
-                  type="text"
-                  placeholder="Phone number (optional)"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  style={{
-                    backgroundColor: sidebarSurfaceBg,
-                    borderColor: sidebarBorderCol,
-                    color: sidebarTextPrim,
-                  }}
-                  className="w-full border rounded-xl py-2 px-3 text-sm outline-none transition-all duration-150 placeholder-white/50"
-                  onFocus={(e) =>
-                    (e.currentTarget.style.borderColor = sidebarAccent)
-                  }
-                  onBlur={(e) =>
-                    (e.currentTarget.style.borderColor = sidebarBorderCol)
-                  }
-                />
-              </div>
-            )}
+            <div className="flex flex-col gap-2">
+              <input
+                type="text"
+                placeholder="Customer name (optional)"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                style={{
+                  backgroundColor: sidebarSurfaceBg,
+                  borderColor: sidebarBorderCol,
+                  color: sidebarTextPrim,
+                }}
+                className="w-full border rounded-xl py-2 px-3 text-sm outline-none transition-all duration-150 placeholder-white/50"
+                onFocus={(e) =>
+                  (e.currentTarget.style.borderColor = sidebarAccent)
+                }
+                onBlur={(e) =>
+                  (e.currentTarget.style.borderColor = sidebarBorderCol)
+                }
+              />
+              <input
+                type="text"
+                placeholder="Phone number (optional)"
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                style={{
+                  backgroundColor: sidebarSurfaceBg,
+                  borderColor: sidebarBorderCol,
+                  color: sidebarTextPrim,
+                }}
+                className="w-full border rounded-xl py-2 px-3 text-sm outline-none transition-all duration-150 placeholder-white/50"
+                onFocus={(e) =>
+                  (e.currentTarget.style.borderColor = sidebarAccent)
+                }
+                onBlur={(e) =>
+                  (e.currentTarget.style.borderColor = sidebarBorderCol)
+                }
+              />
+            </div>
 
             <div className="space-y-1.5">
               <div className="flex justify-between text-sm">
@@ -1089,44 +1113,50 @@ export default function Order({
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
-              {(getRealSizes(sizeModalProduct) ?? []).map((size) => (
-                <button
-                  key={size.label}
-                  onClick={() => handleSelectSize(sizeModalProduct, size)}
-                  className={`flex flex-col items-center justify-center gap-1 rounded-xl py-3 px-2 transition-all duration-150 hover:-translate-y-0.5 active:scale-[0.98] ${!isDark ? "shadow-sm" : "border hover:brightness-[1.03]"}`}
-                  style={{
-                    backgroundColor: isDark ? surfaceBg2 : "#ffffff",
-                    borderColor: isDark ? borderCol : undefined,
-                  }}
-                  onMouseEnter={
-                    isDark
-                      ? (e) =>
-                          ((e.currentTarget as HTMLElement).style.borderColor =
-                            accent)
-                      : undefined
-                  }
-                  onMouseLeave={
-                    isDark
-                      ? (e) =>
-                          ((e.currentTarget as HTMLElement).style.borderColor =
-                            borderCol)
-                      : undefined
-                  }
-                >
-                  <span
-                    className="text-sm font-bold"
-                    style={{ color: isDark ? textPrim : "#1e293b" }}
+              {(getRealSizes(sizeModalProduct) ?? [])
+                .filter((size) => size.isAvailable !== false)
+                .map((size) => (
+                  <button
+                    key={size.label}
+                    onClick={() => handleSelectSize(sizeModalProduct, size)}
+                    className={`flex flex-col items-center justify-center gap-1 rounded-xl py-3 px-2 transition-all duration-150 hover:-translate-y-0.5 active:scale-[0.98] ${
+                      !isDark
+                        ? "shadow-sm bg-white"
+                        : "border hover:brightness-[1.03]"
+                    }`}
+                    style={{
+                      backgroundColor: isDark ? surfaceBg2 : "#ffffff",
+                      borderColor: isDark ? borderCol : undefined,
+                    }}
+                    onMouseEnter={
+                      isDark
+                        ? (e) =>
+                            ((e.currentTarget as HTMLElement).style.borderColor =
+                              accent)
+                        : undefined
+                    }
+                    onMouseLeave={
+                      isDark
+                        ? (e) =>
+                            ((e.currentTarget as HTMLElement).style.borderColor =
+                              borderCol)
+                        : undefined
+                    }
                   >
-                    {size.label}
-                  </span>
-                  <span
-                    className="text-xs font-semibold"
-                    style={{ color: isDark ? accent : "#059669" }}
-                  >
-                    Rs.{size.price.toFixed(2)}
-                  </span>
-                </button>
-              ))}
+                    <span
+                      className="text-sm font-bold"
+                      style={{ color: isDark ? textPrim : "#1e293b" }}
+                    >
+                      {size.label}
+                    </span>
+                    <span
+                      className="text-xs font-semibold"
+                      style={{ color: isDark ? accent : "#059669" }}
+                    >
+                      Rs.{size.price.toFixed(2)}
+                    </span>
+                  </button>
+                ))}
             </div>
           </div>
         </div>
