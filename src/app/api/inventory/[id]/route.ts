@@ -10,6 +10,7 @@ const updateSchema = z.object({
   name:          z.string().min(1).max(255).optional(),
   minStockLevel: z.number().min(0).optional(),
   outletId:      z.string().uuid().optional(),
+  categoryId: z.string().optional()
 });
 
 export async function GET(

@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { products, stockItems, stockMovements } from "@/db/schema";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { products, stockCategories, stockItems, stockMovements } from "@/db/schema";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { addStockPurchase, adjustStock, logWastage } from "./inventoy";
 
 export type ControllerResult<T> =
@@ -104,6 +104,7 @@ export async function createStockItem(
     unit: "g" | "kg" | "ml" | "L" | "pieces";
     currentStock?: number;
     minStockLevel?: number;
+    categoryId: string;
   },
 ): Promise<ControllerResult<ReturnType<typeof formatStockItem>>> {
   try {
@@ -115,6 +116,7 @@ export async function createStockItem(
         unit: input.unit,
         currentStock: (input.currentStock ?? 0).toFixed(3),
         minStockLevel: (input.minStockLevel ?? 0).toFixed(3),
+        categoryId: input.categoryId,
       })
       .returning();
 
@@ -139,6 +141,30 @@ export async function createStockItem(
 // ─────────────────────────────────────────────
 // LIST STOCK ITEMS
 // ─────────────────────────────────────────────
+// export async function listStockItems(outletId: string) {
+//   const items = await db.query.stockItems.findMany({
+//     where: (s, { eq, and }) =>
+//       and(eq(s.outletId, outletId), eq(s.isActive, true)),
+//     columns: {
+//       id: true,
+//       name: true,
+//       unit: true,
+//       currentStock: true,
+//       minStockLevel: true,
+//       isActive: true,
+//       createdAt: true,
+//     },
+//     orderBy: (s, { asc }) => asc(s.name),
+//   });
+
+//   const formatted = items.map(formatStockItem);
+
+//   return {
+//     stockItems: formatted,
+//     lowStockCount: formatted.filter((i) => i.isLowStock).length,
+//     outOfStockCount: formatted.filter((i) => i.isOutOfStock).length,
+//   };
+// }
 export async function listStockItems(outletId: string) {
   const items = await db.query.stockItems.findMany({
     where: (s, { eq, and }) =>
@@ -151,11 +177,24 @@ export async function listStockItems(outletId: string) {
       minStockLevel: true,
       isActive: true,
       createdAt: true,
+      categoryId: true, 
+    },
+    with: {
+      category: {
+        columns: {
+          id: true,
+          name: true,
+        },
+      },
     },
     orderBy: (s, { asc }) => asc(s.name),
   });
 
-  const formatted = items.map(formatStockItem);
+  const formatted = items.map((item) => ({
+    ...formatStockItem(item),
+    categoryId: item.categoryId,
+    categoryName: item.category?.name ?? null,
+  }));
 
   return {
     stockItems: formatted,
@@ -163,7 +202,6 @@ export async function listStockItems(outletId: string) {
     outOfStockCount: formatted.filter((i) => i.isOutOfStock).length,
   };
 }
-
 // ─────────────────────────────────────────────
 // GET SINGLE STOCK ITEM
 // ─────────────────────────────────────────────
@@ -182,6 +220,14 @@ export async function getStockItemById(
       minStockLevel: true,
       isActive: true,
       createdAt: true,
+      categoryId:true
+    },
+     with: {
+      category: {
+        columns: {
+          name: true,
+        },
+      },
     },
   });
 
@@ -227,12 +273,15 @@ export async function updateStockItem(
   input: {
     name?: string;
     minStockLevel?: number;
+    categoryId?: string;
   },
 ): Promise<ControllerResult<ReturnType<typeof formatStockItem>>> {
   const updateValues: Record<string, unknown> = { updatedAt: new Date() };
   if (input.name !== undefined) updateValues.name = input.name;
   if (input.minStockLevel !== undefined)
     updateValues.minStockLevel = input.minStockLevel.toFixed(3);
+  if (input.categoryId !== undefined)
+    updateValues.categoryId = input.categoryId;
 
   try {
     const [updated] = await db
@@ -264,7 +313,7 @@ export async function updateStockItem(
         status: 409,
       };
     }
-    console.error("updateStockItem error:", error);
+
     return {
       success: false,
       error: "Failed to update stock item",
@@ -365,18 +414,17 @@ export async function wasteStockItem(
 // MANUAL ADJUSTMENT (stocktake)
 // ─────────────────────────────────────────────
 export async function adjustStockItem(
-  outletId:    string,
+  outletId: string,
   stockItemId: string,
-  input:       { newQuantity: number; note?: string },
-  createdBy?:  string
+  input: { newQuantity: number; note?: string },
+  createdBy?: string,
 ): Promise<ControllerResult<{ newStock: number }>> {
-
   const existing = await db.query.stockItems.findFirst({
     where: (s, { eq, and }) =>
       and(
-        eq(s.id,       stockItemId),
+        eq(s.id, stockItemId),
         eq(s.outletId, outletId),
-        eq(s.isActive, true)
+        eq(s.isActive, true),
       ),
     columns: { id: true },
   });
@@ -384,7 +432,7 @@ export async function adjustStockItem(
   if (!existing) {
     return {
       success: false,
-      error:  "Stock item not found or has been deleted",
+      error: "Stock item not found or has been deleted",
       status: 404,
     };
   }
@@ -392,7 +440,7 @@ export async function adjustStockItem(
   if (input.newQuantity < 0) {
     return {
       success: false,
-      error:  "Stock quantity cannot be negative",
+      error: "Stock quantity cannot be negative",
       status: 400,
     };
   }
@@ -402,8 +450,8 @@ export async function adjustStockItem(
   const result = await adjustStock({
     outletId,
     stockItemId,
-    newQuantity: input.newQuantity, 
-    note:        input.note,
+    newQuantity: input.newQuantity,
+    note: input.note,
     createdBy,
   });
 
@@ -478,4 +526,84 @@ export async function getStockMovements(
       total: Number(totalResult[0]?.count ?? 0),
     },
   } as const;
+}
+
+
+// get stock with category
+export async function getStockItemsByCategory(
+  outletId: string,
+  categoryId: string,
+): Promise<
+  ControllerResult<{
+    category: {
+      id: string;
+      name: string;
+    };
+    stockItems: ReturnType<typeof formatStockItem>[];
+    lowStockCount: number;
+    outOfStockCount: number;
+  }>
+> {
+  try {
+    // Check category exists
+    const category = await db.query.stockCategories.findFirst({
+      where: and(
+        eq(stockCategories.id, categoryId),
+        eq(stockCategories.outletId, outletId),
+        eq(stockCategories.isActive, true),
+      ),
+      columns: {
+        id: true,
+        name: true,
+      },
+    });
+
+    if (!category) {
+      return {
+        success: false,
+        error: "Category not found",
+        status: 404,
+      };
+    }
+
+    // Fetch stock items
+    const items = await db.query.stockItems.findMany({
+      where: and(
+        eq(stockItems.outletId, outletId),
+        eq(stockItems.categoryId, categoryId),
+        eq(stockItems.isActive, true),
+      ),
+      columns: {
+        id: true,
+        name: true,
+        unit: true,
+        currentStock: true,
+        minStockLevel: true,
+        isActive: true,
+        createdAt: true,
+      },
+      orderBy: asc(stockItems.name),
+    });
+
+    const formattedItems = items.map(formatStockItem);
+
+    return {
+      success: true,
+      data: {
+        category,
+        stockItems: formattedItems,
+        lowStockCount: formattedItems.filter((item) => item.isLowStock).length,
+        outOfStockCount: formattedItems.filter((item) => item.isOutOfStock)
+          .length,
+      },
+    };
+  } catch (error) {
+    console.error("getStockItemsByCategory error:", error);
+
+    return {
+      success: false,
+      error: "Failed to fetch stock items",
+      status: 500,
+    };
+  }
 }

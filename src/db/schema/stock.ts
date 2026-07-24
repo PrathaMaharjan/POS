@@ -9,6 +9,7 @@ import {
   index,
   uniqueIndex,
   pgEnum,
+  integer,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { outlets, orders, users, products, productVariants } from ".";
@@ -31,6 +32,26 @@ export const stockMovementTypeEnum = pgEnum("stock_movement_type", [
   "adjustment",
 ]);
 
+// ===========================================
+// stock category
+export const stockCategories = pgTable(
+  "stock_categories",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    outletId: uuid("outlet_id")
+      .notNull()
+      .references(() => outlets.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 100 }).notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("sc_outlet_idx").on(t.outletId),
+    uniqueIndex("sc_outlet_name_unique").on(t.outletId, t.name),
+  ],
+);
 // ─────────────────────────────────────────────
 // STOCK ITEMS
 // ─────────────────────────────────────────────
@@ -41,6 +62,8 @@ export const stockItems = pgTable(
     outletId: uuid("outlet_id")
       .notNull()
       .references(() => outlets.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id")
+      .references(() => stockCategories.id, { onDelete: "set null" }), // ← ADDED, nullable
     name: varchar("name", { length: 255 }).notNull(),
     unit: stockUnitEnum("unit").notNull(),
     currentStock: numeric("current_stock", { precision: 10, scale: 3 })
@@ -56,6 +79,7 @@ export const stockItems = pgTable(
   (t) => [
     index("si_outlet_idx").on(t.outletId),
     uniqueIndex("si_outlet_name_unique").on(t.outletId, t.name),
+    index("si_category_idx").on(t.categoryId), 
   ],
 );
 
@@ -111,7 +135,7 @@ export const recipeItems = pgTable(
   (t) => [
     uniqueIndex("ri_recipe_stock_unique").on(t.recipeId, t.stockItemId),
     index("ri_recipe_idx").on(t.recipeId),
-     index("ri_stock_item_idx").on(t.stockItemId),
+    index("ri_stock_item_idx").on(t.stockItemId),
   ],
 );
 
@@ -151,10 +175,20 @@ export const stockMovements = pgTable(
 // ─────────────────────────────────────────────
 // RELATIONS
 // ─────────────────────────────────────────────
+export const stockCategoriesRelations = relations(
+  stockCategories,
+  ({ many }) => ({
+    stockItems: many(stockItems),
+  }),
+);
 export const stockItemsRelations = relations(stockItems, ({ one, many }) => ({
   outlet: one(outlets, {
     fields: [stockItems.outletId],
     references: [outlets.id],
+  }),
+    category: one(stockCategories, {
+    fields: [stockItems.categoryId],
+    references: [stockCategories.id],
   }),
   recipeItems: many(recipeItems),
   stockMovements: many(stockMovements),

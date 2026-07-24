@@ -12,6 +12,7 @@ const createSchema = z.object({
   currentStock:  z.number().min(0).optional(),
   minStockLevel: z.number().min(0).optional(),
   outletId:      z.string().uuid().optional(),
+  categoryId:    z.string()
 });
 
 export async function GET(req: NextRequest) {
